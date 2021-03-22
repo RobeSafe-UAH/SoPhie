@@ -1,7 +1,8 @@
 import numpy as np
 
 from types import SimpleNamespace
-from sophie.modules.layers import VisualExtractor, MLP
+from sophie.modules.layers import MLP
+from sophie.modules.backbones import VisualExtractor
 from sophie.models.sophie import SoPhieDiscriminator
 from sophie.modules.encoders import Encoder
 from sophie.data_loader.ethucy.dataset import read_file
