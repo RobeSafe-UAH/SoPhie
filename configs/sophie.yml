@@ -1,0 +1,21 @@
+# SoPhie configuration file
+visual_extractor:
+    - type: "vgg19"
+    - vgg:
+        - vgg_type: 19
+        - batch_norm: False
+        - pretrained: True
+        - features: True
+
+joint_extractor:
+    - encoder:
+        - mlp:
+            - dim_list: [? 32] # input?
+            - activation: 'relu'
+            - batch_norm: True
+            - dropout: 0
+        - emb_dim: 32 # embedding input from mlp
+        - num_layers: 32 #Numbers of agents (?)
+        - hidden_dim: 32
+        - dropout: 0
+    - 
