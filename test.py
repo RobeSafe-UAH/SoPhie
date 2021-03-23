@@ -58,4 +58,4 @@ def test_read_file():
     print("frames: ", frames)
 
 if __name__ == "__main__":
-    test_read_file()
+    test_visual_extractor()
