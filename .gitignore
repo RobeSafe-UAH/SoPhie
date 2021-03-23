@@ -1,0 +1,21 @@
+## ignore python compiled files
+__pycache__
+*.pyc
+
+sophie/__pycache__
+sophie/*.pyc
+
+sophie/data_loader/__pycache__
+sophie/data_loader/*.pyc
+
+sophie/models/__pycache__
+sophie/models/*.pyc
+
+sophie/modules/__pycache__
+sophie/modules/*.pyc
+
+sophie/trainers/__pycache__
+sophie/trainers/*.pyc
+
+sophie/utils/__pycache__
+sophie/utils/*.pyc

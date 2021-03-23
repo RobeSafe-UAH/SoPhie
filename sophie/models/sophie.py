@@ -5,7 +5,7 @@ from sophie.modules.decoders import Decoder
 from sophie.modules.encoders import Encoder
 from sophie.modules.attention import PhysicalAttention, SocialAttention
 from sophie.modules.layers import MLP
-from sophie.modules.backbones import VisualExtractor, JointExtractor, MLP
+from sophie.modules.backbones import VisualExtractor, JointExtractor
 
 """
 SoPhie implementation based on:
