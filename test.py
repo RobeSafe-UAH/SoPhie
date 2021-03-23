@@ -37,7 +37,7 @@ def test_sophie_discriminator():
 
 def test_encoder():
     opt = {
-        "num_layers": 32,
+        "num_layers": 1,
         "hidden_dim": 32,
         "emb_dim": 16,
         "dropout": 0.4,
