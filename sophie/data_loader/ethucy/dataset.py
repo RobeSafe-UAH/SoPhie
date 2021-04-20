@@ -7,6 +7,8 @@ import torch
 from torch.utils.data.dataset import Dataset
 
 def read_file(_path, delim='tab'):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    print(dir_path)
     data = []
     if delim == 'tab':
         delim = '\t'
@@ -49,7 +51,6 @@ class EthUcyDataset(Dataset):
         self.data_dir = data_dir
         self.obs_len = obs_len
         self.pred_len = pred_len
-        assert(skip == 0), "Skip value cant be zero."
         self.skip = skip
         self.seq_len = self.obs_len + self.pred_len
         self.delim = delim

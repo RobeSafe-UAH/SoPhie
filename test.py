@@ -6,6 +6,7 @@ from sophie.modules.backbones import VisualExtractor
 from sophie.models.sophie import SoPhieDiscriminator
 from sophie.modules.encoders import Encoder
 from sophie.data_loader.ethucy.dataset import read_file
+from sophie.data_loader.ethucy.dataset import EthUcyDataset
 
 
 def test_visual_extractor():
@@ -57,5 +58,12 @@ def test_read_file():
     frames = np.unique(data[:, 0]).tolist()
     print("frames: ", frames)
 
+def test_dataset():
+    path_dataset = "./data/datasets"
+    dataset = EthUcyDataset(path_dataset)
+    return dataset
+
 if __name__ == "__main__":
-    test_visual_extractor()
+    dataset = test_dataset()
+    dataset.prepare_dataset()
+    print("dataset: ", dataset)

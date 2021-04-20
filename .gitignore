@@ -19,3 +19,5 @@ sophie/trainers/*.pyc
 
 sophie/utils/__pycache__
 sophie/utils/*.pyc
+
+data/datasets/
