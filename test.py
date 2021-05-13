@@ -4,10 +4,11 @@ import yaml
 from types import SimpleNamespace
 from sophie.models import SoPhieDiscriminator, SoPhieGenerator
 from sophie.modules.layers import MLP
-from sophie.modules.backbones import VisualExtractor
+from sophie.modules.backbones import VisualExtractor, JointExtractor
 from sophie.modules.encoders import Encoder
 from sophie.modules.classifiers import Classifier
 from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate
+from sophie.modules.decoders import Decoder
 
 from prodict import Prodict
 
@@ -15,6 +16,8 @@ import torch
 from torch import nn
 from torch import rand
 from torch.utils.data import DataLoader
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
@@ -34,6 +37,32 @@ def test_visual_extractor():
     image_test = rand(1,3,600,300).to(device) # batch, channel, H, W
     print(">>> ", vgg_19(image_test).shape) # batch, 512, 18, 9
 
+def test_joint_extractor():
+    opt = {
+        "encoder": {
+            "num_layers": 1,
+            "hidden_dim": 32,
+            "emb_dim": 2,
+            "dropout": 0,
+            "mlp_config": {
+                "dim_list": [2, 32],
+                "activation": 'relu',
+                "batch_norm": False,
+                "dropout": 0
+            }
+        }
+    }
+    opt = Prodict.from_dict(opt)
+
+    joint_extractor = JointExtractor("encoder_sort", opt).to(device)
+    input_trajectory = 10 * np.random.randn(10, 8, 2)
+    input_trajectory = torch.from_numpy(input_trajectory).to(device).float()
+    print("input_trajectory: ", input_trajectory.shape)
+
+    joint_features, _ = joint_extractor(input_trajectory)
+
+    print("joint_features: ", joint_features.shape)
+
 
 def test_mlp():
     opt = {
@@ -42,6 +71,7 @@ def test_mlp():
         "batch_norm": False,
         "dropout": 0
     }
+    opt = Prodict.from_dict(opt)
     mlp = MLP(**opt)
     print(mlp)
 
@@ -62,7 +92,7 @@ def test_sophie_discriminator():
         config_file = yaml.safe_load(config_file)
         config_file = Prodict.from_dict(config_file)
 
-    discriminator = SoPhieDiscriminator(config_file)
+    discriminator = SoPhieDiscriminator(config_file.sophie.discriminator)
     discriminator.build()
     discriminator.to(device)
     discriminator.forward(predicted_trajectory)
@@ -105,7 +135,7 @@ def test_encoder():
     opt = {
         "num_layers": 1,
         "hidden_dim": 32,
-        "emb_dim": 16,
+        "emb_dim": 2,
         "dropout": 0.4,
         "mlp_config": {
             "dim_list": [2, 16],
@@ -124,7 +154,6 @@ def test_read_file():
     print("frames: ", frames)
 
 def test_sophie_generator():
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     batch = 8 # Number of trajectories
     number_of_waypoints = 10 # Waypoints per trajectory 
@@ -155,10 +184,29 @@ def test_dataLoader():
 
     print("laoder: ", loader)
 
+def test_decoder():
+
+    with open(r'./configs/sophie.yml') as config_file:
+        config_file = yaml.safe_load(config_file)
+        config_file = Prodict.from_dict(config_file)
+
+    input_data = np.random.randn(688,2)
+    input_data = torch.from_numpy(input_data).to(device).float()
+
+    print(">>>: ", config_file.sophie.generator.decoder)
+    sophie_decoder = Decoder(config_file.sophie.generator.decoder).to(device)
+    print("sophie_decoder: ", sophie_decoder)
+    trajectories, state_tuple_1 = sophie_decoder(input_data)
+    print("trajectories: ", trajectories.shape)
+    #print("state_tuple_1: ", state_tuple_1)
+
+
 if __name__ == "__main__":
-    test_visual_extractor()
-    #test_sophie_discriminator()
+    #test_visual_extractor() # output: batch, 512, 18, 9
+    #test_joint_extractor() # output: input_len, batch, hidden_dim
+    test_sophie_discriminator()
     # test_read_file()
     # test_mlp()
     # test_encoder()
-    test_dataLoader()
+    #test_dataLoader()
+    #test_decoder()

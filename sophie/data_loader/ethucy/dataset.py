@@ -33,7 +33,6 @@ def seq_collate(data):
 
 def read_file(_path, delim='tab'):
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    print(dir_path)
     data = []
     if delim == 'tab':
         delim = '\t'

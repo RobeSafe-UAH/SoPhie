@@ -44,9 +44,11 @@ class SATAttentionModule(nn.Module):
         self.build_model()
 
     def build_model(self):
-        self.linear = nn.Linear(config.linear.in_features, config.linear.out_features)
+        self.linear = nn.Linear(
+            self.config.linear.in_features, self.config.linear.out_features
+        )
         self.relu  = nn.ReLU()
-        self.softmax = nn.Softmax(config.softmax.dim)
+        self.softmax = nn.Softmax(self.config.softmax.dim)
 
     def forward(self, feature_1, feature_decoder):
         linear_output = self.linear(feature_decoder)

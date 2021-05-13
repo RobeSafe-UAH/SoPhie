@@ -36,14 +36,17 @@ class Encoder(nn.Module):
         - final_h: Tensor of shape (self.num_layers, batch, self.hidden_dim)
         """
 
+        print("spatial_embedding: ", self.spatial_embedding)
+        print("<<<<< ", input_data.shape)
         batch = input_data.size(1)
         input_embedding = self.spatial_embedding(
             input_data.contiguous().view(-1,self.emb_dim)
         )
-
+        print("> ", input_embedding.shape)
         input_embedding = input_embedding.view(
             -1, batch, self.emb_dim
         )
+        print(">> ", input_embedding.shape)
 
         if torch.cuda.is_available():
             input_embedding = input_embedding.float()
@@ -52,6 +55,7 @@ class Encoder(nn.Module):
         state_tuple = self.init_hidden(batch)
 
         output, states = self.encoder(input_embedding, state_tuple)
+        print(">>> ", output.shape)
 
         # print("Output: ", output, output.shape, type(output))
         #print("Output: ", type(output))

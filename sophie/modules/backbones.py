@@ -9,12 +9,12 @@ class JointExtractor(nn.Module):
     In this class add all the joint extractors that will be used in the architecture.
     """
 
-    def __init__(self, joint_extractor_type, **config):
+    def __init__(self, joint_extractor_type, config):
         super(JointExtractor, self).__init__()
         
-        # TODO
-        if joint_extractor_type == "TYPE_A":
-            self.module = lambda a, b: a+b
+        
+        if joint_extractor_type == "encoder_sort":
+            self.module = Encoder(**config.encoder)
         else:
             raise NotImplementedError("Unknown joint extractor module {}.".format(joint_extractor_type))
 

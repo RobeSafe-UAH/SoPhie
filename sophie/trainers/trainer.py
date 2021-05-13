@@ -9,11 +9,13 @@ from prodict import Prodict
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader
 
 from sophie.models import SoPhieGenerator
 from sophie.models import SoPhieDiscriminator
 from sophie.modules.losses import gan_g_loss, gan_d_loss
-from sophie.utils.checkpoint_data import Checkpoint
+from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
+from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate
 
 torch.backends.cudnn.benchmark = True
 
@@ -28,46 +30,60 @@ def init_weights(m):
         nn.init.kaiming_normal_(m.weight)
 
 
-def get_dtypes(args):
+def get_dtypes(use_gpu):
     long_dtype = torch.LongTensor
     float_dtype = torch.FloatTensor
-    if args.use_gpu == 1:
+    if use_gpu == 1:
         long_dtype = torch.cuda.LongTensor
         float_dtype = torch.cuda.FloatTensor
     return long_dtype, float_dtype
 
 
-def main(config):
+def model_trainer(config):
     ##
     #os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_num
-    train_path = get_dset_path(config.dataset_name, 'train')
-    val_path = get_dset_path(config.dataset_name, 'val')
+    train_path = "{}/train".format(config.dataset.path)
+    val_path = "{}/val".format(config.dataset.path)
 
-    long_dtype, float_dtype = get_dtypes(args)
+    long_dtype, float_dtype = get_dtypes(config.use_gpu)
 
     #?> cargar dataset eth
     logger.info("Initializing train dataset") 
-    train_dset, train_loader = data_loader(args, train_path)
-    logger.info("Initializing val dataset")
-    _, val_loader = data_loader(args, val_path)
+    data_train = EthUcyDataset(train_path)
+    train_loader = DataLoader(
+        data_train,
+        batch_size=config.dataset.batch_size,
+        shuffle=config.dataset.shuffle,
+        num_workers=config.dataset.num_workers,
+        collate_fn=seq_collate)
 
-    iterations_per_epoch = len(train_dset) / args.batch_size / args.d_steps
-    if args.num_epochs:
-        args.num_iterations = int(iterations_per_epoch * args.num_epochs)
+    logger.info("Initializing val dataset")
+    data_val = EthUcyDataset(val_path)
+    val_loader = DataLoader(
+        data_val,
+        batch_size=config.dataset.batch_size,
+        shuffle=config.dataset.shuffle,
+        num_workers=config.dataset.num_workers,
+        collate_fn=seq_collate)
+
+    hyperparameters = config.hyperparameters
+    iterations_per_epoch = len(data_train) / config.dataset.batch_size / hyperparameters.d_steps
+    if hyperparameters.num_epochs:
+        hyperparameters.num_iterations = int(iterations_per_epoch * hyperparameters.num_epochs)
 
     logger.info(
         'There are {} iterations per epoch'.format(iterations_per_epoch)
     )
 
     generator = SoPhieGenerator(config.sophie.generator)
-
+    generator.build()
     generator.apply(init_weights)
     generator.type(float_dtype).train()
     logger.info('Generator model:')
     logger.info(generator)
 
     discriminator = SoPhieDiscriminator(config.sophie.discriminator)
-
+    discriminator.build()
     discriminator.apply(init_weights)
     discriminator.type(float_dtype).train()
     logger.info('Discriminator model:')
@@ -76,18 +92,19 @@ def main(config):
     g_loss_fn = gan_g_loss
     d_loss_fn = gan_d_loss
 
-    optimizer_g = optim.Adam(generator.parameters(), lr=args.g_learning_rate)
+    print("======= ", generator.parameters())
+    optimizer_g = optim.Adam(generator.parameters(), lr=hyperparameters.g_learning_rate)
     optimizer_d = optim.Adam(
-        discriminator.parameters(), lr=args.d_learning_rate
+        discriminator.parameters(), lr=hyperparameters.d_learning_rate
     )
-
+    assert(1==0), "TSU!"
     # Maybe restore from checkpoint ?> modificar
     restore_path = None
-    if args.checkpoint_start_from is not None:
-        restore_path = args.checkpoint_start_from
-    elif args.restore_from_checkpoint == 1:
-        restore_path = os.path.join(args.output_dir,
-                                    '%s_with_model.pt' % args.checkpoint_name)
+    if hyperparameters.checkpoint_start_from is not None:
+        restore_path = hyperparameters.checkpoint_start_from
+    elif hyperparameters.restore_from_checkpoint == 1:
+        restore_path = os.path.join(hyperparameters.output_dir,
+                                    '%s_with_model.pt' % hyperparameters.checkpoint_name)
 
     # checkpoint:
     #   g_state, d_state, g_optim_state, d_optim_state, counters { t, epoch }, restore_ts
@@ -105,21 +122,21 @@ def main(config):
         # Starting from scratch, so initialize checkpoint data structure
         checkpoint = Checkpoint()
     t0 = None
-    while t < args.num_iterations:
+    while t < hyperparameters.num_iterations:
         gc.collect()
-        d_steps_left = args.d_steps
-        g_steps_left = args.g_steps
+        d_steps_left = hyperparameters.d_steps
+        g_steps_left = hyperparameters.g_steps
         epoch += 1
         logger.info('Starting epoch {}'.format(epoch))
         for batch in train_loader:
-            if args.timing == 1:
+            if hyperparameters.timing == 1:
                 # ?> Waits for all kernels in all streams on a CUDA device to complete.
                 torch.cuda.synchronize()
                 t1 = time.time()
 
             if d_steps_left > 0:
                 step_type = 'discriminator'
-                losses_d = discriminator_step(args, batch, generator,
+                losses_d = discriminator_step(hyperparameters, batch, generator,
                                               discriminator, d_loss_fn,
                                               optimizer_d)
                 checkpoint.norm_d.append(
@@ -127,7 +144,7 @@ def main(config):
                 d_steps_left -= 1
             elif g_steps_left > 0:
                 step_type = 'generator'
-                losses_g = generator_step(args, batch, generator,
+                losses_g = generator_step(hyperparameters, batch, generator,
                                           discriminator, g_loss_fn,
                                           optimizer_g)
                 checkpoint.norm_g.append(
@@ -135,7 +152,7 @@ def main(config):
                 )
                 g_steps_left -= 1
 
-            if args.timing == 1:
+            if hyperparameters.timing == 1:
                 torch.cuda.synchronize()
                 t2 = time.time()
                 logger.info('Model: {} step took {}'.format(step_type, t2 - t1))
@@ -143,15 +160,15 @@ def main(config):
             if d_steps_left > 0 or g_steps_left > 0:
                 continue
 
-            if args.timing == 1:
+            if hyperparameters.timing == 1:
                 if t0 is not None:
                     logger.info('Iteration {} took {}'.format(
                         t - 1, time.time() - t0
                     ))
                 t0 = time.time()
 
-            if t % args.print_every == 0:
-                logger.info('t = {} / {}'.format(t + 1, args.num_iterations))
+            if t % hyperparameters.print_every == 0:
+                logger.info('t = {} / {}'.format(t + 1, hyperparameters.num_iterations))
                 for k, v in sorted(losses_d.items()):
                     logger.info('  [D] {}: {:.3f}'.format(k, v))
                     checkpoint.D_losses[k].append(v)
@@ -160,7 +177,7 @@ def main(config):
                     checkpoint.G_losses[k].append(v)
                 checkpoint.losses_ts.append(t)
 
-            if t > 0 and t % args.checkpoint_every == 0:
+            if t > 0 and t % hyperparameters.checkpoint_every == 0:
                 checkpoint.counters.t = t
                 checkpoint.counters.epoch = epoch
                 checkpoint.sample_ts.append(t)
@@ -168,11 +185,11 @@ def main(config):
                 # Check stats on the validation set
                 logger.info('Checking stats on val ...')
                 metrics_val = check_accuracy(
-                    args, val_loader, generator, discriminator, d_loss_fn
+                    hyperparameters, val_loader, generator, discriminator, d_loss_fn
                 )
                 logger.info('Checking stats on train ...')
                 metrics_train = check_accuracy(
-                    args, train_loader, generator, discriminator,
+                    hyperparameters, train_loader, generator, discriminator,
                     d_loss_fn, limit=True
                 )
 
@@ -205,7 +222,7 @@ def main(config):
                 checkpoint.d_state = discriminator.state_dict()
                 checkpoint.d_optim_state = optimizer_d.state_dict()
                 checkpoint_path = os.path.join(
-                    args.output_dir, '%s_with_model.pt' % args.checkpoint_name
+                    hyperparameters.output_dir, '%s_with_model.pt' % hyperparameters.checkpoint_name
                 )
                 logger.info('Saving checkpoint to {}'.format(checkpoint_path))
                 torch.save(checkpoint, checkpoint_path)
@@ -214,7 +231,7 @@ def main(config):
                 # Save a checkpoint with no model weights by making a shallow
                 # copy of the checkpoint excluding some items
                 checkpoint_path = os.path.join(
-                    args.output_dir, '%s_no_model.pt' % args.checkpoint_name)
+                    hyperparameters.output_dir, '%s_no_model.pt' % hyperparameters.checkpoint_name)
                 logger.info('Saving checkpoint to {}'.format(checkpoint_path))
                 key_blacklist = [
                     'g_state', 'd_state', 'g_best_state', 'g_best_nl_state',
@@ -229,14 +246,14 @@ def main(config):
                 logger.info('Done.')
 
             t += 1
-            d_steps_left = args.d_steps
-            g_steps_left = args.g_steps
-            if t >= args.num_iterations:
+            d_steps_left = hyperparameters.d_steps
+            g_steps_left = hyperparameters.g_steps
+            if t >= hyperparameters.num_iterations:
                 break
 
 
 def discriminator_step(
-    args, batch, generator, discriminator, d_loss_fn, optimizer_d
+    hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d
 ):
     batch = [tensor.cuda() for tensor in batch]
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
@@ -265,16 +282,16 @@ def discriminator_step(
 
     optimizer_d.zero_grad()
     loss.backward()
-    if args.clipping_threshold_d > 0:
+    if hyperparameters.clipping_threshold_d > 0:
         nn.utils.clip_grad_norm_(discriminator.parameters(),
-                                 args.clipping_threshold_d)
+                                 hyperparameters.clipping_threshold_d)
     optimizer_d.step()
 
     return losses
 
 
 def generator_step(
-    args, batch, generator, discriminator, g_loss_fn, optimizer_g
+    hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g
 ):
     batch = [tensor.cuda() for tensor in batch]
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
@@ -283,23 +300,23 @@ def generator_step(
     loss = torch.zeros(1).to(pred_traj_gt)
     g_l2_loss_rel = []
 
-    loss_mask = loss_mask[:, args.obs_len:]
+    loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
-    for _ in range(args.best_k):
+    for _ in range(hyperparameters.best_k):
         generator_out = generator(obs_traj, obs_traj_rel, seq_start_end)
 
         pred_traj_fake_rel = generator_out
         pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
 
-        if args.l2_loss_weight > 0:
-            g_l2_loss_rel.append(args.l2_loss_weight * l2_loss(
+        if hyperparameters.l2_loss_weight > 0:
+            g_l2_loss_rel.append(hyperparameters.l2_loss_weight * l2_loss(
                 pred_traj_fake_rel,
                 pred_traj_gt_rel,
                 loss_mask,
                 mode='raw'))
 
     g_l2_loss_sum_rel = torch.zeros(1).to(pred_traj_gt)
-    if args.l2_loss_weight > 0:
+    if hyperparameters.l2_loss_weight > 0:
         g_l2_loss_rel = torch.stack(g_l2_loss_rel, dim=1)
         for start, end in seq_start_end.data:
             _g_l2_loss_rel = g_l2_loss_rel[start:end]
@@ -322,9 +339,9 @@ def generator_step(
 
     optimizer_g.zero_grad()
     loss.backward()
-    if args.clipping_threshold_g > 0:
+    if hyperparameters.clipping_threshold_g > 0:
         nn.utils.clip_grad_norm_(
-            generator.parameters(), args.clipping_threshold_g
+            generator.parameters(), hyperparameters.clipping_threshold_g
         )
     optimizer_g.step()
 
@@ -332,7 +349,7 @@ def generator_step(
 
 
 def check_accuracy(
-    args, loader, generator, discriminator, d_loss_fn, limit=False
+    hyperparameters, loader, generator, discriminator, d_loss_fn, limit=False
 ):
     d_losses = []
     metrics = {}
@@ -348,7 +365,7 @@ def check_accuracy(
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
              non_linear_ped, loss_mask, seq_start_end) = batch
             linear_ped = 1 - non_linear_ped
-            loss_mask = loss_mask[:, args.obs_len:]
+            loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
             pred_traj_fake_rel = generator(
                 obs_traj, obs_traj_rel, seq_start_end
@@ -391,24 +408,24 @@ def check_accuracy(
             total_traj += pred_traj_gt.size(1)
             total_traj_l += torch.sum(linear_ped).item()
             total_traj_nl += torch.sum(non_linear_ped).item()
-            if limit and total_traj >= args.num_samples_check:
+            if limit and total_traj >= hyperparameters.num_samples_check:
                 break
 
     metrics['d_loss'] = sum(d_losses) / len(d_losses)
     metrics['g_l2_loss_abs'] = sum(g_l2_losses_abs) / loss_mask_sum
     metrics['g_l2_loss_rel'] = sum(g_l2_losses_rel) / loss_mask_sum
 
-    metrics['ade'] = sum(disp_error) / (total_traj * args.pred_len)
+    metrics['ade'] = sum(disp_error) / (total_traj * hyperparameters.pred_len)
     metrics['fde'] = sum(f_disp_error) / total_traj
     if total_traj_l != 0:
-        metrics['ade_l'] = sum(disp_error_l) / (total_traj_l * args.pred_len)
+        metrics['ade_l'] = sum(disp_error_l) / (total_traj_l * hyperparameters.pred_len)
         metrics['fde_l'] = sum(f_disp_error_l) / total_traj_l
     else:
         metrics['ade_l'] = 0
         metrics['fde_l'] = 0
     if total_traj_nl != 0:
         metrics['ade_nl'] = sum(disp_error_nl) / (
-            total_traj_nl * args.pred_len)
+            total_traj_nl * hyperparameters.pred_len)
         metrics['fde_nl'] = sum(f_disp_error_nl) / total_traj_nl
     else:
         metrics['ade_nl'] = 0
@@ -450,10 +467,3 @@ def cal_fde(
     )
     return fde, fde_l, fde_nl
 
-
-if __name__ == '__main__':
-    #args = parser.parse_args()
-    with open("/home/fkite/git-personal/SoPhie/configs/sophie.yml") as config_file:
-        config_file = yaml.safe_load(config_file)
-        config_file = Prodict.from_dict(config_file)
-    main(config_file)

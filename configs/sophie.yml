@@ -2,6 +2,11 @@
 # SoPhie model
 use_gpu: 1
 dataset_name: ethucy
+dataset:
+    path: /home/robesafe/git/SoPhie/data/datasets/eth
+    batch_size: 64
+    shuffle: True
+    num_workers: 4
 sophie:
     generator: 
         # Visual Extractor (CNN)
@@ -15,16 +20,45 @@ sophie:
 
         # Joint Extractor
         joint_extractor:
-            encoder:
-                num_layers: 32 # Numbers of agents (?)
-                hidden_dim: 32
-                emb_dim: 32 # embedding input from mlp
-                mlp_config:
-                    dim_list: [? 32] # input?
-                    activation: 'relu'
-                    batch_norm: True
+            type: "encoder_sort"
+            config:
+                encoder:
+                    num_layers: 1 # Numbers of agents
+                    hidden_dim: 32
+                    emb_dim: 2 # embedding input from mlp
+                    mlp_config:
+                        dim_list: [2 32] # input
+                        activation: 'relu'
+                        batch_norm: False
+                        dropout: 0
                     dropout: 0
-                dropout: 0
+        physical_attention:
+            linear:
+                in_features: 1
+                out_features: 1
+            softmax:
+                dim: 0
+        social_attention:
+            linear:
+                in_features: 1
+                out_features: 1
+            softmax:
+                dim: 0
+        decoder:
+            num_layers: 1
+            hidden_dim: 128 #&h_dim
+            emb_dim: 64
+            dropout: 0
+            seq_len: 8
+            linear_1:
+                input_dim: 2
+                output_dim: 64
+            linear_2:
+                input_dim: 128 # *h_dim
+                output_dim: 2
+        noise:
+            dims: [1,2]
+            noise_type: "gauss" # gauss or uniform
 
     discriminator:
         # Encoder
@@ -36,8 +70,8 @@ sophie:
                 dim_list: [2 16] 
                 activation: 'relu'
                 batch_norm: False
-                dropout: 0.4
-            dropout: 0.4
+                dropout: 0
+            dropout: 0
 
         # Classifier
         classifier:
@@ -45,12 +79,13 @@ sophie:
                 dim_list: [640, 320, 160, 80, 40, 16, 2] # Input: (hidden_dim) ; Output: (2 (Fake or True))
                 activation: 'relu'
                 batch_norm: False
-                dropout: 0.4
+                dropout: 0
 
 hyperparameters:
-    g_learning_rate: 5e-4
-    d_learning_rate: 5e-4
+    g_learning_rate: 5.0e-4
+    d_learning_rate: 5.0e-4
     num_iterations: 20000
+    num_epochs: 250
     d_steps: 2
     g_steps: 1
     timing: 1 # ?> Waits for all kernels in all streams on a CUDA device to complete.
@@ -58,3 +93,12 @@ hyperparameters:
     checkpoint_every: 500
     output_dir: "PATH"
     checkpoint_name: "name"
+    checkpoint_start_from: None
+    restore_from_checkpoint: None
+    clipping_threshold_d: 0
+    clipping_threshold_g: 0
+    obs_len: 8
+    best_k: 1
+    l2_loss_weight: 0
+    num_samples_check: 5000
+    pred_len: 8

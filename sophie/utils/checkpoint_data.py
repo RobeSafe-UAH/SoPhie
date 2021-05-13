@@ -1,7 +1,9 @@
+from collections import defaultdict
+
 class Checkpoint():
 
     def __init__(self):
-        self.args = args.__dict__
+        #self.args = args.__dict__
         self.G_losses = defaultdict(list)
         self.D_losses = defaultdict(list)
         self.losses_ts = []
@@ -12,8 +14,8 @@ class Checkpoint():
         self.norm_g = []
         self.norm_d = []
         self.counters = {
-            t: None,
-            epoch: None,
+            "t": None,
+            "epoch": None,
         }
         self.g_state = None
         self.g_optim_state = None
@@ -48,3 +50,18 @@ class Checkpoint():
         self.g_best_nl_state = config.g_best_nl_state
         self.d_best_state_nl = config.d_best_state_nl
         self.best_t_nl = config.best_t_nl
+
+
+def get_total_norm(parameters, norm_type=2):
+    if norm_type == float('inf'):
+        total_norm = max(p.grad.data.abs().max() for p in parameters)
+    else:
+        total_norm = 0
+        for p in parameters:
+            try:
+                param_norm = p.grad.data.norm(norm_type)
+                total_norm += param_norm**norm_type
+                total_norm = total_norm**(1. / norm_type)
+            except:
+                continue
+    return total_norm
