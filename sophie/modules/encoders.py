@@ -22,10 +22,11 @@ class Encoder(nn.Module):
         )
 
     def init_hidden(self, batch):
-        return (
-            torch.zeros(self.num_layers, batch, self.hidden_dim).cuda(),
-            torch.zeros(self.num_layers, batch, self.hidden_dim).cuda()
-        )
+        if torch.cuda.is_available():
+            return (
+                torch.zeros(self.num_layers, batch, self.hidden_dim).cuda(), # Hidden state at time 0
+                torch.zeros(self.num_layers, batch, self.hidden_dim).cuda()  # Cell state at time 0
+            )
 
     def forward(self,input_data):
         """
@@ -34,14 +35,28 @@ class Encoder(nn.Module):
         Output:
         - final_h: Tensor of shape (self.num_layers, batch, self.hidden_dim)
         """
+
         batch = input_data.size(1)
         input_embedding = self.spatial_embedding(
-            input_data.contiguous().view(-1,2)
+            input_data.contiguous().view(-1,self.emb_dim)
         )
+
         input_embedding = input_embedding.view(
             -1, batch, self.emb_dim
         )
+
+        if torch.cuda.is_available():
+            input_embedding = input_embedding.float()
+            input_embedding = input_embedding.cuda()
+
         state_tuple = self.init_hidden(batch)
-        output, state = self.encoder(input_embedding, state_tuple)
-        final_h = state[0]
+
+        output, states = self.encoder(input_embedding, state_tuple)
+
+        # print("Output: ", output, output.shape, type(output))
+        #print("Output: ", type(output))
+        # print("Hidden states: ", states[0], states[0].shape)
+        # print("Cell states: ", states[1], states[1].shape)
+
+        final_h = states[0]
         return output, final_h

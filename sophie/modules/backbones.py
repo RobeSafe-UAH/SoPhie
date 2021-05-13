@@ -45,7 +45,13 @@ class VGG(nn.Module):
         self.module = load_VGG_model(**config)
 
     def forward(self, data_input):
-        return 1
+        """
+            Input shape: Batch, Channels_in, H_in, W_in
+            Output shape: Batch, Channels_out, H_out, W_out
+            ?> CHECK DIMENSION BEFORE FORWARD
+        """
+        image_feature_map = self.module(data_input)
+        return image_feature_map
 
 
 class SortJointExtractor(nn.Module):

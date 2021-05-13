@@ -1,21 +1,60 @@
 # SoPhie configuration file
-visual_extractor:
-    - type: "vgg19"
-    - vgg:
-        - vgg_type: 19
-        - batch_norm: False
-        - pretrained: True
-        - features: True
+# SoPhie model
+use_gpu: 1
+dataset_name: ethucy
+sophie:
+    generator: 
+        # Visual Extractor (CNN)
+        visual_extractor:
+            type: "vgg19"
+            vgg:
+                vgg_type: 19
+                batch_norm: False
+                pretrained: True
+                features: True
 
-joint_extractor:
-    - encoder:
-        - mlp:
-            - dim_list: [? 32] # input?
-            - activation: 'relu'
-            - batch_norm: True
-            - dropout: 0
-        - emb_dim: 32 # embedding input from mlp
-        - num_layers: 32 #Numbers of agents (?)
-        - hidden_dim: 32
-        - dropout: 0
-    - 
+        # Joint Extractor
+        joint_extractor:
+            encoder:
+                num_layers: 32 # Numbers of agents (?)
+                hidden_dim: 32
+                emb_dim: 32 # embedding input from mlp
+                mlp_config:
+                    dim_list: [? 32] # input?
+                    activation: 'relu'
+                    batch_norm: True
+                    dropout: 0
+                dropout: 0
+
+    discriminator:
+        # Encoder
+        encoder:
+            num_layers: 1
+            hidden_dim: 64
+            emb_dim: 2 # Bidimensional points (xy)
+            mlp_config:
+                dim_list: [2 16] 
+                activation: 'relu'
+                batch_norm: False
+                dropout: 0.4
+            dropout: 0.4
+
+        # Classifier
+        classifier:
+            mlp_config:
+                dim_list: [640, 320, 160, 80, 40, 16, 2] # Input: (hidden_dim) ; Output: (2 (Fake or True))
+                activation: 'relu'
+                batch_norm: False
+                dropout: 0.4
+
+hyperparameters:
+    g_learning_rate: 5e-4
+    d_learning_rate: 5e-4
+    num_iterations: 20000
+    d_steps: 2
+    g_steps: 1
+    timing: 1 # ?> Waits for all kernels in all streams on a CUDA device to complete.
+    print_every: 100
+    checkpoint_every: 500
+    output_dir: "PATH"
+    checkpoint_name: "name"

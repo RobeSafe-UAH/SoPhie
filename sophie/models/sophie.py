@@ -3,7 +3,8 @@ from torch import nn
 
 from sophie.modules.decoders import Decoder
 from sophie.modules.encoders import Encoder
-from sophie.modules.attention import PhysicalAttention, SocialAttention
+from sophie.modules.classifiers import Classifier
+from sophie.modules.attention import PhysicalAttention, SocialAttention, SATAttentionModule
 from sophie.modules.layers import MLP
 from sophie.modules.backbones import VisualExtractor, JointExtractor
 
@@ -27,8 +28,10 @@ class SoPhieGenerator(nn.Module):
         self.joint_feature_extractor = JointExtractor(self.config.generator.joint_features)
 
     def _build_Attention_modules(self):
-        self.physical_attention = PhysicalAttention(self.config.generator.physical_attention)
-        self.social_attention = SocialAttention(self.config.generator.social_attention)
+        # self.physical_attention = PhysicalAttention(self.config.generator.physical_attention)
+        # self.social_attention = SocialAttention(self.config.generator.social_attention)
+        self.physical_attention = SATAttentionModule(self.config.generator.physical_attention)
+        self.social_attention = SATAttentionModule(self.config.generator.social_attention)
 
     def _build_decoder_module(self):
         self.generator_decoder = Decoder(self.config.generator.decoder)
@@ -69,7 +72,7 @@ class SoPhieGenerator(nn.Module):
         """
         return 1
 
-    def process_decoder_gan(self, *args):
+    def process_decoder(self, *args):
         """
         Define
         """
@@ -86,7 +89,6 @@ class SoPhieGenerator(nn.Module):
         pred_traj = self.process_decoder_gan(attention_features_noise)
         return pred_traj
 
-
 class SoPhieDiscriminator(nn.Module):
 
     def __init__(self, config):
@@ -94,22 +96,39 @@ class SoPhieDiscriminator(nn.Module):
         self.config = config
 
     def build(self):
-        self.encoder_discriminator = self._build_encoder_module()
-        self.classifier_discriminator = self._build_classifier_module()
+        self.encoder = self._build_encoder_module()
+        self.classifier = self._build_classifier_module()
 
     def _build_encoder_module(self):
-        return Encoder(**self.config.discriminator.encoder)
+        return Encoder(**self.config.sophie.discriminator.encoder)
 
     def _build_classifier_module(self):
-        return MLP(**self.config.classifier)
+        return Classifier(**self.config.sophie.discriminator.classifier)
 
-    def process_encoder_gan(self, *args):
+    def process_encoder(self, predicted_trajectory):
         """
         Define
         """
-        return 1
 
-    def forward(self, traj):
-        traj_classified = self.process_encoder_gan(traj)
-        return traj_classified
+        encoded_trajectory, _ = self.encoder(predicted_trajectory) 
+        return encoded_trajectory
 
+    def process_classifier(self, encoded_trajectory):
+        """
+        Define
+        """
+
+        classified_trajectory = self.classifier(encoded_trajectory)
+        return classified_trajectory
+
+    def forward(self, predicted_trajectory): # Either groundtruth or generated
+        """
+        Define
+        """
+
+        encoded_trajectory = self.process_encoder(predicted_trajectory)
+        classified_trajectory = self.process_classifier(encoded_trajectory)
+
+        print("Classified trajectories: ", classified_trajectory)
+        
+        return classified_trajectory

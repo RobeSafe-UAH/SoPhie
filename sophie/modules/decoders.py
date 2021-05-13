@@ -29,7 +29,7 @@ class Decoder(nn.Module):
 
     def forward(self,input_data):
         """
-        Define
+        Define => modificar
         """
         batch = input_data.size(1)
         input_embedding = self.spatial_embedding(
@@ -39,6 +39,6 @@ class Decoder(nn.Module):
             -1, batch, self.emb_dim
         )
         state_tuple = self.init_hidden(batch)
-        output, state = self.encoder(input_embedding, state_tuple)
+        output, state = self.decoder(input_embedding, state_tuple)
         final_h = state[0]
         return output, final_h
