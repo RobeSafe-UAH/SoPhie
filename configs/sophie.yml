@@ -27,7 +27,7 @@ sophie:
                     hidden_dim: 32
                     emb_dim: 2 # embedding input from mlp
                     mlp_config:
-                        dim_list: [2 32] # input
+                        dim_list: [2, 32] # input
                         activation: 'relu'
                         batch_norm: False
                         dropout: 0
@@ -67,7 +67,7 @@ sophie:
             hidden_dim: 64
             emb_dim: 2 # Bidimensional points (xy)
             mlp_config:
-                dim_list: [2 16] 
+                dim_list: [2, 16] 
                 activation: 'relu'
                 batch_norm: False
                 dropout: 0

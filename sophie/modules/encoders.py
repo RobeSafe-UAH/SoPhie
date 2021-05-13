@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-
+from prodict import Prodict
 from sophie.modules.layers import MLP
 
 class Encoder(nn.Module):
@@ -12,7 +12,6 @@ class Encoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.emb_dim = emb_dim
         self.encoder_dropout = dropout
-
         self.spatial_embedding = MLP(**mlp_config) # nn.Linear(x, emb_dim_mlp)
         self.encoder = nn.LSTM(
             self.emb_dim,
@@ -58,7 +57,7 @@ class Encoder(nn.Module):
         print(">>> ", output.shape)
 
         # print("Output: ", output, output.shape, type(output))
-        #print("Output: ", type(output))
+        # print("Output: ", type(output))
         # print("Hidden states: ", states[0], states[0].shape)
         # print("Cell states: ", states[1], states[1].shape)
 

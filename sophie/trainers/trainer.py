@@ -42,6 +42,7 @@ def get_dtypes(use_gpu):
 def model_trainer(config):
     ##
     #os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_num
+
     train_path = "{}/train".format(config.dataset.path)
     val_path = "{}/val".format(config.dataset.path)
 
