@@ -9,6 +9,7 @@ from sophie.modules.encoders import Encoder
 from sophie.modules.classifiers import Classifier
 from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate
 from sophie.modules.decoders import Decoder
+from sophie.modules.attention import SATAttentionModule
 
 from prodict import Prodict
 
@@ -19,10 +20,9 @@ from torch.utils.data import DataLoader
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-class AttrDict(dict):
-    def __init__(self, *args, **kwargs):
-        super(AttrDict, self).__init__(*args, **kwargs)
-        self.__dict__ = self
+with open(r'./configs/sophie.yml') as config_file:
+        config_file = yaml.safe_load(config_file)
+        config_file = Prodict.from_dict(config_file)
 
 def test_visual_extractor():
     opt = {
@@ -80,13 +80,11 @@ def test_sophie_discriminator():
     """
     """
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
     batch = 8 # Number of trajectories
     number_of_waypoints = 10 # Waypoints per trajectory 
     points_dim = 2 # xy
     predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, points_dim)
-    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device)
+    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
 
     with open(r'./configs/sophie.yml') as config_file:
         config_file = yaml.safe_load(config_file)
@@ -96,40 +94,6 @@ def test_sophie_discriminator():
     discriminator.build()
     discriminator.to(device)
     discriminator.forward(predicted_trajectory)
-
-    """
-    opt_encoder = { # LSTM based encoder
-        "num_layers": 1, # 1 LSTM
-        "hidden_dim": 64, # 64 hidden states
-        "emb_dim": 16, # Embedded dimension (the output dim of previous MLP is the embedding input of LSTM layer)
-        "dropout": 0.4,
-        "mlp_config": {
-            "dim_list": [2, 16], # Input dim?
-            "activation": 'relu',
-            "batch_norm": False,
-            "dropout": 0.4
-        }
-    }
-    encoder_discriminator = Encoder(**opt_encoder)
-    # Classifier
-    
-    # ?¿?¿ Another MLP for the discriminator ?
-    opt_classifier = { # LSTM based encoder
-        "softmax_dim": 1,
-        "mlp_config": {
-            "dim_list": [2, 16], # Input dim?
-            "activation": 'relu',
-            "batch_norm": False,
-            "dropout": 0.4
-        }
-    }
-    softmax_dim = 1
-    classifier_discriminator = Classifier(**opt_classifier)
-    
-    print("Discriminator: ")
-    print("Encoder: ", encoder_discriminator)
-    print("Classifier: ", classifier_discriminator)
-    """
 
 def test_encoder():
     opt = {
@@ -182,7 +146,7 @@ def test_dataLoader():
         num_workers=loader_num_workers,
         collate_fn=seq_collate)
 
-    print("laoder: ", loader)
+    print("loader: ", loader)
 
 def test_decoder():
 
@@ -200,13 +164,104 @@ def test_decoder():
     print("trajectories: ", trajectories.shape)
     #print("state_tuple_1: ", state_tuple_1)
 
+def test_physical_attention_model():
+    """
+    """
+
+    # Feature 1 (Visual Extractor)
+
+    batch = 1
+    channels = 512
+    width = 18
+    height = 18
+    visual_extractor_features = 10 * np.random.randn(batch, channels, width, height)
+    visual_extractor_features = torch.from_numpy(visual_extractor_features).to(device).float()
+
+    # Feature decoder
+
+    dim_features = 128 # dim_features
+    number_of_waypoints = 10 # Waypoints per trajectory 
+    batch = 2 # xy
+    predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, dim_features)
+    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
+
+    print("Physical attention config: ", config_file.sophie.generator.physical_attention)
+    physical_attention_module = SATAttentionModule(config_file.sophie.generator.physical_attention).to(device)
+    print("Physical Attention Module: ", physical_attention_module)
+
+    alpha, context_vector = physical_attention_module.forward(visual_extractor_features, predicted_trajectory)
+
+    print("Alpha: ", alpha, alpha.shape)
+    print("Context vector: ", context_vector, context_vector.shape)
+
+    return context_vector
+
+def test_social_attention_model():
+    """
+    """
+    print("\n")
+    # Feature 1 (Joint Extractor)
+
+    length = 8 # How many previous timesteps we observe for each agent
+    batch = 32 # Number of agents
+    hidden_dim = 32 # Features dimension
+ 
+    joint_extractor_features = 10 * np.random.randn(length, batch, hidden_dim)
+    joint_extractor_features = torch.from_numpy(joint_extractor_features).to(device).float()
+
+    # Feature decoder
+
+    dim_features = 128 # dim_features
+    number_of_waypoints = 10 # Waypoints per trajectory 
+    batch = 2 # xy
+    predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, dim_features)
+    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
+
+    print("Social attention config: ", config_file.sophie.generator.social_attention)
+    social_attention_module = SATAttentionModule(config_file.sophie.generator.social_attention).to(device)
+    print("Social Attention Module: ", social_attention_module)
+
+    alpha, context_vector = social_attention_module.forward(joint_extractor_features, predicted_trajectory)
+
+    print("Alpha: ", alpha, alpha.shape)
+    print("Context vector: ", context_vector, context_vector.shape)
+
+    return context_vector
+
+def test_concat_features():
+    """
+    """
+
+    physical_context_vector = test_physical_attention_model()
+    social_context_vector = test_social_attention_model()
+
+    attention_features = torch.cat((physical_context_vector, social_context_vector), 0)
+
+    generator = SoPhieGenerator(config_file.sophie.generator)
+    print("Noise type: ", generator.config.noise.noise_type)
+    print("Dims: ", generator.config.noise.dims)
+    generator.build()
+    generator.to(device)
+
+    noise = generator.create_white_noise(
+        generator.config.noise.noise_type,
+        generator.config.noise.dims
+    )
+    features_noise = generator.add_white_noise(attention_features, noise)
+    pred_traj = generator.process_decoder(features_noise)
+    print("\n\nPred_traj: ", pred_traj)
+    return pred_traj
 
 if __name__ == "__main__":
-    #test_visual_extractor() # output: batch, 512, 18, 9
-    #test_joint_extractor() # output: input_len, batch, hidden_dim
-    test_sophie_discriminator()
+    # test_visual_extractor() # output: batch, 512, 18, 9
+    # test_joint_extractor() # output: input_len, batch, hidden_dim
     # test_read_file()
     # test_mlp()
     # test_encoder()
-    #test_dataLoader()
-    #test_decoder()
+    # test_dataLoader()
+    # test_decoder()
+    # test_physical_attention_model()
+    # test_social_attention_model()
+    # test_concat_features()
+    test_sophie_discriminator()
+    

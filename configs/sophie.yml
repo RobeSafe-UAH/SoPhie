@@ -3,7 +3,7 @@
 use_gpu: 1
 dataset_name: ethucy
 dataset:
-    path: /home/robesafe/git/SoPhie/data/datasets/eth
+    path: ../data/datasets/eth
     batch_size: 64
     shuffle: True
     num_workers: 4
@@ -33,15 +33,21 @@ sophie:
                         dropout: 0
                     dropout: 0
         physical_attention:
-            linear:
-                in_features: 1
-                out_features: 1
+            linear_decoder:
+                in_features: 128
+                out_features: 512
+            linear_feature:
+                in_features: 324 # From 600x600 images to 18x18 (=324) activation maps
+                out_features: 2
             softmax:
                 dim: 0
         social_attention:
-            linear:
-                in_features: 1
-                out_features: 1
+            linear_decoder:
+                in_features: 128
+                out_features: 256 # 8 (observations length) x 32 (batch = number of agents)
+            linear_feature:
+                in_features: 32
+                out_features: 2
             softmax:
                 dim: 0
         decoder:
@@ -54,7 +60,7 @@ sophie:
                 input_dim: 2
                 output_dim: 64
             linear_2:
-                input_dim: 128 # *h_dim
+                input_dim: 128 #*h_dim
                 output_dim: 2
         noise:
             dims: [1,2]
@@ -76,7 +82,7 @@ sophie:
         # Classifier
         classifier:
             mlp_config:
-                dim_list: [640, 320, 160, 80, 40, 16, 2] # Input: (hidden_dim) ; Output: (2 (Fake or True))
+                dim_list: [640, 320, 160, 80, 40, 16, 2] 
                 activation: 'relu'
                 batch_norm: False
                 dropout: 0
