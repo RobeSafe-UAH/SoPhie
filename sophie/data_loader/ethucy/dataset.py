@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import math
+import cv2
 
 import torch
 from torch.utils.data.dataset import Dataset
@@ -165,6 +166,20 @@ class EthUcyDataset(Dataset):
             (start, end)
             for start, end in zip(cum_start_idx, cum_start_idx[1:])
         ]
+        self.images = torch.from_numpy(
+            images[:].type(torch.float)
+        )
+
+    def read_video(self, path, new_shape):
+        cap = cv2.VideoCapture(path)
+        frames_list = []
+        while (cap.isOpened()):
+
+            ret, frame = cap.read()
+            re_frame = cv2.resize(frame, new_shape)
+            frames_list.append(re_frame)
+
+        return frames_list
 
     def __len__(self):
         return self.num_seq

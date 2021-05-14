@@ -1,5 +1,6 @@
 import numpy as np
 import yaml
+import cv2
 
 from types import SimpleNamespace
 from sophie.models import SoPhieDiscriminator, SoPhieGenerator
@@ -252,6 +253,20 @@ def test_concat_features():
 
     return pred_traj
 
+def read_video(path, new_shape):
+    cap = cv2.VideoCapture(path)
+    frames_list = []
+    while (cap.isOpened()):
+
+        _, frame = cap.read()
+        print("frame: ", frame.shape)
+        re_frame = cv2.resize(frame, new_shape)
+        print("re_frame: ", re_frame.shape)
+        frames_list.append(re_frame)
+        assert 1 == 0, "TSU"
+
+    return frames_list
+
 if __name__ == "__main__":
     # test_visual_extractor() # output: batch, 512, 18, 9
     # test_joint_extractor() # output: input_len, batch, hidden_dim
@@ -262,6 +277,10 @@ if __name__ == "__main__":
     # test_decoder()
     # test_physical_attention_model()
     # test_social_attention_model()
-    test_concat_features()
+    # test_concat_features()
     # test_sophie_discriminator()
-    
+
+    path_video = "/home/fkite/dataset/biwi_eth/ewap_dataset_full/ewap_dataset/seq_eth/seq_eth.avi"
+    image_list = read_video(path_video, (600,600))
+
+    print("image_list: ", image_list, len(image_list))
