@@ -24,6 +24,30 @@ with open(r'./configs/sophie.yml') as config_file:
         config_file = yaml.safe_load(config_file)
         config_file = Prodict.from_dict(config_file)
 
+# Read data
+
+def test_read_file():
+    data = read_file("./data_test.txt", "tab")
+    print("data: ", data)
+    frames = np.unique(data[:, 0]).tolist()
+    print("frames: ", frames)
+
+def test_dataLoader():
+    data = EthUcyDataset("./data/datasets/eth/train")
+    print(data)
+    batch_size = 64
+    loader_num_workers = 4
+    loader = DataLoader(
+        data,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=loader_num_workers,
+        collate_fn=seq_collate)
+
+    print("loader: ", loader)
+
+# Extractors
+
 def test_visual_extractor():
     opt = {
         "vgg_type": 19,
@@ -63,106 +87,7 @@ def test_joint_extractor():
 
     print("joint_features: ", joint_features.shape)
 
-
-def test_mlp():
-    opt = {
-        "dim_list": [2, 64],
-        "activation": 'relu',
-        "batch_norm": False,
-        "dropout": 0
-    }
-    opt = Prodict.from_dict(opt)
-    mlp = MLP(**opt)
-    print(mlp)
-
-
-def test_sophie_discriminator():
-    """
-    """
-
-    batch = 8 # Number of trajectories
-    number_of_waypoints = 10 # Waypoints per trajectory 
-    points_dim = 2 # xy
-    predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, points_dim)
-    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
-
-    with open(r'./configs/sophie.yml') as config_file:
-        config_file = yaml.safe_load(config_file)
-        config_file = Prodict.from_dict(config_file)
-
-    discriminator = SoPhieDiscriminator(config_file.sophie.discriminator)
-    discriminator.build()
-    discriminator.to(device)
-    discriminator.forward(predicted_trajectory)
-
-def test_encoder():
-    opt = {
-        "num_layers": 1,
-        "hidden_dim": 32,
-        "emb_dim": 2,
-        "dropout": 0.4,
-        "mlp_config": {
-            "dim_list": [2, 16],
-            "activation": 'relu',
-            "batch_norm": False,
-            "dropout": 0.4
-        }
-    }
-    encoder = Encoder(**opt)
-    print(encoder)
-
-def test_read_file():
-    data = read_file("./data_test.txt", "tab")
-    print("data: ", data)
-    frames = np.unique(data[:, 0]).tolist()
-    print("frames: ", frames)
-
-def test_sophie_generator():
-
-    batch = 8 # Number of trajectories
-    number_of_waypoints = 10 # Waypoints per trajectory 
-    points_dim = 2 # xy
-    predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, points_dim)
-    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device)
-
-    with open(r'./configs/sophie.yml') as config_file:
-        config_file = yaml.safe_load(config_file)
-        config_file = Prodict.from_dict(config_file)
-
-    discriminator = SoPhieGenerator(config_file)
-    discriminator.build()
-    discriminator.to(device)
-    discriminator.forward(predicted_trajectory)
-
-def test_dataLoader():
-    data = EthUcyDataset("/home/fkite/git-personal/SoPhie/data/datasets/eth/train")
-    print(data)
-    batch_size = 64
-    loader_num_workers = 4
-    loader = DataLoader(
-        data,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=loader_num_workers,
-        collate_fn=seq_collate)
-
-    print("loader: ", loader)
-
-def test_decoder():
-
-    with open(r'./configs/sophie.yml') as config_file:
-        config_file = yaml.safe_load(config_file)
-        config_file = Prodict.from_dict(config_file)
-
-    input_data = np.random.randn(688,2)
-    input_data = torch.from_numpy(input_data).to(device).float()
-
-    print(">>>: ", config_file.sophie.generator.decoder)
-    sophie_decoder = Decoder(config_file.sophie.generator.decoder).to(device)
-    print("sophie_decoder: ", sophie_decoder)
-    trajectories, state_tuple_1 = sophie_decoder(input_data)
-    print("trajectories: ", trajectories.shape)
-    #print("state_tuple_1: ", state_tuple_1)
+# Attention modules 
 
 def test_physical_attention_model():
     """
@@ -180,8 +105,8 @@ def test_physical_attention_model():
     # Feature decoder
 
     dim_features = 128 # dim_features
-    number_of_waypoints = 10 # Waypoints per trajectory 
-    batch = 2 # xy
+    number_of_waypoints = 12 # Timesteps we are attempting to predict
+    batch = 32 # Number of agents
     predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, dim_features)
     predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
 
@@ -191,8 +116,10 @@ def test_physical_attention_model():
 
     alpha, context_vector = physical_attention_module.forward(visual_extractor_features, predicted_trajectory)
 
-    print("Alpha: ", alpha, alpha.shape)
-    print("Context vector: ", context_vector, context_vector.shape)
+    # print("Alpha: ", alpha, alpha.shape)
+    # print("Context vector: ", context_vector, context_vector.shape)
+    print("Alpha: ", alpha.shape)
+    print("Context vector: ", context_vector.shape)
 
     return context_vector
 
@@ -212,8 +139,8 @@ def test_social_attention_model():
     # Feature decoder
 
     dim_features = 128 # dim_features
-    number_of_waypoints = 10 # Waypoints per trajectory 
-    batch = 2 # xy
+    number_of_waypoints = 12 # Timesteps we are attempting to predict
+    batch = 32 # Number of agents
     predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, dim_features)
     predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
 
@@ -223,8 +150,10 @@ def test_social_attention_model():
 
     alpha, context_vector = social_attention_module.forward(joint_extractor_features, predicted_trajectory)
 
-    print("Alpha: ", alpha, alpha.shape)
-    print("Context vector: ", context_vector, context_vector.shape)
+    # print("Alpha: ", alpha, alpha.shape)
+    # print("Context vector: ", context_vector, context_vector.shape)
+    print("Alpha: ", alpha.shape)
+    print("Context vector: ", context_vector.shape)
 
     return context_vector
 
@@ -250,18 +179,110 @@ def test_concat_features():
     features_noise = generator.add_white_noise(attention_features, noise)
     pred_traj = generator.process_decoder(features_noise)
 
+    # print("Pred trajectories: ", pred_traj, len(pred_traj))
+
     return pred_traj
 
+# Multi-Layer Perceptron
+
+def test_mlp():
+    opt = {
+        "dim_list": [2, 64],
+        "activation": 'relu',
+        "batch_norm": False,
+        "dropout": 0
+    }
+    opt = Prodict.from_dict(opt)
+    mlp = MLP(**opt)
+    print(mlp)
+
+# Encoder
+
+def test_encoder():
+    opt = {
+        "num_layers": 1,
+        "hidden_dim": 32,
+        "emb_dim": 2,
+        "dropout": 0.4,
+        "mlp_config": {
+            "dim_list": [2, 16],
+            "activation": 'relu',
+            "batch_norm": False,
+            "dropout": 0.4
+        }
+    }
+    encoder = Encoder(**opt)
+    print(encoder)
+
+# Decoder
+
+def test_decoder():
+
+    with open(r'./configs/sophie.yml') as config_file:
+        config_file = yaml.safe_load(config_file)
+        config_file = Prodict.from_dict(config_file)
+
+    input_data = np.random.randn(688,2)
+    input_data = torch.from_numpy(input_data).to(device).float()
+
+    print(">>>: ", config_file.sophie.generator.decoder)
+    sophie_decoder = Decoder(config_file.sophie.generator.decoder).to(device)
+    print("sophie_decoder: ", sophie_decoder)
+    trajectories, state_tuple_1 = sophie_decoder(input_data)
+    print("trajectories: ", trajectories.shape)
+    #print("state_tuple_1: ", state_tuple_1)
+
+# GAN generator
+
+def test_sophie_generator():
+
+    batch = 8 # Number of trajectories
+    number_of_waypoints = 10 # Waypoints per trajectory 
+    points_dim = 2 # xy
+    predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, points_dim)
+    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device)
+
+    with open(r'./configs/sophie.yml') as config_file:
+        config_file = yaml.safe_load(config_file)
+        config_file = Prodict.from_dict(config_file)
+
+    discriminator = SoPhieGenerator(config_file)
+    discriminator.build()
+    discriminator.to(device)
+    discriminator.forward(predicted_trajectory)
+
+# GAN discriminator
+
+def test_sophie_discriminator():
+    """
+    """
+
+    batch = 32 # Number of trajectories
+    number_of_waypoints = 8 # Waypoints per trajectory 
+    points_dim = 2 # xy
+    predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, points_dim)
+    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
+
+    with open(r'./configs/sophie.yml') as config_file:
+        config_file = yaml.safe_load(config_file)
+        config_file = Prodict.from_dict(config_file)
+
+    discriminator = SoPhieDiscriminator(config_file.sophie.discriminator)
+    discriminator.build()
+    discriminator.to(device)
+    discriminator.forward(predicted_trajectory)
+
 if __name__ == "__main__":
-    # test_visual_extractor() # output: batch, 512, 18, 9
-    # test_joint_extractor() # output: input_len, batch, hidden_dim
     # test_read_file()
-    # test_mlp()
-    # test_encoder()
     # test_dataLoader()
-    # test_decoder()
+    # test_visual_extractor() 
+    # test_joint_extractor() 
     # test_physical_attention_model()
     # test_social_attention_model()
-    test_concat_features()
-    # test_sophie_discriminator()
+    # test_concat_features()
+    # test_mlp()
+    # test_encoder()
+    # test_decoder()
+    # test_sophie_generator()
+    test_sophie_discriminator()
     
