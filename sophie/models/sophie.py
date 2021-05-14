@@ -28,22 +28,22 @@ class SoPhieGenerator(nn.Module):
             self.config.visual_extractor.type,
             self.config.visual_extractor.vgg
         )
-        print("visual_feature_extractor", self.visual_feature_extractor)
+        # print("visual_feature_extractor", self.visual_feature_extractor)
         self.joint_feature_extractor = JointExtractor(
             self.config.joint_extractor.type,
             self.config.joint_extractor.config
         )
-        print("joint_feature_extractor", self.joint_feature_extractor)
+        # print("joint_feature_extractor", self.joint_feature_extractor)
 
     def _build_Attention_modules(self):
         self.physical_attention = SATAttentionModule(self.config.physical_attention)
-        print("physical_attention", self.physical_attention)
+        # print("physical_attention", self.physical_attention)
         self.social_attention = SATAttentionModule(self.config.social_attention)
-        print("social_attention", self.social_attention)
+        # print("social_attention", self.social_attention)
 
     def _build_decoder_module(self):
         self.generator_decoder = Decoder(self.config.decoder)
-        print("generator_decoder", self.generator_decoder)
+        # print("generator_decoder", self.generator_decoder)
 
     def process_visual_feature(self, image):
         visual_features = self.visual_feature_extractor(image)
@@ -63,9 +63,9 @@ class SoPhieGenerator(nn.Module):
 
     def create_white_noise(self, noise_type, dims):
         if noise_type == "gauss":
-            return torch.randn((1, dims[0], dims[1]))
+            return torch.randn((dims[0], dims[1])).cuda()
         elif noise_type == "uniform":
-            rand_num = torch.rand((1, dims[0], dims[1]))
+            rand_num = torch.rand((dims[0], dims[1])).cuda()
             return rand_num
         else:
             raise ValueError('Unrecognized noise type "%s"' % noise_type)

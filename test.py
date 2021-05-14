@@ -235,21 +235,21 @@ def test_concat_features():
     physical_context_vector = test_physical_attention_model()
     social_context_vector = test_social_attention_model()
 
-    attention_features = torch.cat((physical_context_vector, social_context_vector), 0)
-
+    attention_features = torch.cat((physical_context_vector, social_context_vector), 0).to(device)
     generator = SoPhieGenerator(config_file.sophie.generator)
-    print("Noise type: ", generator.config.noise.noise_type)
-    print("Dims: ", generator.config.noise.dims)
+
     generator.build()
     generator.to(device)
 
+    shape_features = attention_features.shape
     noise = generator.create_white_noise(
         generator.config.noise.noise_type,
-        generator.config.noise.dims
+        shape_features
     )
+
     features_noise = generator.add_white_noise(attention_features, noise)
     pred_traj = generator.process_decoder(features_noise)
-    print("\n\nPred_traj: ", pred_traj)
+
     return pred_traj
 
 if __name__ == "__main__":
@@ -262,6 +262,6 @@ if __name__ == "__main__":
     # test_decoder()
     # test_physical_attention_model()
     # test_social_attention_model()
-    # test_concat_features()
-    test_sophie_discriminator()
+    test_concat_features()
+    # test_sophie_discriminator()
     
