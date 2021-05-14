@@ -26,6 +26,10 @@ class Classifier(nn.Module):
         """
 
         batch_size = input_data.size(1)
+
+        print("Input data: ", input_data.shape)
+        input_data = input_data.contiguous().view(batch_size,-1)
+        print("Input data: ", input_data.shape)
         
         input_embedding = self.spatial_embedding(
             input_data.contiguous().view(batch_size,-1)

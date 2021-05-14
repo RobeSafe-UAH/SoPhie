@@ -81,7 +81,7 @@ sophie:
         # Classifier
         classifier:
             mlp_config:
-                dim_list: [640, 320, 160, 80, 40, 16, 2] 
+                dim_list: [4096, 2048, 1024, 512, 256, 128, 64, 16, 2] 
                 activation: 'relu'
                 batch_norm: False
                 dropout: 0

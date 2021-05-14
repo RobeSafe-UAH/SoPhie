@@ -56,10 +56,10 @@ def test_visual_extractor():
         "features": True
     }
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
     vgg_19 = VisualExtractor("vgg19", opt).to(device)
-    image_test = rand(1,3,600,300).to(device) # batch, channel, H, W
-    print(">>> ", vgg_19(image_test).shape) # batch, 512, 18, 9
+    image_test = rand(1,3,600,600).to(device) # batch, channel, H, W
+    print(">>> ", vgg_19(image_test).shape) # batch, 512, 18, 18
 
 def test_joint_extractor():
     opt = {
@@ -236,20 +236,40 @@ def test_decoder():
 
 def test_sophie_generator():
 
-    batch = 8 # Number of trajectories
-    number_of_waypoints = 10 # Waypoints per trajectory 
+    # Image
+
+    width = 600
+    height = 600
+    channels = 3
+    batch_img = 1
+    image_test = torch.rand(batch_img, channels, height, width).to(device) # batch, channel, H, W
+
+    # Trajectories
+
+    batch = 32 # Number of trajectories
+    number_of_waypoints = 8 # Waypoints per trajectory 
     points_dim = 2 # xy
-    predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, points_dim)
-    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device)
+    trajectories_test = 10 * np.random.randn(number_of_waypoints, batch, points_dim)
+    trajectories_test = torch.from_numpy(trajectories_test).to(device).float()
 
-    with open(r'./configs/sophie.yml') as config_file:
-        config_file = yaml.safe_load(config_file)
-        config_file = Prodict.from_dict(config_file)
+    # Decoder output
 
-    discriminator = SoPhieGenerator(config_file)
-    discriminator.build()
-    discriminator.to(device)
-    discriminator.forward(predicted_trajectory)
+    dim_features = 128 # dim_features
+    number_of_waypoints = 12 # Timesteps we are attempting to predict
+    batch = 32 # Number of agents
+    decoder_output_test = 10 * np.random.randn(number_of_waypoints, batch, dim_features)
+    decoder_output_test = torch.from_numpy(decoder_output_test).to(device).float()
+
+    sample_dict = {'image' : image_test, 'trajectories' : trajectories_test, 'decoder_output' : decoder_output_test}
+    sample = Prodict.from_dict(sample_dict)
+
+    batch_traj = sample.trajectories.shape
+    print("Batch: ", batch_traj)
+
+    generator = SoPhieGenerator(config_file.sophie.generator)
+    generator.build()
+    generator.to(device)
+    generator.forward(sample)
 
 # GAN discriminator
 
@@ -263,10 +283,6 @@ def test_sophie_discriminator():
     predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, points_dim)
     predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
 
-    with open(r'./configs/sophie.yml') as config_file:
-        config_file = yaml.safe_load(config_file)
-        config_file = Prodict.from_dict(config_file)
-
     discriminator = SoPhieDiscriminator(config_file.sophie.discriminator)
     discriminator.build()
     discriminator.to(device)
@@ -276,7 +292,7 @@ if __name__ == "__main__":
     # test_read_file()
     # test_dataLoader()
     # test_visual_extractor() 
-    # test_joint_extractor() 
+    test_joint_extractor() 
     # test_physical_attention_model()
     # test_social_attention_model()
     # test_concat_features()
@@ -284,5 +300,5 @@ if __name__ == "__main__":
     # test_encoder()
     # test_decoder()
     # test_sophie_generator()
-    test_sophie_discriminator()
+    # test_sophie_discriminator()
     
