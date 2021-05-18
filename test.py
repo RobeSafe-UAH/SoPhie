@@ -18,12 +18,32 @@ from torch import nn
 from torch import rand
 from torch.utils.data import DataLoader
 
+# Global variables
+
+## CUDA device
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+## Configuration file
 
 with open(r'./configs/sophie.yml') as config_file:
         config_file = yaml.safe_load(config_file)
         config_file = Prodict.from_dict(config_file)
 
+## Image
+
+im_batch = 1
+im_width = 600
+im_height = 600
+
+## Trajectories
+
+po = 8 # Past Observations
+fo = 12 # Future Observations
+na = 32 # Number of Agents 
+dlb = 1 # DataLoader batch
+tfd = 2 # Trajectory Features Dimension
+    
 # Read data
 
 def test_read_file():
@@ -49,43 +69,45 @@ def test_dataLoader():
 # Extractors
 
 def test_visual_extractor():
-    opt = {
-        "vgg_type": 19,
-        "batch_norm": False,
-        "pretrained": True,
-        "features": True
-    }
+    # opt = {
+    #     "vgg_type": 19,
+    #     "batch_norm": False,
+    #     "pretrained": True,
+    #     "features": True
+    # }
 
+    # vgg_19 = VisualExtractor("vgg19", opt).to(device)
 
-    vgg_19 = VisualExtractor("vgg19", opt).to(device)
-    image_test = rand(1,3,600,600).to(device) # batch, channel, H, W
+    vgg_19 = VisualExtractor("vgg19", config_file.sophie.generator.visual_extractor.vgg).to(device)
+    image_test = rand(im_batch,3,im_height,im_width).to(device) # batch, channel, H, W
     print(">>> ", vgg_19(image_test).shape) # batch, 512, 18, 18
 
 def test_joint_extractor():
+    initial_trajectory = 10 * np.random.randn(po, na, tfd)
+    initial_trajectory = torch.from_numpy(initial_trajectory).to(device).float()
+
     opt = {
         "encoder": {
             "num_layers": 1,
             "hidden_dim": 32,
             "emb_dim": 2,
-            "dropout": 0,
             "mlp_config": {
                 "dim_list": [2, 32],
                 "activation": 'relu',
                 "batch_norm": False,
                 "dropout": 0
-            }
+            },
+            "dropout": 0,
         }
     }
+
     opt = Prodict.from_dict(opt)
 
-    joint_extractor = JointExtractor("encoder_sort", opt).to(device)
-    input_trajectory = 10 * np.random.randn(10, 8, 2)
-    input_trajectory = torch.from_numpy(input_trajectory).to(device).float()
-    print("input_trajectory: ", input_trajectory.shape)
+    joint_extractor = JointExtractor("encoder_sort", config_file.sophie.generator.joint_extractor.config).to(device)
+    # joint_extractor = JointExtractor("encoder_sort", opt).to(device)
+    joint_features, _ = joint_extractor(initial_trajectory)
 
-    joint_features, _ = joint_extractor(input_trajectory)
-
-    print("joint_features: ", joint_features.shape)
+    print("Joint Features: ", joint_features.shape)
 
 # Attention modules 
 
@@ -102,22 +124,16 @@ def test_physical_attention_model():
     visual_extractor_features = 10 * np.random.randn(batch, channels, width, height)
     visual_extractor_features = torch.from_numpy(visual_extractor_features).to(device).float()
 
-    # Feature decoder
+    # Hidden Decoder Features
 
-    dim_features = 128 # dim_features
-    number_of_waypoints = 12 # Timesteps we are attempting to predict
-    batch = 32 # Number of agents
-    predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, dim_features)
+    decoder_dim_features = 128 # dim_features
+    predicted_trajectory = 10 * np.random.randn(1, na*dlb, decoder_dim_features)
     predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
 
-    print("Physical attention config: ", config_file.sophie.generator.physical_attention)
     physical_attention_module = SATAttentionModule(config_file.sophie.generator.physical_attention).to(device)
-    print("Physical Attention Module: ", physical_attention_module)
 
     alpha, context_vector = physical_attention_module.forward(visual_extractor_features, predicted_trajectory)
 
-    # print("Alpha: ", alpha, alpha.shape)
-    # print("Context vector: ", context_vector, context_vector.shape)
     print("Alpha: ", alpha.shape)
     print("Context vector: ", context_vector.shape)
 
@@ -136,12 +152,10 @@ def test_social_attention_model():
     joint_extractor_features = 10 * np.random.randn(length, batch, hidden_dim)
     joint_extractor_features = torch.from_numpy(joint_extractor_features).to(device).float()
 
-    # Feature decoder
+    # Hidden Decoder Features
 
-    dim_features = 128 # dim_features
-    number_of_waypoints = 12 # Timesteps we are attempting to predict
-    batch = 32 # Number of agents
-    predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, dim_features)
+    decoder_dim_features = 128 # dim_features
+    predicted_trajectory = 10 * np.random.randn(1, na*dlb, decoder_dim_features)
     predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
 
     print("Social attention config: ", config_file.sophie.generator.social_attention)
@@ -165,6 +179,7 @@ def test_concat_features():
     social_context_vector = test_social_attention_model()
 
     attention_features = torch.cat((physical_context_vector, social_context_vector), 0).to(device)
+    print("Attention features: ", attention_features.shape)
     generator = SoPhieGenerator(config_file.sophie.generator)
 
     generator.build()
@@ -177,9 +192,9 @@ def test_concat_features():
     )
 
     features_noise = generator.add_white_noise(attention_features, noise)
-    pred_traj = generator.process_decoder(features_noise)
+    pred_traj, _ = generator.process_decoder(features_noise)
 
-    # print("Pred trajectories: ", pred_traj, len(pred_traj))
+    print("Pred trajectories: ", pred_traj, pred_traj.shape, type(pred_traj))
 
     return pred_traj
 
@@ -222,7 +237,7 @@ def test_decoder():
         config_file = yaml.safe_load(config_file)
         config_file = Prodict.from_dict(config_file)
 
-    input_data = np.random.randn(688,2)
+    input_data = np.random.randn(768,2)
     input_data = torch.from_numpy(input_data).to(device).float()
 
     print(">>>: ", config_file.sophie.generator.decoder)
@@ -246,30 +261,17 @@ def test_sophie_generator():
 
     # Trajectories
 
-    batch = 32 # Number of trajectories
-    number_of_waypoints = 8 # Waypoints per trajectory 
-    points_dim = 2 # xy
-    trajectories_test = 10 * np.random.randn(number_of_waypoints, batch, points_dim)
+    trajectories_test = 10 * np.random.randn(po, na, tfd)
     trajectories_test = torch.from_numpy(trajectories_test).to(device).float()
 
-    # Decoder output
-
-    dim_features = 128 # dim_features
-    number_of_waypoints = 12 # Timesteps we are attempting to predict
-    batch = 32 # Number of agents
-    decoder_output_test = 10 * np.random.randn(number_of_waypoints, batch, dim_features)
-    decoder_output_test = torch.from_numpy(decoder_output_test).to(device).float()
-
-    sample_dict = {'image' : image_test, 'trajectories' : trajectories_test, 'decoder_output' : decoder_output_test}
-    sample = Prodict.from_dict(sample_dict)
-
-    batch_traj = sample.trajectories.shape
-    print("Batch: ", batch_traj)
+    # sample_dict = {'image' : image_test, 'trajectories' : trajectories_test, 'decoder_output' : decoder_output_test}
+    # sample_dict = {'image' : image_test, 'trajectories' : trajectories_test}
+    # sample = Prodict.from_dict(sample_dict)
 
     generator = SoPhieGenerator(config_file.sophie.generator)
     generator.build()
     generator.to(device)
-    generator.forward(sample)
+    generator.forward(image_test,trajectories_test)
 
 # GAN discriminator
 
@@ -277,28 +279,25 @@ def test_sophie_discriminator():
     """
     """
 
-    batch = 32 # Number of trajectories
-    number_of_waypoints = 8 # Waypoints per trajectory 
-    points_dim = 2 # xy
-    predicted_trajectory = 10 * np.random.randn(number_of_waypoints, batch, points_dim)
-    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
+    trajectories = 10 * np.random.randn(po, na, tfd)
+    trajectories = torch.from_numpy(trajectories).to(device).float()
 
     discriminator = SoPhieDiscriminator(config_file.sophie.discriminator)
     discriminator.build()
     discriminator.to(device)
-    discriminator.forward(predicted_trajectory)
+    discriminator.forward(trajectories)
 
 if __name__ == "__main__":
     # test_read_file()
     # test_dataLoader()
     # test_visual_extractor() 
-    test_joint_extractor() 
+    # test_joint_extractor() 
     # test_physical_attention_model()
     # test_social_attention_model()
     # test_concat_features()
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    # test_sophie_generator()
+    test_sophie_generator()
     # test_sophie_discriminator()
     

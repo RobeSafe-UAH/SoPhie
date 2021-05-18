@@ -80,14 +80,15 @@ class SATAttentionModule(nn.Module):
 
         # Feature decoder processing
 
-        # print("Feature decoder: ", feature_decoder.shape)
+        print("Feature decoder: ", feature_decoder.shape)
         feature_decoder = feature_decoder.contiguous().view(-1,feature_decoder.size(2)) # 3D -> 2D
-        # print("Feature decoder: ", feature_decoder.shape)
+        print("Feature decoder 1: ", feature_decoder.shape)
         linear_decoder_output = self.linear_decoder(feature_decoder)
+        # print("Feature decoder 2: ", linear_decoder_output.shape)
 
-        print("\nLinear feature1 output: ", linear_feature1_output.shape)
-        print("Linear decoder output: ", linear_decoder_output.shape)
-
+        # print("\nLinear decoder output: ", linear_decoder_output.shape)
+        # print("Linear feature1 output: ", linear_feature1_output.shape)
+    
         alpha = self.softmax(linear_decoder_output)
         # print("\nAlpha: ", alpha.shape)
         context_vector = torch.matmul(alpha, linear_feature1_output)

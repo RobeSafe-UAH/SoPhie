@@ -37,9 +37,7 @@ class SoPhieGenerator(nn.Module):
 
     def _build_Attention_modules(self):
         self.physical_attention = SATAttentionModule(self.config.physical_attention)
-        # print("physical_attention", self.physical_attention)
         self.social_attention = SATAttentionModule(self.config.social_attention)
-        # print("social_attention", self.social_attention)
 
     def _build_decoder_module(self):
         self.generator_decoder = Decoder(self.config.decoder)
@@ -51,15 +49,23 @@ class SoPhieGenerator(nn.Module):
 
     def process_joint_feature(self, trajectories):
         joint_features, _ = self.joint_feature_extractor(trajectories)
-        print("Joint Features: ", joint_features, type(joint_features))
+        # print("Joint Features: ", joint_features, type(joint_features))
         return joint_features
 
     def process_physical_attention(self, visual_feature, decoder_state):
-        physical_features = self.physical_attention(visual_feature, decoder_state)
+        """
+        We only care the second element of the tuple (physical features = physical context vector)
+        """
+        _, physical_features = self.physical_attention(visual_feature, decoder_state)
+        # print("physical_features: ", physical_features, type(physical_features))
         return physical_features
 
     def process_social_attention(self, joint_feature, decoder_state):
-        social_features = self.social_attention(joint_feature, decoder_state)
+        """
+        We only care the second element of the tuple (social features = social context vector)
+        """
+        _, social_features = self.social_attention(joint_feature, decoder_state)
+        # print("social_features: ", social_features, type(social_features))
         return social_features
 
     def create_white_noise(self, noise_type, dims):
@@ -79,31 +85,30 @@ class SoPhieGenerator(nn.Module):
         trajectories, final_state = self.generator_decoder(features)
         return trajectories, final_state
 
-    def forward(self, sample):
+    def forward(self, image, trajectories):
         """
         Define
         """
-        # batch = sample.trajectories.shape[1]
-        # decoder_state = self.generator_decoder.init_hidden(batch) # ?¿?¿?¿
+    
+        batch = trajectories.shape[1]
+        decoder_state = self.generator_decoder.init_hidden(batch) # ?¿?¿?¿
 
-        # predicted_trajectories_decoder, state_tuple_0 = self.generator_decoder.forward(sample.trajectories)
+        visual_feat = self.process_visual_feature(image)
+        joint_feat = self.process_joint_feature(trajectories)
 
-        visual_feat = self.process_visual_feature(sample.image)
-        joint_feat = self.process_joint_feature(sample.trajectories)
-        print("Joint Feat: ", joint_feat.shape)
-        attention_visual_features = self.process_physical_attention(visual_feat, sample.decoder_output)
-        attention_social_features = self.process_social_attention(joint_feat, sample.decoder_output)
-        print("Stop")
-        # attention_features = torch.cat((attention_visual_features, attention_social_features), 0)
-        # shape_features = attention_features.shape
-        # noise = self.create_white_noise(
-        #     self.config.noise.noise_type,
-        #     shape_features
-        # )
-        # features_noise = self.add_white_noise(attention_features, noise)
-        # pred_traj = self.process_decoder(features_noise)
-        # print("Pred trajectories: ", pred_traj)
-        # return pred_traj
+        attention_visual_features = self.process_physical_attention(visual_feat, decoder_state[0]) # decoder_state[0] = hidden_state
+        attention_social_features = self.process_social_attention(joint_feat, decoder_state[0])
+
+        attention_features = torch.cat((attention_visual_features, attention_social_features), 0)
+        shape_features = attention_features.shape
+        noise = self.create_white_noise(
+            self.config.noise.noise_type,
+            shape_features
+        )
+        features_noise = self.add_white_noise(attention_features, noise)
+        pred_traj, _ = self.process_decoder(features_noise)
+        print("Pred trajectories: ", pred_traj.shape)
+        return pred_traj
 
 class SoPhieDiscriminator(nn.Module):
 

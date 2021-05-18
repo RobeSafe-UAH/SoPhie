@@ -13,6 +13,7 @@ class Decoder(nn.Module):
         self.emb_dim = config.emb_dim
         self.decoder_dropout = config.dropout
         self.seq_len = config.seq_len
+        self.predicted_trajectories_generator = MLP(**config.mlp_config) # nn.Linear(x, emb_dim_mlp)
 
         self.decoder = nn.LSTM(
             self.emb_dim,
@@ -28,6 +29,10 @@ class Decoder(nn.Module):
         self.hidden2pos = nn.Linear(
             config.linear_2.input_dim,
             config.linear_2.output_dim
+        )
+        self.agentscorrector = nn.Linear(
+            config.linear_3.input_dim,
+            config.linear_3.output_dim
         )
 
     def init_hidden(self, batch):
@@ -49,16 +54,19 @@ class Decoder(nn.Module):
         print("Batch: ", batch)
         state_tuple = self.init_hidden(batch)
 
-        print("State tuple: ", state_tuple, len(state_tuple))
+        # print("State tuple: ", state_tuple, len(state_tuple))
 
         for _ in range(self.seq_len):
             output, state = self.decoder(input_embedding, state_tuple)
-            rel_pos = self.hidden2pos(output.view(-1, self.hidden_dim))
-            embedding_input = rel_pos
-            decoder_input = self.spatial_embedding(embedding_input)
-            decoder_input = decoder_input.view(1, batch, self.emb_dim)
+            embedding_input = self.hidden2pos(output.view(-1, self.hidden_dim))
+            # embedding_input = self.spatial_embedding(output)
+            rel_pos = self.predicted_trajectories_generator(embedding_input.view(-1, self.emb_dim))
+            input_embedding = embedding_input.view(1, batch, self.emb_dim)
             predicted_trajectories.append(rel_pos.view(batch, -1))
-            
+                
         pred_traj_fake_rel = torch.stack(predicted_trajectories, dim=0)
+        print("Pred: ", pred_traj_fake_rel.shape)
+        pred_traj_fake_rel = self.agentscorrector(pred_traj_fake_rel.view(-1,pred_traj_fake_rel.shape[1]))
+        pred_traj_fake_rel = pred_traj_fake_rel.view(self.seq_len,pred_traj_fake_rel.shape[1],-1)
         print("pred_traj_fake_rel: ", pred_traj_fake_rel.shape)
         return pred_traj_fake_rel, state_tuple[0]
