@@ -21,3 +21,4 @@ sophie/utils/__pycache__
 sophie/utils/*.pyc
 
 data/datasets/
+data/datasets.tar.gz

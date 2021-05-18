@@ -67,7 +67,7 @@ class EthUcyDataset(Dataset):
     
     def __init__(
         self, data_dir, obs_len=8, pred_len=8, skip=1, threshold=0.002, #pred_len=12 
-        min_ped=1, delim='\t', img_shape=(600,600), videos_path=""
+        min_ped=1, delim='\t'
     ):
         super(EthUcyDataset, self).__init__()
 
@@ -79,8 +79,6 @@ class EthUcyDataset(Dataset):
         self.skip = skip
         self.seq_len = self.obs_len + self.pred_len
         self.delim = delim
-        self.img_shape = img_shape
-        self.videos_path = videos_path
         self.prepare_dataset()
 
     def prepare_dataset(self):
@@ -91,14 +89,11 @@ class EthUcyDataset(Dataset):
         seq_list_rel = []
         loss_mask_list = []
         non_linear_ped = []
-        frames_list = []
         for path in all_files:
             # read file with data file with
             # structure: frame - x -y- z
             print("path: ", path)
-            dataset_name = self.get_dataset_name(path)
-            print("dataset_name: ", dataset_name)
-            data = read_file(self.videos_path + "/" + dataset_name, self.delim)
+            data = read_file(path, self.delim)
             # obtain frames from all the data and
             # create data structure oredered by frame
             frames = np.unique(data[:, 0]).tolist()
@@ -107,8 +102,6 @@ class EthUcyDataset(Dataset):
                 frame_data.append(data[frame == data[:, 0], :])
             num_sequences = int(
                 math.ceil((len(frames) - self.seq_len + 1) / self.skip)) #>? why add 1
-
-            frames_dts = []
 
             #print("num_sequences ", len(frames), self.seq_len, self.skip, num_sequences)
             
@@ -129,7 +122,6 @@ class EthUcyDataset(Dataset):
                                            self.seq_len))
                 num_peds_considered = 0
                 _non_linear_ped = []
-                frame_idx_list = []
 
                 for _, ped_id in enumerate(peds_in_curr_seq):
 
@@ -144,9 +136,6 @@ class EthUcyDataset(Dataset):
                     #print("pad: ", pad_front, pad_end)
                     if pad_end - pad_front != self.seq_len:
                         continue
-
-                    frame_idx = frames.index(curr_ped_seq[-1, 0]) - self.obs_len + 1
-                    frame_idx_list.append(frame_idx)
                     
                     ## get points of agents (2,self.seq_len)
                     curr_ped_seq = np.transpose(curr_ped_seq[:, 2:])
@@ -172,61 +161,23 @@ class EthUcyDataset(Dataset):
 
                 #print("=======================" , num_peds_considered)
                 if num_peds_considered > self.min_ped:
-                    num_peds_considered = 32
-                    if len(_non_linear_ped) < num_peds_considered:
-                        len_nlp = len(_non_linear_ped)
-                        dumm = [0 for _ in range(num_peds_considered-len_nlp)]
-                        _non_linear_ped = _non_linear_ped + dumm
-
                     non_linear_ped += _non_linear_ped
-                    #print("REEEE ", _non_linear_ped)
+                    print("REEEE ", _non_linear_ped)
                     num_peds_in_seq.append(num_peds_considered)
-                    #print("REEEE ", num_peds_considered)
-                    if curr_loss_mask[:num_peds_considered].shape[0] != num_peds_considered:
-                        (f_dim, s_dim) = curr_loss_mask[:num_peds_considered].shape
-                        dumm = np.zeros((num_peds_considered-f_dim, s_dim))
-                        curr_loss_mask_ped = curr_loss_mask[:num_peds_considered]
-                        curr_loss_mask_ped_final = np.concatenate((curr_loss_mask_ped, dumm), axis=0)
-
-                    loss_mask_list.append(curr_loss_mask_ped_final)
-                    #print("REEEE ", curr_loss_mask_ped_final.shape)
-
-                    curr_seq_ped = curr_seq[:num_peds_considered]
-                    if curr_seq_ped.shape[0] != num_peds_considered:
-                        (f_dim, s_dim, t_dim) = curr_seq_ped.shape
-                        dumm = np.zeros((num_peds_considered-f_dim, s_dim, t_dim))
-                        curr_seq_ped_final = np.concatenate((curr_seq_ped, dumm), axis=0)
-                    seq_list.append(curr_seq_ped_final)
-                    #print("REEEE ", curr_seq_ped_final.shape)
-
-                    curr_seq_rel_ped = curr_seq_rel[:num_peds_considered]
-                    if curr_seq_rel_ped.shape[0] != num_peds_considered:
-                        (f_dim, s_dim, t_dim) = curr_seq_rel_ped.shape
-                        dumm = np.zeros((num_peds_considered-f_dim, s_dim, t_dim))
-                        curr_seq_ped_final = np.concatenate((curr_seq_rel_ped, dumm), axis=0)
-                    seq_list_rel.append(curr_seq_ped_final)
-                    #print("REEEE ", curr_seq_ped_final.shape)
-
-                    #print("frame_idx_list: ", np.unique(frame_idx_list))
-                    frames_dts.append(np.unique(frame_idx_list)[0])
-                    #assert 1 == 0, "aiiieee"
-
-            frames_dts.append({dataset_name: frames_dts})
+                    print("REEEE ", num_peds_considered)
+                    loss_mask_list.append(curr_loss_mask[:num_peds_considered])
+                    print("REEEE ", curr_loss_mask[:num_peds_considered].shape)
+                    seq_list.append(curr_seq[:num_peds_considered])
+                    print("REEEE ", curr_seq[:num_peds_considered].shape)
+                    seq_list_rel.append(curr_seq_rel[:num_peds_considered])
+                    print("REEEE ", curr_seq_rel[:num_peds_considered].shape)
+                assert 1==0, "TSU"
         
         self.num_seq = len(seq_list)
         seq_list = np.concatenate(seq_list, axis=0)
-        print("seq_list: ", seq_list.shape)
         seq_list_rel = np.concatenate(seq_list_rel, axis=0)
         loss_mask_list = np.concatenate(loss_mask_list, axis=0)
         non_linear_ped = np.asarray(non_linear_ped)
-
-        ### get frames from dataset
-        for data in frames_dts:
-            key, value = data.keys(), data.values()
-            frame_list_im = self.get_frames(key[0], self.img_shape,  value[0])
-            frames_list = np.concatenate(frame_list_im, axis=0)
-        print("frames_list: ", frames_list.shape)
-        #assert 1 == 0, "aiiieee"
 
         # Convert numpy -> Torch Tensor
         self.obs_traj = torch.from_numpy(
@@ -244,34 +195,21 @@ class EthUcyDataset(Dataset):
             (start, end)
             for start, end in zip(cum_start_idx, cum_start_idx[1:])
         ]
-        self.frames = torch.from_numpy(
-            frames_list).type(torch.float)
         # self.images = torch.from_numpy(
         #     images[:].type(torch.float)
         # )
 
-    def get_frames(self, path, new_shape, frames):
-        print("loading images from: ", path)
+    def read_video(self, path, new_shape):
         cap = cv2.VideoCapture(path) 
         num_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
         frames_list = []
-        frame_counter = 0
         while (num_frames > 0):
             _, frame = cap.read()
             num_frames = num_frames - 1
-            if frame_counter not in frames:
-                continue
             re_frame = cv2.resize(frame, new_shape)
             frames_list.append(re_frame)
-            frame_counter += 1
         cap.release()
         return frames_list
-
-    def get_dataset_name(self, path):
-        dts_name = path.split("/")[-1].split(".")[0].split("_")[0:-1]
-        dts_name = "_".join(dts_name)
-        return dts_name
-
 
     def __len__(self):
         return self.num_seq

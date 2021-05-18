@@ -1,6 +1,7 @@
 import numpy as np
 import yaml
 import cv2
+import time
 
 from types import SimpleNamespace
 from sophie.models import SoPhieDiscriminator, SoPhieGenerator
@@ -136,7 +137,7 @@ def test_sophie_generator():
     discriminator.forward(predicted_trajectory)
 
 def test_dataLoader():
-    data = EthUcyDataset("/home/fkite/git-personal/SoPhie/data/datasets/eth/train")
+    data = EthUcyDataset("./data/datasets/zara1/train", videos_path="./data/datasets/videos/")
     print(data)
     batch_size = 64
     loader_num_workers = 4
@@ -148,6 +149,13 @@ def test_dataLoader():
         collate_fn=seq_collate)
 
     print("loader: ", loader)
+    for batch in loader:
+        batch = [tensor.cuda() for tensor in batch]
+        (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
+         loss_mask, seq_start_end) = batch
+
+        print("> ", obs_traj.shape, obs_traj_rel.shape, seq_start_end.shape)
+        #assert 1 == 0, "aiie"
 
 def test_decoder():
 
@@ -254,17 +262,16 @@ def test_concat_features():
     return pred_traj
 
 def read_video(path, new_shape):
-    cap = cv2.VideoCapture(path)
+    cap = cv2.VideoCapture(path) 
+    num_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
     frames_list = []
-    while (cap.isOpened()):
-
+    while (num_frames > 0):
         _, frame = cap.read()
-        print("frame: ", frame.shape)
+        print("_ ", _)
+        num_frames = num_frames - 1
         re_frame = cv2.resize(frame, new_shape)
-        print("re_frame: ", re_frame.shape)
         frames_list.append(re_frame)
-        assert 1 == 0, "TSU"
-
+    cap.release()
     return frames_list
 
 if __name__ == "__main__":
@@ -273,14 +280,14 @@ if __name__ == "__main__":
     # test_read_file()
     # test_mlp()
     # test_encoder()
-    # test_dataLoader()
+    test_dataLoader()
     # test_decoder()
     # test_physical_attention_model()
     # test_social_attention_model()
     # test_concat_features()
     # test_sophie_discriminator()
 
-    path_video = "/home/fkite/dataset/biwi_eth/ewap_dataset_full/ewap_dataset/seq_eth/seq_eth.avi"
-    image_list = read_video(path_video, (600,600))
+    # path_video = "./data/datasets/videos/seq_eth.avi"
+    # image_list = read_video(path_video, (600,600))
 
-    print("image_list: ", image_list, len(image_list))
+    # print("image_list: ", type(image_list), len(image_list))
