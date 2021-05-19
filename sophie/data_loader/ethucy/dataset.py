@@ -215,6 +215,8 @@ class EthUcyDataset(Dataset):
                         dumm = np.zeros((num_peds_considered-f_dim, s_dim))
                         curr_loss_mask_ped = curr_loss_mask[:num_peds_considered]
                         curr_loss_mask_ped_final = np.concatenate((curr_loss_mask_ped, dumm), axis=0)
+                    else:
+                        curr_loss_mask_ped_final = curr_loss_mask[:num_peds_considered]
 
                     loss_mask_list.append(curr_loss_mask_ped_final)
 
@@ -223,6 +225,8 @@ class EthUcyDataset(Dataset):
                         (f_dim, s_dim, t_dim) = curr_seq_ped.shape
                         dumm = np.zeros((num_peds_considered-f_dim, s_dim, t_dim))
                         curr_seq_ped_final = np.concatenate((curr_seq_ped, dumm), axis=0)
+                    else:
+                        curr_seq_ped_final = curr_seq_ped
                     seq_list.append(curr_seq_ped_final)
 
                     curr_seq_rel_ped = curr_seq_rel[:num_peds_considered]
@@ -230,6 +234,8 @@ class EthUcyDataset(Dataset):
                         (f_dim, s_dim, t_dim) = curr_seq_rel_ped.shape
                         dumm = np.zeros((num_peds_considered-f_dim, s_dim, t_dim))
                         curr_seq_ped_final = np.concatenate((curr_seq_rel_ped, dumm), axis=0)
+                    else: 
+                        curr_seq_ped_final = curr_seq_rel_ped
                     seq_list_rel.append(curr_seq_ped_final)
 
                     frames_dts.append(np.unique(frame_idx_list)[0])
