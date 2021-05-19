@@ -11,12 +11,13 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate_image
 from sophie.models import SoPhieGenerator
 from sophie.models import SoPhieDiscriminator
 from sophie.modules.losses import gan_g_loss, gan_d_loss, l2_loss
+from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
 from sophie.utils.utils import relative_to_abs
-from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate_image
 
 torch.backends.cudnn.benchmark = True
 
