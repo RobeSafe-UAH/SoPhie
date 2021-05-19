@@ -162,16 +162,16 @@ class EthUcyDataset(Dataset):
                 #print("=======================" , num_peds_considered)
                 if num_peds_considered > self.min_ped:
                     non_linear_ped += _non_linear_ped
-                    print("REEEE ", _non_linear_ped)
+                    #print("REEEE ", _non_linear_ped)
                     num_peds_in_seq.append(num_peds_considered)
-                    print("REEEE ", num_peds_considered)
+                    #print("REEEE ", num_peds_considered)
                     loss_mask_list.append(curr_loss_mask[:num_peds_considered])
-                    print("REEEE ", curr_loss_mask[:num_peds_considered].shape)
+                    #print("REEEE ", curr_loss_mask[:num_peds_considered].shape)
                     seq_list.append(curr_seq[:num_peds_considered])
-                    print("REEEE ", curr_seq[:num_peds_considered].shape)
+                    #print("REEEE ", curr_seq[:num_peds_considered].shape)
                     seq_list_rel.append(curr_seq_rel[:num_peds_considered])
-                    print("REEEE ", curr_seq_rel[:num_peds_considered].shape)
-                assert 1==0, "TSU"
+                    #print("REEEE ", curr_seq_rel[:num_peds_considered].shape)
+                #assert 1==0, "TSU"
         
         self.num_seq = len(seq_list)
         seq_list = np.concatenate(seq_list, axis=0)

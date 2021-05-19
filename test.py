@@ -9,7 +9,7 @@ from sophie.modules.layers import MLP
 from sophie.modules.backbones import VisualExtractor, JointExtractor
 from sophie.modules.encoders import Encoder
 from sophie.modules.classifiers import Classifier
-from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate
+from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate, seq_collate_image
 from sophie.modules.decoders import Decoder
 from sophie.modules.attention import SATAttentionModule
 
@@ -137,7 +137,7 @@ def test_sophie_generator():
     discriminator.forward(predicted_trajectory)
 
 def test_dataLoader():
-    data = EthUcyDataset("./data/datasets/zara1/train", videos_path="./data/datasets/videos/")
+    data = EthUcyDataset("./data/datasets/zara1/train")
     print(data)
     batch_size = 64
     loader_num_workers = 4
@@ -149,12 +149,45 @@ def test_dataLoader():
         collate_fn=seq_collate)
 
     print("loader: ", loader)
+    print("device: ", device)
+    t0 = time.time()
     for batch in loader:
         batch = [tensor.cuda() for tensor in batch]
         (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
          loss_mask, seq_start_end) = batch
 
         print("> ", obs_traj.shape, obs_traj_rel.shape, seq_start_end.shape)
+        t1 = time.time()
+        while(t1 - t0 < 120):
+            print(t1-t0)
+            t1 = time.time()
+        #assert 1 == 0, "aiie"
+
+def test_dataLoader_img():
+    data = EthUcyDataset("./data/datasets/zara1/train", videos_path="./data/datasets/videos/")
+    print(data)
+    batch_size = 64
+    loader_num_workers = 4
+    loader = DataLoader(
+        data,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=loader_num_workers,
+        collate_fn=seq_collate_image)
+
+    print("loader: ", loader)
+    print("device: ", device)
+    t0 = time.time()
+    for batch in loader:
+        batch = [tensor.cuda() for tensor in batch]
+        (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
+         loss_mask, seq_start_end, frames) = batch
+
+        print("> ", obs_traj.shape, obs_traj_rel.shape, frames.shape)
+        # t1 = time.time()
+        # while(t1 - t0 < 120):
+        #     print(t1-t0)
+        #     t1 = time.time()
         #assert 1 == 0, "aiie"
 
 def test_decoder():
@@ -280,7 +313,8 @@ if __name__ == "__main__":
     # test_read_file()
     # test_mlp()
     # test_encoder()
-    test_dataLoader()
+    #test_dataLoader()
+    test_dataLoader_img()
     # test_decoder()
     # test_physical_attention_model()
     # test_social_attention_model()

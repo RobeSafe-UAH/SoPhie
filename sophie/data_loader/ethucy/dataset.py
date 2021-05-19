@@ -32,6 +32,38 @@ def seq_collate(data):
 
     return tuple(out)
 
+def seq_collate_image(data):
+    (obs_seq_list, pred_seq_list, obs_seq_rel_list, pred_seq_rel_list,
+     non_linear_ped_list, loss_mask_list, frames) = zip(*data)
+
+    # (1,600,600,3)
+    frames_arr = tuple([torch.from_numpy(frame).type(torch.float32).unsqueeze(0) for frame in frames])
+    print("frames_arr: ", frames_arr[0].shape)
+
+    _len = [len(seq) for seq in obs_seq_list]
+    cum_start_idx = [0] + np.cumsum(_len).tolist()
+    seq_start_end = [[start, end]
+                     for start, end in zip(cum_start_idx, cum_start_idx[1:])]
+
+    # Data format: batch, input_size, seq_len
+    # LSTM input format: seq_len, batch, input_size
+    obs_traj = torch.cat(obs_seq_list, dim=0).permute(2, 0, 1)
+    pred_traj = torch.cat(pred_seq_list, dim=0).permute(2, 0, 1)
+    obs_traj_rel = torch.cat(obs_seq_rel_list, dim=0).permute(2, 0, 1)
+    pred_traj_rel = torch.cat(pred_seq_rel_list, dim=0).permute(2, 0, 1)
+    non_linear_ped = torch.cat(non_linear_ped_list)
+    loss_mask = torch.cat(loss_mask_list, dim=0)
+    frames_t = torch.cat(frames_arr).permute(0, 3, 1, 2)
+
+    print("frames_t: ", type(frames_t), frames_t.shape)
+    seq_start_end = torch.LongTensor(seq_start_end)
+    out = [
+        obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, non_linear_ped,
+        loss_mask, seq_start_end, frames_t
+    ]
+
+    return tuple(out)
+
 def read_file(_path, delim='tab'):
     dir_path = os.path.dirname(os.path.realpath(__file__))
     data = []
@@ -45,6 +77,10 @@ def read_file(_path, delim='tab'):
             line = [float(i) for i in line]
             data.append(line)
     return np.asarray(data)
+
+def ignore_file(path):
+    first_token = path.split("/")[-1][0]
+    return True if first_token == "." else False
 
 def poly_fit(traj, traj_len, threshold):
     """
@@ -66,8 +102,8 @@ def poly_fit(traj, traj_len, threshold):
 class EthUcyDataset(Dataset):
     
     def __init__(
-        self, data_dir, obs_len=8, pred_len=8, skip=1, threshold=0.002, #pred_len=12 
-        min_ped=1, delim='\t', img_shape=(600,600), videos_path=""
+        self, data_dir, obs_len=8, pred_len=12, skip=1, threshold=0.002, #pred_len=12 
+        min_ped=1, delim='\t', img_shape=(600,600), videos_path="", video_extension="avi"
     ):
         super(EthUcyDataset, self).__init__()
 
@@ -81,6 +117,7 @@ class EthUcyDataset(Dataset):
         self.delim = delim
         self.img_shape = img_shape
         self.videos_path = videos_path
+        self.video_extension = video_extension
         self.prepare_dataset()
 
     def prepare_dataset(self):
@@ -92,13 +129,18 @@ class EthUcyDataset(Dataset):
         loss_mask_list = []
         non_linear_ped = []
         frames_list = []
+        frame_dict_dataset = []
+
         for path in all_files:
             # read file with data file with
             # structure: frame - x -y- z
-            print("path: ", path)
+            #print("path: ", path)
+            if ignore_file(path):
+                continue
             dataset_name = self.get_dataset_name(path)
-            print("dataset_name: ", dataset_name)
-            data = read_file(self.videos_path + "/" + dataset_name, self.delim)
+            #print("dataset_name: ", dataset_name)
+            #data = read_file(self.videos_path + "/" + dataset_name, self.delim)
+            data = read_file(path, self.delim)
             # obtain frames from all the data and
             # create data structure oredered by frame
             frames = np.unique(data[:, 0]).tolist()
@@ -211,59 +253,76 @@ class EthUcyDataset(Dataset):
                     frames_dts.append(np.unique(frame_idx_list)[0])
                     #assert 1 == 0, "aiiieee"
 
-            frames_dts.append({dataset_name: frames_dts})
+            frame_dict_dataset.append({dataset_name: frames_dts})
         
         self.num_seq = len(seq_list)
-        seq_list = np.concatenate(seq_list, axis=0)
-        print("seq_list: ", seq_list.shape)
-        seq_list_rel = np.concatenate(seq_list_rel, axis=0)
-        loss_mask_list = np.concatenate(loss_mask_list, axis=0)
-        non_linear_ped = np.asarray(non_linear_ped)
+        seq_list = np.concatenate(seq_list, axis=0).astype(np.float32)
+        seq_list_rel = np.concatenate(seq_list_rel, axis=0).astype(np.float32)
+        loss_mask_list = np.concatenate(loss_mask_list, axis=0).astype(np.float32)
+        non_linear_ped = np.asarray(non_linear_ped).astype(np.float32)
 
         ### get frames from dataset
-        for data in frames_dts:
-            key, value = data.keys(), data.values()
-            frame_list_im = self.get_frames(key[0], self.img_shape,  value[0])
-            frames_list = np.concatenate(frame_list_im, axis=0)
-        print("frames_list: ", frames_list.shape)
-        #assert 1 == 0, "aiiieee"
+        iteration = 0
+        for data in frame_dict_dataset:
+            key, value = list(data.keys()), list(data.values())
+            frame_list_im = self.get_frames(
+                os.path.join(self.videos_path, ".".join([key[0], self.video_extension])),
+                self.img_shape, 
+                value[0]
+            )
+            frame_list_im = np.concatenate(frame_list_im, axis=0)
+            if iteration == 0:
+                frames_list = frame_list_im
+                iteration += 1
+                continue
+            frames_list = np.concatenate((frames_list, frame_list_im), axis=0)
+        
+        print(">>> ", frames_list.shape)
+
+        #assert 1== 0, "re"
 
         # Convert numpy -> Torch Tensor
         self.obs_traj = torch.from_numpy(
-            seq_list[:, :, :self.obs_len]).type(torch.float)
+            seq_list[:, :, :self.obs_len]).type(torch.float32) # [53472, 2, 8]
+        print("self.obs_traj: ", self.obs_traj.shape)
         self.pred_traj = torch.from_numpy(
-            seq_list[:, :, self.obs_len:]).type(torch.float)
+            seq_list[:, :, self.obs_len:]).type(torch.float32) # [53472, 2, 8]
+        print("self.pred_traj: ", self.pred_traj.shape)
         self.obs_traj_rel = torch.from_numpy(
-            seq_list_rel[:, :, :self.obs_len]).type(torch.float)
+            seq_list_rel[:, :, :self.obs_len]).type(torch.float32) # [53472, 2, 8]
+        print("obs_traj_rel: ", self.obs_traj_rel.shape)
         self.pred_traj_rel = torch.from_numpy(
-            seq_list_rel[:, :, self.obs_len:]).type(torch.float)
-        self.loss_mask = torch.from_numpy(loss_mask_list).type(torch.float)
-        self.non_linear_ped = torch.from_numpy(non_linear_ped).type(torch.float)
-        cum_start_idx = [0] + np.cumsum(num_peds_in_seq).tolist()
+            seq_list_rel[:, :, self.obs_len:]).type(torch.float32) # [53472, 2, 8]
+        print("pred_traj_rel: ", self.pred_traj_rel.shape)
+        self.loss_mask = torch.from_numpy(loss_mask_list).type(torch.float32) # [53472, 16]
+        print("loss_mask: ", self.loss_mask.shape)
+        self.non_linear_ped = torch.from_numpy(non_linear_ped).type(torch.float32) # [53472]
+        print("non_linear_ped: ", self.non_linear_ped.shape)
+        cum_start_idx = [0] + np.cumsum(num_peds_in_seq).tolist() # [1672]
+        print("cum_start_idx: ", len(cum_start_idx)) 
         self.seq_start_end = [
             (start, end)
-            for start, end in zip(cum_start_idx, cum_start_idx[1:])
+            for start, end in zip(cum_start_idx, cum_start_idx[1:]) # [1671]
         ]
-        self.frames = torch.from_numpy(
-            frames_list).type(torch.float)
-        # self.images = torch.from_numpy(
-        #     images[:].type(torch.float)
-        # )
+        print("seq_start_end: ", len(self.seq_start_end))
+        # self.frames = torch.from_numpy(
+        #     frames_list).type(torch.float32)
+        self.frames = frames_list # (1671, 600, 600, 3)
+        print("frames: ", self.frames.shape)
 
     def get_frames(self, path, new_shape, frames):
-        print("loading images from: ", path)
         cap = cv2.VideoCapture(path) 
         num_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
         frames_list = []
         frame_counter = 0
         while (num_frames > 0):
             _, frame = cap.read()
-            num_frames = num_frames - 1
+            num_frames -= 1
+            frame_counter += 1
             if frame_counter not in frames:
                 continue
             re_frame = cv2.resize(frame, new_shape)
-            frames_list.append(re_frame)
-            frame_counter += 1
+            frames_list.append(np.expand_dims(re_frame, axis=0))
         cap.release()
         return frames_list
 
@@ -282,6 +341,7 @@ class EthUcyDataset(Dataset):
             self.obs_traj[start:end, :], self.pred_traj[start:end, :],
             self.obs_traj_rel[start:end, :], self.pred_traj_rel[start:end, :],
             self.non_linear_ped[start:end], self.loss_mask[start:end, :]
+            ,self.frames[idx, :]
         ]
         return out
 
