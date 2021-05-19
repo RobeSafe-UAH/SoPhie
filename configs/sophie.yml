@@ -5,9 +5,9 @@ dataset_name: ethucy
 dataset:
     path: data/datasets/zara1
     video: data/datasets/videos
-    batch_size: 64
+    batch_size: 16
     shuffle: True
-    num_workers: 4
+    num_workers: 0
 sophie:
     generator: 
         # Visual Extractor (CNN)
@@ -85,7 +85,7 @@ sophie:
         encoder:
             num_layers: 1
             hidden_dim: 64
-            emb_dim: 2 # Bidimensional points (xy)
+            emb_dim: 16 # Bidimensional points (xy)
             mlp_config:
                 dim_list: [2, 16] 
                 activation: 'relu'
@@ -96,7 +96,7 @@ sophie:
         # Classifier
         classifier:
             mlp_config:
-                dim_list: [4096, 2048, 1024, 512, 256, 128, 64, 16, 2] 
+                dim_list: [64, 1024, 1] 
                 activation: 'relu'
                 batch_norm: False
                 dropout: 0
@@ -108,7 +108,7 @@ hyperparameters:
     num_epochs: 250
     d_steps: 2
     g_steps: 1
-    timing: 1 # ?> Waits for all kernels in all streams on a CUDA device to complete.
+    timing: 0 # ?> Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 100
     checkpoint_every: 500
     output_dir: "PATH"

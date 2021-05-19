@@ -25,16 +25,10 @@ class Classifier(nn.Module):
         - predicted_labels: Predicted label from the discriminator (Batch size x 2)
         """
 
-        batch_size = input_data.size(1)
-
-        print("Input data: ", input_data.shape)
-        input_data = input_data.contiguous().view(batch_size,-1)
-        print("Input data: ", input_data.shape)
-        
-        input_embedding = self.spatial_embedding(
-            input_data.contiguous().view(batch_size,-1)
+        input_softmax = self.spatial_embedding(
+            input_data
         )
 
-        predicted_labels = self.softmax(input_embedding) 
+        scores = self.softmax(input_softmax)
 
-        return predicted_labels
+        return scores

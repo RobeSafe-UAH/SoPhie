@@ -333,7 +333,7 @@ def test_sophie_discriminator():
     """
     """
 
-    trajectories = 10 * np.random.randn(po, na, tfd)
+    trajectories = 10 * np.random.randn(po+fo, na, tfd) # 8, 32, 2
     trajectories = torch.from_numpy(trajectories).to(device).float()
 
     discriminator = SoPhieDiscriminator(config_file.sophie.discriminator)

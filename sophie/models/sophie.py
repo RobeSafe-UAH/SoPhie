@@ -126,8 +126,8 @@ class SoPhieDiscriminator(nn.Module):
         return Classifier(**self.config.classifier)
 
     def process_encoder(self, predicted_trajectory):
-        encoded_trajectory, _ = self.encoder(predicted_trajectory) 
-        return encoded_trajectory
+        _, final_hidden = self.encoder(predicted_trajectory) 
+        return final_hidden
 
     def process_classifier(self, encoded_trajectory):
         classified_trajectory = self.classifier(encoded_trajectory)
@@ -138,7 +138,7 @@ class SoPhieDiscriminator(nn.Module):
         Define
         """
 
-        encoded_trajectory = self.process_encoder(predicted_trajectory)
-        classified_trajectory = self.process_classifier(encoded_trajectory)
+        final_hidden = self.process_encoder(predicted_trajectory) # 1, batch, 64
+        classified_trajectory = self.process_classifier(final_hidden.squeeze())
         
         return classified_trajectory
