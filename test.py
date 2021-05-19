@@ -352,8 +352,8 @@ if __name__ == "__main__":
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    test_sophie_generator()
-    # test_sophie_discriminator()
+    #test_sophie_generator()
+    test_sophie_discriminator()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))

@@ -3,7 +3,8 @@
 use_gpu: 1
 dataset_name: ethucy
 dataset:
-    path: ../data/datasets/eth
+    path: data/datasets/zara1
+    video: data/datasets/videos
     batch_size: 64
     shuffle: True
     num_workers: 4
@@ -112,8 +113,8 @@ hyperparameters:
     checkpoint_every: 500
     output_dir: "PATH"
     checkpoint_name: "name"
-    checkpoint_start_from: None
-    restore_from_checkpoint: None
+    checkpoint_start_from: 
+    restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 0
     obs_len: 8

@@ -4,7 +4,7 @@ from torch import nn
 from sophie.modules.decoders import Decoder
 from sophie.modules.encoders import Encoder
 from sophie.modules.classifiers import Classifier
-from sophie.modules.attention import PhysicalAttention, SocialAttention, SATAttentionModule
+from sophie.modules.attention import SATAttentionModule
 from sophie.modules.layers import MLP
 from sophie.modules.backbones import VisualExtractor, JointExtractor
 

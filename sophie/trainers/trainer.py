@@ -13,9 +13,10 @@ from torch.utils.data import DataLoader
 
 from sophie.models import SoPhieGenerator
 from sophie.models import SoPhieDiscriminator
-from sophie.modules.losses import gan_g_loss, gan_d_loss
+from sophie.modules.losses import gan_g_loss, gan_d_loss, l2_loss
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
-from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate
+from sophie.utils.utils import relative_to_abs
+from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate_image
 
 torch.backends.cudnn.benchmark = True
 
@@ -43,29 +44,31 @@ def model_trainer(config):
     ##
     #os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_num
 
-    train_path = "{}/train".format(config.dataset.path)
-    val_path = "{}/val".format(config.dataset.path)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    train_path = os.path.join(config.base_dir, config.dataset.path, "train")
+    val_path = os.path.join(config.base_dir, config.dataset.path, "val")
 
     long_dtype, float_dtype = get_dtypes(config.use_gpu)
 
     #?> cargar dataset eth
     logger.info("Initializing train dataset") 
-    data_train = EthUcyDataset(train_path)
+    data_train = EthUcyDataset(train_path, videos_path=os.path.join(config.base_dir, config.dataset.video))
     train_loader = DataLoader(
         data_train,
         batch_size=config.dataset.batch_size,
         shuffle=config.dataset.shuffle,
         num_workers=config.dataset.num_workers,
-        collate_fn=seq_collate)
+        collate_fn=seq_collate_image)
 
     logger.info("Initializing val dataset")
-    data_val = EthUcyDataset(val_path)
+    data_val = EthUcyDataset(val_path, videos_path=os.path.join(config.base_dir, config.dataset.video))
     val_loader = DataLoader(
         data_val,
         batch_size=config.dataset.batch_size,
         shuffle=config.dataset.shuffle,
         num_workers=config.dataset.num_workers,
-        collate_fn=seq_collate)
+        collate_fn=seq_collate_image)
 
     hyperparameters = config.hyperparameters
     iterations_per_epoch = len(data_train) / config.dataset.batch_size / hyperparameters.d_steps
@@ -78,6 +81,7 @@ def model_trainer(config):
 
     generator = SoPhieGenerator(config.sophie.generator)
     generator.build()
+    generator.to(device)
     generator.apply(init_weights)
     generator.type(float_dtype).train()
     logger.info('Generator model:')
@@ -85,6 +89,7 @@ def model_trainer(config):
 
     discriminator = SoPhieDiscriminator(config.sophie.discriminator)
     discriminator.build()
+    discriminator.to(device)
     discriminator.apply(init_weights)
     discriminator.type(float_dtype).train()
     logger.info('Discriminator model:')
@@ -98,7 +103,13 @@ def model_trainer(config):
     optimizer_d = optim.Adam(
         discriminator.parameters(), lr=hyperparameters.d_learning_rate
     )
-    assert(1==0), "TSU!"
+
+    # t0 = time.time()
+    # t1 = time.time()
+    # while(t1 - t0 < 120):
+    #     print(t1-t0)
+    #     t1 = time.time()
+    # assert(1==0), "TSU!"
     # Maybe restore from checkpoint ?> modificar
     restore_path = None
     if hyperparameters.checkpoint_start_from is not None:
@@ -121,6 +132,7 @@ def model_trainer(config):
         checkpoint['restore_ts'].append(t)
     else:
         # Starting from scratch, so initialize checkpoint data structure
+        t, epoch = 0, 0
         checkpoint = Checkpoint()
     t0 = None
     while t < hyperparameters.num_iterations:
@@ -258,11 +270,12 @@ def discriminator_step(
 ):
     batch = [tensor.cuda() for tensor in batch]
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
-     loss_mask, seq_start_end) = batch
+     loss_mask, seq_start_end, frames) = batch
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
 
-    generator_out = generator(obs_traj, obs_traj_rel, seq_start_end)
+    #generator_out = generator(obs_traj, obs_traj_rel, seq_start_end)
+    generator_out = generator(frames, obs_traj)
 
     pred_traj_fake_rel = generator_out
     pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
@@ -272,8 +285,10 @@ def discriminator_step(
     traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
     traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
-    scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
-    scores_real = discriminator(traj_real, traj_real_rel, seq_start_end)
+    #scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
+    scores_fake = discriminator(traj_fake)
+    #scores_real = discriminator(traj_real, traj_real_rel, seq_start_end)
+    scores_real = discriminator(traj_real)
 
     # Compute loss with optional gradient penalty
     data_loss = d_loss_fn(scores_real, scores_fake)
@@ -296,7 +311,7 @@ def generator_step(
 ):
     batch = [tensor.cuda() for tensor in batch]
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
-     loss_mask, seq_start_end) = batch
+     loss_mask, seq_start_end, frames) = batch
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
     g_l2_loss_rel = []
@@ -304,7 +319,8 @@ def generator_step(
     loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
     for _ in range(hyperparameters.best_k):
-        generator_out = generator(obs_traj, obs_traj_rel, seq_start_end)
+        #generator_out = generator(obs_traj, obs_traj_rel, seq_start_end)
+        generator_out = generator(frames, obs_traj)
 
         pred_traj_fake_rel = generator_out
         pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
@@ -331,7 +347,8 @@ def generator_step(
     traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
     traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
-    scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
+    #scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
+    scores_fake = discriminator(traj_fake)
     discriminator_loss = g_loss_fn(scores_fake)
 
     loss += discriminator_loss
@@ -364,12 +381,15 @@ def check_accuracy(
         for batch in loader:
             batch = [tensor.cuda() for tensor in batch]
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
-             non_linear_ped, loss_mask, seq_start_end) = batch
+             non_linear_ped, loss_mask, seq_start_end, frames) = batch
             linear_ped = 1 - non_linear_ped
             loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
+            # pred_traj_fake_rel = generator(
+            #     obs_traj, obs_traj_rel, seq_start_end
+            # )
             pred_traj_fake_rel = generator(
-                obs_traj, obs_traj_rel, seq_start_end
+                frames, obs_traj
             )
             pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
 
@@ -390,8 +410,11 @@ def check_accuracy(
             traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
             traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
-            scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
-            scores_real = discriminator(traj_real, traj_real_rel, seq_start_end)
+            # scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
+            # scores_real = discriminator(traj_real, traj_real_rel, seq_start_end)
+
+            scores_fake = discriminator(traj_fake)
+            scores_real = discriminator(traj_real)
 
             d_loss = d_loss_fn(scores_real, scores_fake)
             d_losses.append(d_loss.item())
