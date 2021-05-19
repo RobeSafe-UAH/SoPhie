@@ -28,22 +28,19 @@ class SoPhieGenerator(nn.Module):
             self.config.visual_extractor.type,
             self.config.visual_extractor.vgg
         )
-        # print("visual_feature_extractor", self.visual_feature_extractor)
+
         self.joint_feature_extractor = JointExtractor(
             self.config.joint_extractor.type,
             self.config.joint_extractor.config
         )
-        # print("joint_feature_extractor", self.joint_feature_extractor)
+
 
     def _build_Attention_modules(self):
         self.physical_attention = SATAttentionModule(self.config.physical_attention)
-        # print("physical_attention", self.physical_attention)
         self.social_attention = SATAttentionModule(self.config.social_attention)
-        # print("social_attention", self.social_attention)
 
     def _build_decoder_module(self):
         self.generator_decoder = Decoder(self.config.decoder)
-        # print("generator_decoder", self.generator_decoder)
 
     def process_visual_feature(self, image):
         visual_features = self.visual_feature_extractor(image)
@@ -128,7 +125,5 @@ class SoPhieDiscriminator(nn.Module):
 
         encoded_trajectory = self.process_encoder(predicted_trajectory)
         classified_trajectory = self.process_classifier(encoded_trajectory)
-
-        print("Classified trajectories: ", classified_trajectory)
         
         return classified_trajectory

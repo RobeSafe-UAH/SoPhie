@@ -38,7 +38,6 @@ def seq_collate_image(data):
 
     # (1,600,600,3)
     frames_arr = tuple([torch.from_numpy(frame).type(torch.float32).unsqueeze(0) for frame in frames])
-    print("frames_arr: ", frames_arr[0].shape)
 
     _len = [len(seq) for seq in obs_seq_list]
     cum_start_idx = [0] + np.cumsum(_len).tolist()
@@ -55,7 +54,6 @@ def seq_collate_image(data):
     loss_mask = torch.cat(loss_mask_list, dim=0)
     frames_t = torch.cat(frames_arr).permute(0, 3, 1, 2)
 
-    print("frames_t: ", type(frames_t), frames_t.shape)
     seq_start_end = torch.LongTensor(seq_start_end)
     out = [
         obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, non_linear_ped,
@@ -134,11 +132,9 @@ class EthUcyDataset(Dataset):
         for path in all_files:
             # read file with data file with
             # structure: frame - x -y- z
-            #print("path: ", path)
             if ignore_file(path):
                 continue
             dataset_name = self.get_dataset_name(path)
-            #print("dataset_name: ", dataset_name)
             #data = read_file(self.videos_path + "/" + dataset_name, self.delim)
             data = read_file(path, self.delim)
             # obtain frames from all the data and
@@ -151,8 +147,6 @@ class EthUcyDataset(Dataset):
                 math.ceil((len(frames) - self.seq_len + 1) / self.skip)) #>? why add 1
 
             frames_dts = []
-
-            #print("num_sequences ", len(frames), self.seq_len, self.skip, num_sequences)
             
             for idx in range(0, num_sequences * self.skip + 1, self.skip):
 
@@ -162,10 +156,9 @@ class EthUcyDataset(Dataset):
 
                 ## agentes en secuencia
                 peds_in_curr_seq = np.unique(curr_seq_data[:, 1])
-                #print("peds_in_curr_seq: ", peds_in_curr_seq)
                 curr_seq_rel = np.zeros((len(peds_in_curr_seq), 2, # numero de agentes en escena, xy, longitud secuencia
                                          self.seq_len))
-                #print("curr_seq_rel ", curr_seq_rel.shape)
+                                        
                 curr_seq = np.zeros((len(peds_in_curr_seq), 2, self.seq_len))
                 curr_loss_mask = np.zeros((len(peds_in_curr_seq),
                                            self.seq_len))
@@ -183,7 +176,6 @@ class EthUcyDataset(Dataset):
                     # get index of frame for current agent. start and end
                     pad_front = frames.index(curr_ped_seq[0, 0]) - idx
                     pad_end = frames.index(curr_ped_seq[-1, 0]) - idx + 1
-                    #print("pad: ", pad_front, pad_end)
                     if pad_end - pad_front != self.seq_len:
                         continue
 
@@ -193,13 +185,12 @@ class EthUcyDataset(Dataset):
                     ## get points of agents (2,self.seq_len)
                     curr_ped_seq = np.transpose(curr_ped_seq[:, 2:])
                     curr_ped_seq = curr_ped_seq
-                    #print("curr_ped_seq: ", curr_ped_seq)
 
                     # Make coordinates relative
                     rel_curr_ped_seq = np.zeros(curr_ped_seq.shape)
                     rel_curr_ped_seq[:, 1:] = \
                         curr_ped_seq[:, 1:] - curr_ped_seq[:, :-1]
-                    #print("rel_curr_ped_seq: ", rel_curr_ped_seq)
+
                     _idx = num_peds_considered
                     curr_seq[_idx, :, pad_front:pad_end] = curr_ped_seq
                     curr_seq_rel[_idx, :, pad_front:pad_end] = rel_curr_ped_seq
@@ -207,12 +198,9 @@ class EthUcyDataset(Dataset):
                     _non_linear_ped.append(
                         poly_fit(curr_ped_seq, self.pred_len, self.threshold))
 
-                    #print("_non_linear_ped: ", _non_linear_ped)
                     curr_loss_mask[_idx, pad_front:pad_end] = 1
-                    #print("curr_loss_mask: ", curr_loss_mask, curr_loss_mask.shape)
                     num_peds_considered += 1
 
-                #print("=======================" , num_peds_considered)
                 if num_peds_considered > self.min_ped:
                     num_peds_considered = 32
                     if len(_non_linear_ped) < num_peds_considered:
@@ -221,9 +209,7 @@ class EthUcyDataset(Dataset):
                         _non_linear_ped = _non_linear_ped + dumm
 
                     non_linear_ped += _non_linear_ped
-                    #print("REEEE ", _non_linear_ped)
                     num_peds_in_seq.append(num_peds_considered)
-                    #print("REEEE ", num_peds_considered)
                     if curr_loss_mask[:num_peds_considered].shape[0] != num_peds_considered:
                         (f_dim, s_dim) = curr_loss_mask[:num_peds_considered].shape
                         dumm = np.zeros((num_peds_considered-f_dim, s_dim))
@@ -231,7 +217,6 @@ class EthUcyDataset(Dataset):
                         curr_loss_mask_ped_final = np.concatenate((curr_loss_mask_ped, dumm), axis=0)
 
                     loss_mask_list.append(curr_loss_mask_ped_final)
-                    #print("REEEE ", curr_loss_mask_ped_final.shape)
 
                     curr_seq_ped = curr_seq[:num_peds_considered]
                     if curr_seq_ped.shape[0] != num_peds_considered:
@@ -239,7 +224,6 @@ class EthUcyDataset(Dataset):
                         dumm = np.zeros((num_peds_considered-f_dim, s_dim, t_dim))
                         curr_seq_ped_final = np.concatenate((curr_seq_ped, dumm), axis=0)
                     seq_list.append(curr_seq_ped_final)
-                    #print("REEEE ", curr_seq_ped_final.shape)
 
                     curr_seq_rel_ped = curr_seq_rel[:num_peds_considered]
                     if curr_seq_rel_ped.shape[0] != num_peds_considered:
@@ -247,11 +231,8 @@ class EthUcyDataset(Dataset):
                         dumm = np.zeros((num_peds_considered-f_dim, s_dim, t_dim))
                         curr_seq_ped_final = np.concatenate((curr_seq_rel_ped, dumm), axis=0)
                     seq_list_rel.append(curr_seq_ped_final)
-                    #print("REEEE ", curr_seq_ped_final.shape)
 
-                    #print("frame_idx_list: ", np.unique(frame_idx_list))
                     frames_dts.append(np.unique(frame_idx_list)[0])
-                    #assert 1 == 0, "aiiieee"
 
             frame_dict_dataset.append({dataset_name: frames_dts})
         
@@ -276,39 +257,26 @@ class EthUcyDataset(Dataset):
                 iteration += 1
                 continue
             frames_list = np.concatenate((frames_list, frame_list_im), axis=0)
-        
-        print(">>> ", frames_list.shape)
 
-        #assert 1== 0, "re"
 
         # Convert numpy -> Torch Tensor
         self.obs_traj = torch.from_numpy(
             seq_list[:, :, :self.obs_len]).type(torch.float32) # [53472, 2, 8]
-        print("self.obs_traj: ", self.obs_traj.shape)
         self.pred_traj = torch.from_numpy(
             seq_list[:, :, self.obs_len:]).type(torch.float32) # [53472, 2, 8]
-        print("self.pred_traj: ", self.pred_traj.shape)
         self.obs_traj_rel = torch.from_numpy(
             seq_list_rel[:, :, :self.obs_len]).type(torch.float32) # [53472, 2, 8]
-        print("obs_traj_rel: ", self.obs_traj_rel.shape)
         self.pred_traj_rel = torch.from_numpy(
             seq_list_rel[:, :, self.obs_len:]).type(torch.float32) # [53472, 2, 8]
-        print("pred_traj_rel: ", self.pred_traj_rel.shape)
         self.loss_mask = torch.from_numpy(loss_mask_list).type(torch.float32) # [53472, 16]
-        print("loss_mask: ", self.loss_mask.shape)
         self.non_linear_ped = torch.from_numpy(non_linear_ped).type(torch.float32) # [53472]
-        print("non_linear_ped: ", self.non_linear_ped.shape)
         cum_start_idx = [0] + np.cumsum(num_peds_in_seq).tolist() # [1672]
-        print("cum_start_idx: ", len(cum_start_idx)) 
         self.seq_start_end = [
             (start, end)
             for start, end in zip(cum_start_idx, cum_start_idx[1:]) # [1671]
         ]
-        print("seq_start_end: ", len(self.seq_start_end))
-        # self.frames = torch.from_numpy(
-        #     frames_list).type(torch.float32)
+
         self.frames = frames_list # (1671, 600, 600, 3)
-        print("frames: ", self.frames.shape)
 
     def get_frames(self, path, new_shape, frames):
         cap = cv2.VideoCapture(path) 

@@ -183,7 +183,7 @@ def test_dataLoader_img():
         (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
          loss_mask, seq_start_end, frames) = batch
 
-        print("> ", obs_traj.shape, obs_traj_rel.shape, frames.shape)
+        print("> ", obs_traj.shape, pred_traj_gt.shape, frames.shape)
         # t1 = time.time()
         # while(t1 - t0 < 120):
         #     print(t1-t0)
