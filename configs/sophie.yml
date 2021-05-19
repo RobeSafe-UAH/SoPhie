@@ -25,9 +25,9 @@ sophie:
                 encoder:
                     num_layers: 1 # Numbers of agents
                     hidden_dim: 32
-                    emb_dim: 2 # embedding input from mlp
+                    emb_dim: 16 # embedding input from mlp
                     mlp_config:
-                        dim_list: [2, 32] # input
+                        dim_list: [2, 16] # input
                         activation: 'relu'
                         batch_norm: False
                         dropout: 0
@@ -37,7 +37,7 @@ sophie:
                 in_features: 128
                 out_features: 512
             linear_feature:
-                in_features: 324 # From 600x600 images to 18x18 (=324) activation maps
+                in_features: 324 # From 600x600 images to 18x18 (= 324) activation maps
                 out_features: 2
             softmax:
                 dim: 0
@@ -55,13 +55,27 @@ sophie:
             hidden_dim: 128 #&h_dim
             emb_dim: 64
             dropout: 0
-            seq_len: 8
+            seq_len: 12
             linear_1:
                 input_dim: 2
                 output_dim: 64
             linear_2:
                 input_dim: 128 #*h_dim
-                output_dim: 2
+                output_dim: 64
+            linear_3:
+                input_dim: 64 #*h_dim
+                output_dim: 32
+            mlp_config:
+                dim_list: [64, 128, 64, 2] 
+                activation: 'relu'
+                batch_norm: False
+                dropout: 0
+            # linear_3:
+            #     input_dim: 128 #*h_dim
+            #     output_dim: 64
+            # linear_4:
+            #     input_dim: 64 #*h_dim
+            #     output_dim: 2
         noise:
             noise_type: "gauss" # gauss or uniform
 
@@ -81,7 +95,7 @@ sophie:
         # Classifier
         classifier:
             mlp_config:
-                dim_list: [640, 320, 160, 80, 40, 16, 2] 
+                dim_list: [4096, 2048, 1024, 512, 256, 128, 64, 16, 2] 
                 activation: 'relu'
                 batch_norm: False
                 dropout: 0

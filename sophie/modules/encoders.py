@@ -36,11 +36,18 @@ class Encoder(nn.Module):
         """
 
         print("spatial_embedding: ", self.spatial_embedding)
-        print("<<<<< ", input_data.shape)
+        print("<<<<< Input data shape: ", input_data.shape)
         batch = input_data.size(1)
+        dim_features_size = input_data.size(2)
+        print("Self emb: ", self.emb_dim)
+
+        test = input_data.contiguous().view(-1,dim_features_size)
+        print("Test: ", test.shape)
         input_embedding = self.spatial_embedding(
-            input_data.contiguous().view(-1,self.emb_dim)
+            input_data.contiguous().view(-1,dim_features_size)
         )
+        print("Input embedding: ", input_embedding.shape)
+
         print("> ", input_embedding.shape)
         input_embedding = input_embedding.view(
             -1, batch, self.emb_dim
@@ -62,4 +69,5 @@ class Encoder(nn.Module):
         # print("Cell states: ", states[1], states[1].shape)
 
         final_h = states[0]
+        
         return output, final_h
