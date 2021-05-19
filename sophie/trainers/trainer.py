@@ -99,7 +99,7 @@ def model_trainer(config):
     g_loss_fn = gan_g_loss
     d_loss_fn = gan_d_loss
 
-    print("======= ", generator.parameters())
+    #print("======= ", generator.parameters())
     optimizer_g = optim.Adam(generator.parameters(), lr=hyperparameters.g_learning_rate)
     optimizer_d = optim.Adam(
         discriminator.parameters(), lr=hyperparameters.d_learning_rate

@@ -51,7 +51,7 @@ class Decoder(nn.Module):
         input_embedding = input_embedding.view(
             1, batch, self.emb_dim
         )
-        print("Batch: ", batch)
+        #print("Batch: ", batch)
         state_tuple = self.init_hidden(batch)
 
         # print("State tuple: ", state_tuple, len(state_tuple))
@@ -65,8 +65,8 @@ class Decoder(nn.Module):
             predicted_trajectories.append(rel_pos.view(batch, -1))
                 
         pred_traj_fake_rel = torch.stack(predicted_trajectories, dim=0)
-        print("Pred: ", pred_traj_fake_rel.shape)
+        #print("Pred: ", pred_traj_fake_rel.shape)
         pred_traj_fake_rel = self.agentscorrector(pred_traj_fake_rel.view(-1,pred_traj_fake_rel.shape[1]))
         pred_traj_fake_rel = pred_traj_fake_rel.view(self.seq_len,pred_traj_fake_rel.shape[1],-1)
-        print("pred_traj_fake_rel: ", pred_traj_fake_rel.shape)
+        #print("pred_traj_fake_rel: ", pred_traj_fake_rel.shape)
         return pred_traj_fake_rel, state_tuple[0]

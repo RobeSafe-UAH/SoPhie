@@ -106,7 +106,7 @@ class SoPhieGenerator(nn.Module):
         )
         features_noise = self.add_white_noise(attention_features, noise)
         pred_traj, _ = self.process_decoder(features_noise)
-        print("Pred trajectories: ", pred_traj.shape)
+        #print("Pred trajectories: ", pred_traj.shape)
         return pred_traj
 
 class SoPhieDiscriminator(nn.Module):

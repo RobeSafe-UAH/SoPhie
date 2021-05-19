@@ -1,4 +1,5 @@
 from collections import defaultdict
+from prodict import Prodict
 
 class Checkpoint():
 
@@ -13,10 +14,10 @@ class Checkpoint():
         self.restore_ts = []
         self.norm_g = []
         self.norm_d = []
-        self.counters = {
+        self.counters = Prodict.from_dict({
             "t": None,
             "epoch": None,
-        }
+        })
         self.g_state = None
         self.g_optim_state = None
         self.d_state = None
