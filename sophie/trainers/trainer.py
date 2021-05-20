@@ -213,9 +213,13 @@ def model_trainer(config):
 
                 for k, v in sorted(metrics_val.items()):
                     logger.info('  [val] {}: {:.3f}'.format(k, v))
+                    if k not in checkpoint.config_cp.metrics_val.keys():
+                        checkpoint.config_cp.metrics_val[k] = []
                     checkpoint.config_cp.metrics_val[k].append(v)
                 for k, v in sorted(metrics_train.items()):
                     logger.info('  [train] {}: {:.3f}'.format(k, v))
+                    if k not in  checkpoint.config_cp.metrics_train.keys():
+                        checkpoint.config_cp.metrics_train[k] = []    
                     checkpoint.config_cp.metrics_train[k].append(v)
 
                 min_ade = min(checkpoint.config_cp.metrics_val['ade'])
