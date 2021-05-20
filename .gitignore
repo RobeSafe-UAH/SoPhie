@@ -22,3 +22,5 @@ sophie/utils/*.pyc
 
 data/datasets/
 data/datasets.tar.gz
+
+save/*.pt

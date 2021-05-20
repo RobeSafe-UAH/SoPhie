@@ -111,8 +111,8 @@ hyperparameters:
     timing: 0 # ?> Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 100
     checkpoint_every: 500
-    output_dir: "PATH"
-    checkpoint_name: "name"
+    output_dir: "save"
+    checkpoint_name: "test"
     checkpoint_start_from: 
     restore_from_checkpoint: 
     clipping_threshold_d: 0
