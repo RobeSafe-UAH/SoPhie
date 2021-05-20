@@ -236,7 +236,7 @@ def model_trainer(config):
                 checkpoint.d_state = discriminator.state_dict()
                 checkpoint.d_optim_state = optimizer_d.state_dict()
                 checkpoint_path = os.path.join(
-                    hyperparameters.output_dir, '%s_with_model.pt' % hyperparameters.checkpoint_name
+                    config.base_dir, hyperparameters.output_dir, '%s_with_model.pt' % hyperparameters.checkpoint_name
                 )
                 logger.info('Saving checkpoint to {}'.format(checkpoint_path))
                 torch.save(checkpoint, checkpoint_path)
