@@ -153,7 +153,7 @@ def model_trainer(config):
                 losses_d = discriminator_step(hyperparameters, batch, generator,
                                               discriminator, d_loss_fn,
                                               optimizer_d)
-                checkpoint.norm_d.append(
+                checkpoint.config_cp["norm_d"].append(
                     get_total_norm(discriminator.parameters()))
                 d_steps_left -= 1
             elif g_steps_left > 0:
@@ -161,7 +161,7 @@ def model_trainer(config):
                 losses_g = generator_step(hyperparameters, batch, generator,
                                           discriminator, g_loss_fn,
                                           optimizer_g)
-                checkpoint.norm_g.append(
+                checkpoint.config_cp["norm_g"].append(
                     get_total_norm(generator.parameters())
                 )
                 g_steps_left -= 1
@@ -185,16 +185,20 @@ def model_trainer(config):
                 logger.info('t = {} / {}'.format(t + 1, hyperparameters.num_iterations))
                 for k, v in sorted(losses_d.items()):
                     logger.info('  [D] {}: {:.3f}'.format(k, v))
-                    checkpoint.D_losses[k].append(v)
+                    if k not in checkpoint.config_cp["D_losses"].keys():
+                        checkpoint.config_cp["D_losses"][k] = []
+                    checkpoint.config_cp["D_losses"][k].append(v)
                 for k, v in sorted(losses_g.items()):
                     logger.info('  [G] {}: {:.3f}'.format(k, v))
-                    checkpoint.G_losses[k].append(v)
-                checkpoint.losses_ts.append(t)
+                    if k not in checkpoint.config_cp["G_losses"].keys():
+                        checkpoint.config_cp["G_losses"][k] = [] 
+                    checkpoint.config_cp["G_losses"][k].append(v)
+                checkpoint.config_cp["losses_ts"].append(t)
 
             if t > 0 and t % hyperparameters.checkpoint_every == 0:
-                checkpoint.counters.t = t
-                checkpoint.counters.epoch = epoch
-                checkpoint.sample_ts.append(t)
+                checkpoint.config_cp["counters"]["t"] = t
+                checkpoint.config_cp["counters"]["epoch"] = epoch
+                checkpoint.config_cp["sample_ts"].append(t)
 
                 # Check stats on the validation set
                 logger.info('Checking stats on val ...')
@@ -209,32 +213,36 @@ def model_trainer(config):
 
                 for k, v in sorted(metrics_val.items()):
                     logger.info('  [val] {}: {:.3f}'.format(k, v))
-                    checkpoint.metrics_val[k].append(v)
+                    if k not in checkpoint.config_cp["metrics_val"].keys():
+                        checkpoint.config_cp["metrics_val"][k] = []
+                    checkpoint.config_cp["metrics_val"][k].append(v)
                 for k, v in sorted(metrics_train.items()):
                     logger.info('  [train] {}: {:.3f}'.format(k, v))
-                    checkpoint.metrics_train[k].append(v)
+                    if k not in  checkpoint.config_cp["metrics_train"].keys():
+                        checkpoint.config_cp["metrics_train"][k] = []    
+                    checkpoint.config_cp["metrics_train"][k].append(v)
 
-                min_ade = min(checkpoint.metrics_val['ade'])
-                min_ade_nl = min(checkpoint.metrics_val['ade_nl'])
+                min_ade = min(checkpoint.config_cp["metrics_val"]['ade'])
+                min_ade_nl = min(checkpoint.config_cp["metrics_val"]['ade_nl'])
 
                 if metrics_val['ade'] == min_ade:
                     logger.info('New low for avg_disp_error')
-                    checkpoint.best_t = t
-                    checkpoint.g_best_state = generator.state_dict()
-                    checkpoint.d_best_state = discriminator.state_dict()
+                    checkpoint.config_cp["best_t"] = t
+                    checkpoint.config_cp["g_best_state"] = generator.state_dict()
+                    checkpoint.config_cp["d_best_state"] = discriminator.state_dict()
 
                 if metrics_val['ade_nl'] == min_ade_nl:
                     logger.info('New low for avg_disp_error_nl')
-                    checkpoint.best_t_nl = t
-                    checkpoint.g_best_nl_state = generator.state_dict()
-                    checkpoint.d_best_nl_state = discriminator.state_dict()
+                    checkpoint.config_cp["best_t_nl"] = t
+                    checkpoint.config_cp["g_best_nl_state"] = generator.state_dict()
+                    checkpoint.config_cp["d_best_nl_state"] = discriminator.state_dict()
 
                 # Save another checkpoint with model weights and
                 # optimizer state
-                checkpoint.g_state = generator.state_dict()
-                checkpoint.g_optim_state = optimizer_g.state_dict()
-                checkpoint.d_state = discriminator.state_dict()
-                checkpoint.d_optim_state = optimizer_d.state_dict()
+                checkpoint.config_cp["g_state"] = generator.state_dict()
+                checkpoint.config_cp["g_optim_state"] = optimizer_g.state_dict()
+                checkpoint.config_cp["d_state"] = discriminator.state_dict()
+                checkpoint.config_cp["d_optim_state"] = optimizer_d.state_dict()
                 checkpoint_path = os.path.join(
                     config.base_dir, hyperparameters.output_dir, '%s_with_model.pt' % hyperparameters.checkpoint_name
                 )
@@ -253,7 +261,7 @@ def model_trainer(config):
                     'd_best_nl_state'
                 ]
                 small_checkpoint = {}
-                for k, v in checkpoint.items():
+                for k, v in checkpoint.config_cp.items():
                     if k not in key_blacklist:
                         small_checkpoint[k] = v
                 torch.save(small_checkpoint, checkpoint_path)
@@ -491,4 +499,3 @@ def cal_fde(
         pred_traj_fake[-1], pred_traj_gt[-1], non_linear_ped
     )
     return fde, fde_l, fde_nl
-
