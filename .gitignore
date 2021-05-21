@@ -23,8 +23,4 @@ sophie/utils/*.pyc
 data/datasets/
 data/datasets.tar.gz
 
-<<<<<<< HEAD
 save/*.pt
-=======
-save/*.pt
->>>>>>> feature/trainer
