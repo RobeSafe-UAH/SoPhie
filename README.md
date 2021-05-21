@@ -1,4 +1,4 @@
-# SmartMOT
+# SoPhie
 SoPhie: An Attentive GAN for Predicting Paths Compliant to Social andPhysical Constraints
 
 <img src="media/system_pipeline.svg"/>
@@ -10,19 +10,18 @@ This paper addresses the problem of path prediction for multiple interacting age
 
 ## Requirements
 
-Note that due to ROS1 limitations (till Noetic version), specially in terms of TF ROS package, we limited the Python version to 2.7. Future works will integrate the code using ROS1 Noetic or ROS2, improving the version to Python3.
+<!-- Note that due to ROS1 limitations (till Noetic version), specially in terms of TF ROS package, we limited the Python version to 2.7. Future works will integrate the code using ROS1 Noetic or ROS2, improving the version to Python3. -->
 
-- Python3.8 
+<!-- - Python3.8 
 - Numpy
 - ROS melodic
 - HD map information (Monitorized lanes)
-- Keras==2.2.4
-- OpenCV==4.1.2
 - scikit-image==0.17.2
-- lap==0.4.0
-- block.bootstrap.pytorch (0.1.6)
+- lap==0.4.0 -->
+- OpenCV==4.1.1
+- YAML
+- ProDict
 - torch (1.8.0+cu111)
-- torchaudio (0.8.0)
 - torchfile (0.1.0)
 - torchsummary (1.5.1)
 - torchtext (0.5.0)
