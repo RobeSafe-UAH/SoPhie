@@ -22,7 +22,7 @@ from sophie.utils.utils import relative_to_abs
 torch.backends.cudnn.benchmark = True
 
 FORMAT = '[%(levelname)s: %(filename)s: %(lineno)4d]: %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT, stream=sys.stdout)
+logging.basicConfig(filename="experiment_log.log", level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
 
 
