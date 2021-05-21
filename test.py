@@ -43,7 +43,7 @@ im_height = 600
 po = 8 # Past Observations
 fo = 12 # Future Observations
 na = 32 # Number of Agents 
-dlb = 1 # DataLoader batch
+dlb = 16 # DataLoader batch
 tfd = 2 # Trajectory Features Dimension
     
 # Read data
@@ -333,7 +333,7 @@ def test_sophie_discriminator():
     """
     """
 
-    trajectories = 10 * np.random.randn(po+fo, na, tfd) # 8, 32, 2
+    trajectories = 10 * np.random.randn(po+fo, na*dlb, tfd) # 8, 32, 2
     trajectories = torch.from_numpy(trajectories).to(device).float()
 
     discriminator = SoPhieDiscriminator(config_file.sophie.discriminator)
