@@ -18,11 +18,12 @@ class SATAttentionModule(nn.Module):
         self.relu  = nn.ReLU()
         self.softmax = nn.Softmax(self.config.softmax.dim)
 
-    def forward(self, feature_1, feature_decoder):
+
+    def forward(self, feature_1, feature_decoder, num_agents=32):
         """
         Inputs:
-            - feature_1: Visual Extractor output (4D {batch, 512, 18, 18}) or Joint Extractor output (3D {L, batch, dim_features})
-            - feature_decoder: Generator output (LSTM based decoder; 3D {batch, L, dim_features})
+            - feature_1: Visual Extractor output (4D {batch*1, 512, 18, 18}) or Joint Extractor output (3D {L, 32*batch, dim_features})
+            - feature_decoder: Generator output (LSTM based decoder; 3D {1, 32*batch, dim_features})
         Outputs:
             - alpha?
             - context_vector: (For physical attention, concentrates on feasible paths for each agent; For Social attention, highlights
@@ -30,31 +31,29 @@ class SATAttentionModule(nn.Module):
         """
 
         # Feature 1 processing
-
-        # print("Type feature_1: ", type(feature_1))
-        # print("Type feature_decoder: ", type(feature_decoder))
-
-        if (len(feature_1.size()) == 4):
-            # Visual Extractor
-            feature_1 = feature_1.contiguous().view(-1,feature_1.size(2)*feature_1.size(3)) # 4D -> 2D
-        elif (len(feature_1.size()) == 3):
-            # Joint Extractor
-            feature_1 = feature_1.contiguous().view(-1,feature_1.size(2)) # 3D -> 2D
-        # print("\nFeature 1: ", feature_1.shape)
-        linear_feature1_output = self.linear_feature(feature_1)
-
-        # Feature decoder processing
-
-        #print("Feature decoder: ", feature_decoder.shape)
+        batch = feature_decoder.size(1)
+        batch_config = int(batch/num_agents)
         feature_decoder = feature_decoder.contiguous().view(-1,feature_decoder.size(2)) # 3D -> 2D
-        #print("Feature decoder 1: ", feature_decoder.shape)
-        linear_decoder_output = self.linear_decoder(feature_decoder)
-        # print("Feature decoder 2: ", linear_decoder_output.shape)
 
-        # print("\nLinear decoder output: ", linear_decoder_output.shape)
-        # print("Linear feature1 output: ", linear_feature1_output.shape)
-    
-        alpha = self.softmax(linear_decoder_output)
-        # print("\nAlpha: ", alpha.shape)
-        context_vector = torch.matmul(alpha, linear_feature1_output)
-        return alpha, context_vector
+        for i in range(batch_config):
+            if (len(feature_1.size()) == 4):
+                # Visual Extractor
+                feature_1_ind = torch.unsqueeze(feature_1[i, :, :, :],0)
+                feature_1_ind = feature_1_ind.contiguous().view(-1,feature_1_ind.size(2)*feature_1_ind.size(3)) # 4D -> 2D
+            elif (len(feature_1.size()) == 3):
+                # Joint Extractor
+                feature_1_ind = feature_1[:,num_agents*i: num_agents*(i+1),:]
+                feature_1_ind = feature_1_ind.contiguous().view(batch,-1) # 3D -> 2D
+            linear_feature1_output = self.linear_feature(feature_1_ind)
+
+            # Feature decoder processing
+            linear_decoder_output = self.linear_decoder(feature_decoder)
+        
+            alpha = self.softmax(linear_decoder_output)
+            if i == 0:
+                list_context_vector = torch.matmul(alpha, linear_feature1_output)
+            else:
+                context_vector = torch.matmul(alpha, linear_feature1_output)
+                list_context_vector = torch.cat((list_context_vector,context_vector), 0)
+
+        return alpha, list_context_vector

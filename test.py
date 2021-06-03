@@ -43,7 +43,7 @@ im_height = 600
 po = 8 # Past Observations
 fo = 12 # Future Observations
 na = 32 # Number of Agents 
-dlb = 16 # DataLoader batch
+dlb = 8 # DataLoader batch
 tfd = 2 # Trajectory Features Dimension
     
 # Read data
@@ -310,17 +310,19 @@ def test_sophie_generator():
     width = 600
     height = 600
     channels = 3
-    batch_img = 1
+    batch_img = 1*dlb
     image_test = torch.rand(batch_img, channels, height, width).to(device) # batch, channel, H, W
 
     # Trajectories
 
-    trajectories_test = 10 * np.random.randn(po, na, tfd)
+    trajectories_test = 10 * np.random.randn(po, na*dlb, tfd)
     trajectories_test = torch.from_numpy(trajectories_test).to(device).float()
 
     # sample_dict = {'image' : image_test, 'trajectories' : trajectories_test, 'decoder_output' : decoder_output_test}
     # sample_dict = {'image' : image_test, 'trajectories' : trajectories_test}
     # sample = Prodict.from_dict(sample_dict)
+    config_file.sophie.generator.decoder.linear_3.input_dim = config_file.dataset.batch_size*2*config_file.sophie.generator.social_attention.linear_decoder.out_features
+    config_file.sophie.generator.decoder.linear_3.output_dim = config_file.dataset.batch_size*na
 
     generator = SoPhieGenerator(config_file.sophie.generator)
     generator.build()

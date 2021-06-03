@@ -80,6 +80,8 @@ def model_trainer(config):
         'There are {} iterations per epoch'.format(iterations_per_epoch)
     )
 
+    config.sophie.generator.decoder.linear_3.input_dim = config.dataset.batch_size*2*config.sophie.generator.social_attention.linear_decoder.out_features
+    config.sophie.generator.decoder.linear_3.output_dim = config.dataset.batch_size*config.number_agents
     generator = SoPhieGenerator(config.sophie.generator)
     generator.build()
     generator.to(device)
@@ -98,20 +100,10 @@ def model_trainer(config):
 
     g_loss_fn = gan_g_loss
     d_loss_fn = gan_d_loss
-
-    #print("======= ", generator.parameters())
     optimizer_g = optim.Adam(generator.parameters(), lr=hyperparameters.g_learning_rate)
     optimizer_d = optim.Adam(
         discriminator.parameters(), lr=hyperparameters.d_learning_rate
     )
-
-    # t0 = time.time()
-    # t1 = time.time()
-    # while(t1 - t0 < 120):
-    #     print(t1-t0)
-    #     t1 = time.time()
-    # assert(1==0), "TSU!"
-    # Maybe restore from checkpoint ?> modificar
     restore_path = None
     if hyperparameters.checkpoint_start_from is not None:
         restore_path = hyperparameters.checkpoint_start_from
