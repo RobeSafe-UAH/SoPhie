@@ -2,10 +2,11 @@
 # SoPhie model
 use_gpu: 1
 dataset_name: ethucy
+number_agents: 32
 dataset:
     path: data/datasets/zara1
     video: data/datasets/videos
-    batch_size: 1 # 16 max
+    batch_size: 8 # 16 max
     shuffle: True
     num_workers: 0
 sophie:
@@ -28,7 +29,7 @@ sophie:
                     hidden_dim: 32
                     emb_dim: 16 # embedding input from mlp
                     mlp_config:
-                        dim_list: [2, 16] # input
+                        dim_list: [2, 16]
                         activation: 'relu'
                         batch_norm: False
                         dropout: 0
@@ -38,7 +39,7 @@ sophie:
                 in_features: 128
                 out_features: 512
             linear_feature:
-                in_features: 324 # From 600x600 images to 18x18 (= 324) activation maps
+                in_features: 324 # From 600x600 images to 18x18 (= 324) activation maps 2>
                 out_features: 2
             softmax:
                 dim: 0
@@ -64,8 +65,8 @@ sophie:
                 input_dim: 128 #*h_dim
                 output_dim: 64
             linear_3:
-                input_dim: 64 #*h_dim
-                output_dim: 32
+                input_dim: #64 #*h_dim 
+                output_dim: #32
             mlp_config:
                 dim_list: [64, 128, 64, 2] 
                 activation: 'relu'

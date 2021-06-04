@@ -12,7 +12,6 @@ class JointExtractor(nn.Module):
     def __init__(self, joint_extractor_type, config):
         super(JointExtractor, self).__init__()
         
-        # print("Opt: ", config, type(config))
         if joint_extractor_type == "encoder_sort":
             self.module = Encoder(**config.encoder)
         else:
