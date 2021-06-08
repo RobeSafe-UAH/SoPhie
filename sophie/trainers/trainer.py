@@ -52,6 +52,9 @@ def model_trainer(config):
 
     long_dtype, float_dtype = get_dtypes(config.use_gpu)
 
+    logger.info('Configuration: ')
+    logger.info(config)
+
     #?> cargar dataset eth
     logger.info("Initializing train dataset") 
     data_train = EthUcyDataset(train_path, videos_path=os.path.join(config.base_dir, config.dataset.video))

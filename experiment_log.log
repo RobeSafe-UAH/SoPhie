@@ -109,9 +109,9 @@
     (softmax): Softmax(dim=1)
   )
 )
-[INFO: trainer.py:  146]: Starting epoch 1
-[INFO: trainer.py:  187]: t = 1 / 22093
-[INFO: trainer.py:  189]:   [D] D_data_loss: 1.580
-[INFO: trainer.py:  189]:   [D] D_total_loss: 1.580
-[INFO: trainer.py:  194]:   [G] G_discriminator_loss: 0.319
-[INFO: trainer.py:  194]:   [G] G_total_loss: 0.319
+[INFO: trainer.py:  136]: Starting epoch 1
+[INFO: trainer.py:  177]: t = 1 / 22093
+[INFO: trainer.py:  179]:   [D] D_data_loss: 1.567
+[INFO: trainer.py:  179]:   [D] D_total_loss: 1.567
+[INFO: trainer.py:  184]:   [G] G_discriminator_loss: 0.523
+[INFO: trainer.py:  184]:   [G] G_total_loss: 0.523
