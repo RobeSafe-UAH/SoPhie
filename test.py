@@ -10,6 +10,7 @@ from sophie.modules.backbones import VisualExtractor, JointExtractor
 from sophie.modules.encoders import Encoder
 from sophie.modules.classifiers import Classifier
 from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate, seq_collate_image
+from sophie.data_loader.aiodrive.dataset import AioDriveDataset, seq_collate_image_aiodrive
 from sophie.modules.decoders import Decoder
 from sophie.modules.attention import SATAttentionModule
 
@@ -343,6 +344,35 @@ def test_sophie_discriminator():
     discriminator.to(device)
     discriminator.forward(trajectories)
 
+def test_aiodrive_dataset():
+    data = AioDriveDataset("./data/datasets/aiodrive_Car/train")
+    print(data)
+    assert 1 == 0, "aieeee"
+    batch_size = 64
+    loader_num_workers = 4
+    loader = DataLoader(
+        data,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=loader_num_workers,
+        collate_fn=seq_collate_image)
+
+    print("loader: ", loader)
+    print("device: ", device)
+    t0 = time.time()
+    for batch in loader:
+        batch = [tensor.cuda() for tensor in batch]
+        (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
+         loss_mask, seq_start_end, frames) = batch
+
+        print("> ", obs_traj.shape, pred_traj_gt.shape, frames.shape)
+        # t1 = time.time()
+        # while(t1 - t0 < 120):
+        #     print(t1-t0)
+        #     t1 = time.time()
+        #assert 1 == 0, "aiie"
+
+
 if __name__ == "__main__":
     # test_read_file()
     # test_dataLoader()
@@ -355,7 +385,8 @@ if __name__ == "__main__":
     # test_encoder()
     # test_decoder()
     #test_sophie_generator()
-    test_sophie_discriminator()
+    #test_sophie_discriminator()
+    test_aiodrive_dataset()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))
