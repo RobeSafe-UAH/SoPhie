@@ -30,7 +30,7 @@ class Decoder(nn.Module):
             config.linear_2.input_dim,
             config.linear_2.output_dim
         )
-        self.agentscorrector = nn.Linear(
+        self.agentscorrector = nn.Linear(  
             config.linear_3.input_dim,
             config.linear_3.output_dim
         )
@@ -51,7 +51,7 @@ class Decoder(nn.Module):
         input_embedding = input_embedding.view(
             1, batch, self.emb_dim
         )
-
+        print("AA")
         state_tuple = self.init_hidden(batch)
 
         for _ in range(self.seq_len):
@@ -62,6 +62,7 @@ class Decoder(nn.Module):
             predicted_trajectories.append(rel_pos.view(batch, -1))
                 
         pred_traj_fake_rel = torch.stack(predicted_trajectories, dim=0)
+        print("pred traj fake: ", pred_traj_fake_rel)
         pred_traj_fake_rel = self.agentscorrector(pred_traj_fake_rel.view(-1,pred_traj_fake_rel.shape[1]))
         pred_traj_fake_rel = pred_traj_fake_rel.view(self.seq_len,pred_traj_fake_rel.shape[1],-1)
         return pred_traj_fake_rel, state_tuple[0]

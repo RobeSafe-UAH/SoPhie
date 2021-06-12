@@ -33,27 +33,53 @@ with open(r'./configs/sophie.yml') as config_file:
         config_file = yaml.safe_load(config_file)
         config_file = Prodict.from_dict(config_file)
 
+## Batch size
+
+batch_size = 16 # Dataloader batch
+
 ## Image
 
-im_batch = 1
 im_width = 600
 im_height = 600
+
+## Processed image
+
+vgg_channels = 512
+vgg_channels_width = vgg_channels_height = 18
 
 ## Trajectories
 
 po = 8 # Past Observations
 fo = 12 # Future Observations
 na = 32 # Number of Agents 
-dlb = 8 # DataLoader batch
-tfd = 2 # Trajectory Features Dimension
+tfd = 2 # Trajectory Features Dimension (x,y per point)
+
+## Decoder features
+
+decoder_dim_features = 128
+
+# Functions
     
-# Read data
+## Read data
 
 def test_read_file():
-    data = read_file("./data_test.txt", "tab")
+    data = read_file("./data/datasets/eth/test/biwi_eth.txt", "tab")
     print("data: ", data)
     frames = np.unique(data[:, 0]).tolist()
     print("frames: ", frames)
+
+def read_video(path, new_shape):
+    cap = cv2.VideoCapture(path) 
+    num_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    frames_list = []
+    while (num_frames > 0):
+        _, frame = cap.read()
+        print("_ ", _)
+        num_frames = num_frames - 1
+        re_frame = cv2.resize(frame, new_shape)
+        frames_list.append(re_frame)
+    cap.release()
+    return frames_list
 
 def test_dataLoader():
     data = EthUcyDataset("./data/datasets/zara1/train")
@@ -109,7 +135,7 @@ def test_dataLoader_img():
         #     t1 = time.time()
         #assert 1 == 0, "aiie"
 
-# Extractors
+## Extractors
 
 def test_visual_extractor():
     # opt = {
@@ -122,58 +148,56 @@ def test_visual_extractor():
     # vgg_19 = VisualExtractor("vgg19", opt).to(device)
 
     vgg_19 = VisualExtractor("vgg19", config_file.sophie.generator.visual_extractor.vgg).to(device)
-    image_test = rand(im_batch,3,im_height,im_width).to(device) # batch, channel, H, W
+    image_test = rand(batch_size,3,im_height,im_width).to(device) # batch, channel, H, W
     print(">>> ", vgg_19(image_test).shape) # batch, 512, 18, 18
 
 def test_joint_extractor():
-    initial_trajectory = 10 * np.random.randn(po, na, tfd)
+    initial_trajectory = 10 * np.random.randn(po, na*batch_size, tfd)
     initial_trajectory = torch.from_numpy(initial_trajectory).to(device).float()
 
-    opt = {
-        "encoder": {
-            "num_layers": 1,
-            "hidden_dim": 32,
-            "emb_dim": 2,
-            "mlp_config": {
-                "dim_list": [2, 32],
-                "activation": 'relu',
-                "batch_norm": False,
-                "dropout": 0
-            },
-            "dropout": 0,
-        }
-    }
+    # opt = {
+    #     "encoder": {
+    #         "num_layers": 1,
+    #         "hidden_dim": 32,
+    #         "emb_dim": 2,
+    #         "mlp_config": {
+    #             "dim_list": [2, 32],
+    #             "activation": 'relu',
+    #             "batch_norm": False,
+    #             "dropout": 0
+    #         },
+    #         "dropout": 0,
+    #     }
+    # }
 
-    opt = Prodict.from_dict(opt)
+    # opt = Prodict.from_dict(opt)
+
+    # joint_extractor = JointExtractor("encoder_sort", opt).to(device)
 
     joint_extractor = JointExtractor("encoder_sort", config_file.sophie.generator.joint_extractor.config).to(device)
-    # joint_extractor = JointExtractor("encoder_sort", opt).to(device)
     joint_features, _ = joint_extractor(initial_trajectory)
 
     print("Joint Features: ", joint_features.shape)
 
-# Attention modules 
+## Attention modules 
 
 def test_physical_attention_model():
     """
     """
-
+    print("Physical attention model")
     # Feature 1 (Visual Extractor)
 
-    batch = 1
-    channels = 512
-    width = 18
-    height = 18
-    visual_extractor_features = 10 * np.random.randn(batch, channels, width, height)
+    visual_extractor_features = 10 * np.random.randn(batch_size, vgg_channels, vgg_channels_width, vgg_channels_height)
     visual_extractor_features = torch.from_numpy(visual_extractor_features).to(device).float()
 
     # Hidden Decoder Features
 
-    decoder_dim_features = 128 # dim_features
-    predicted_trajectory = 10 * np.random.randn(1, na*dlb, decoder_dim_features)
+    predicted_trajectory = 10 * np.random.randn(1, na*batch_size, decoder_dim_features)
     predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
 
+    print("Physical attention config: ", config_file.sophie.generator.physical_attention)
     physical_attention_module = SATAttentionModule(config_file.sophie.generator.physical_attention).to(device)
+    print("Physical Attention Module: ", physical_attention_module)
 
     alpha, context_vector = physical_attention_module.forward(visual_extractor_features, predicted_trajectory)
 
@@ -185,30 +209,27 @@ def test_physical_attention_model():
 def test_social_attention_model():
     """
     """
-    print("\n")
+    print("Social attention model")
     # Feature 1 (Joint Extractor)
 
-    length = 8 # How many previous timesteps we observe for each agent
-    batch = 32 # Number of agents
     hidden_dim = 32 # Features dimension
  
-    joint_extractor_features = 10 * np.random.randn(length, batch, hidden_dim)
+    joint_extractor_features = 10 * np.random.randn(po, na*batch_size, hidden_dim)
     joint_extractor_features = torch.from_numpy(joint_extractor_features).to(device).float()
 
     # Hidden Decoder Features
 
-    decoder_dim_features = 128 # dim_features
-    predicted_trajectory = 10 * np.random.randn(1, na*dlb, decoder_dim_features)
-    predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
+    hidden_decoder_features = 10 * np.random.randn(1, na*batch_size, decoder_dim_features)
+    hidden_decoder_features = torch.from_numpy(hidden_decoder_features).to(device).float()
 
     print("Social attention config: ", config_file.sophie.generator.social_attention)
     social_attention_module = SATAttentionModule(config_file.sophie.generator.social_attention).to(device)
     print("Social Attention Module: ", social_attention_module)
 
-    alpha, context_vector = social_attention_module.forward(joint_extractor_features, predicted_trajectory)
+    print("Joint extractor features: ", joint_extractor_features.shape)
+    print("Hidden decoder features: ", hidden_decoder_features.shape)
+    alpha, context_vector = social_attention_module.forward(joint_extractor_features, hidden_decoder_features)
 
-    # print("Alpha: ", alpha, alpha.shape)
-    # print("Context vector: ", context_vector, context_vector.shape)
     print("Alpha: ", alpha.shape)
     print("Context vector: ", context_vector.shape)
 
@@ -217,7 +238,7 @@ def test_social_attention_model():
 def test_concat_features():
     """
     """
-
+    
     physical_context_vector = test_physical_attention_model()
     social_context_vector = test_social_attention_model()
 
@@ -241,19 +262,7 @@ def test_concat_features():
 
     return pred_traj
 
-def read_video(path, new_shape):
-    cap = cv2.VideoCapture(path) 
-    num_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-    frames_list = []
-    while (num_frames > 0):
-        _, frame = cap.read()
-        print("_ ", _)
-        num_frames = num_frames - 1
-        re_frame = cv2.resize(frame, new_shape)
-        frames_list.append(re_frame)
-    cap.release()
-    return frames_list
-# Multi-Layer Perceptron
+## Multi-Layer Perceptron
 
 def test_mlp():
     opt = {
@@ -266,7 +275,7 @@ def test_mlp():
     mlp = MLP(**opt)
     print(mlp)
 
-# Encoder
+## Encoder
 
 def test_encoder():
     opt = {
@@ -284,7 +293,7 @@ def test_encoder():
     encoder = Encoder(**opt)
     print(encoder)
 
-# Decoder
+## Decoder
 
 def test_decoder():
 
@@ -295,14 +304,14 @@ def test_decoder():
     input_data = np.random.randn(768,2)
     input_data = torch.from_numpy(input_data).to(device).float()
 
-    print(">>>: ", config_file.sophie.generator.decoder)
+    print(">>>>>>>>>>>>>>>>>: ", config_file.sophie.generator.decoder)
     sophie_decoder = Decoder(config_file.sophie.generator.decoder).to(device)
-    print("sophie_decoder: ", sophie_decoder)
+    print(">>>>>>>>>>>>>>>>> sophie_decoder: ", sophie_decoder)
     trajectories, state_tuple_1 = sophie_decoder(input_data)
     print("trajectories: ", trajectories.shape)
     #print("state_tuple_1: ", state_tuple_1)
 
-# GAN generator
+## GAN generator
 
 def test_sophie_generator():
 
@@ -330,7 +339,7 @@ def test_sophie_generator():
     generator.to(device)
     generator.forward(image_test,trajectories_test)
 
-# GAN discriminator
+## GAN discriminator
 
 def test_sophie_discriminator():
     """
@@ -376,17 +385,18 @@ def test_aiodrive_dataset():
 if __name__ == "__main__":
     # test_read_file()
     # test_dataLoader()
+    # test_dataLoader_img()
     # test_visual_extractor() 
     # test_joint_extractor() 
     # test_physical_attention_model()
-    # test_social_attention_model()
-    # test_concat_features()
+    test_social_attention_model()
+    # test_concat_features() # Error !!
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    #test_sophie_generator()
-    #test_sophie_discriminator()
-    test_aiodrive_dataset()
+    # test_sophie_generator()
+    # test_sophie_discriminator()
+    # test_aiodrive_dataset()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))

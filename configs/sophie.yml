@@ -65,8 +65,8 @@ sophie:
                 input_dim: 128 #*h_dim
                 output_dim: 64
             linear_3:
-                input_dim: #64 #*h_dim 
-                output_dim: #32
+                input_dim: 64 #*h_dim 
+                output_dim: 32
             mlp_config:
                 dim_list: [64, 128, 64, 2] 
                 activation: 'relu'
