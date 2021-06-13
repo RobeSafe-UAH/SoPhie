@@ -35,7 +35,7 @@ with open(r'./configs/sophie.yml') as config_file:
 
 ## Batch size
 
-batch_size = 16 # Dataloader batch
+batch_size = config_file.dataset.batch_size # Dataloader batch
 
 ## Image
 
@@ -275,6 +275,9 @@ def test_decoder():
     input_data = np.random.randn(768,2)
     input_data = torch.from_numpy(input_data).to(device).float()
 
+    config_file.sophie.generator.decoder.linear_3.input_dim = batch_size*2*config_file.sophie.generator.social_attention.linear_decoder.out_features
+    config_file.sophie.generator.decoder.linear_3.output_dim = batch_size*na
+
     print(">>>>>>>>>>>>>>>>>: ", config_file.sophie.generator.decoder)
     sophie_decoder = Decoder(config_file.sophie.generator.decoder).to(device)
     print(">>>>>>>>>>>>>>>>> sophie_decoder: ", sophie_decoder)
@@ -295,15 +298,15 @@ def test_sophie_generator():
     trajectories_test = 10 * np.random.randn(po, na*batch_size, tfd)
     trajectories_test = torch.from_numpy(trajectories_test).to(device).float()
 
-    config_file.sophie.generator.decoder.linear_3.input_dim = config_file.dataset.batch_size*2*config_file.sophie.generator.social_attention.linear_decoder.out_features
-    config_file.sophie.generator.decoder.linear_3.output_dim = config_file.dataset.batch_size*na
+    config_file.sophie.generator.decoder.linear_3.input_dim = batch_size*2*config_file.sophie.generator.social_attention.linear_decoder.out_features
+    config_file.sophie.generator.decoder.linear_3.output_dim = batch_size*na
 
-    print("Linear 3: ", config_file.sophie.generator.decoder.linear_3)
+    print("Linear 3 Decoder: ", config_file.sophie.generator.decoder.linear_3)
 
-    # generator = SoPhieGenerator(config_file.sophie.generator)
-    # generator.build()
-    # generator.to(device)
-    # generator.forward(image_test,trajectories_test)
+    generator = SoPhieGenerator(config_file.sophie.generator)
+    generator.build()
+    generator.to(device)
+    generator.forward(image_test,trajectories_test)
 
 ## GAN discriminator
 

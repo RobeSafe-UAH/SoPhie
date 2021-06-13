@@ -34,7 +34,6 @@ class SoPhieGenerator(nn.Module):
             self.config.joint_extractor.config
         )
 
-
     def _build_Attention_modules(self):
         self.physical_attention = SATAttentionModule(self.config.physical_attention)
         self.social_attention = SATAttentionModule(self.config.social_attention)
@@ -81,24 +80,29 @@ class SoPhieGenerator(nn.Module):
         trajectories, final_state = self.generator_decoder(features)
         return trajectories, final_state
 
-    def forward(self, image, trajectories):
+    def forward(self, image, trajectories, num_agents=32):
         """
         Define
         """
-        batch = trajectories.shape[1]
+        batch = trajectories.shape[1] 
+
         decoder_state = self.generator_decoder.init_hidden(batch) # hidden_state
         visual_feat = self.process_visual_feature(image)
         joint_feat = self.process_joint_feature(trajectories)
 
         attention_visual_features = self.process_physical_attention(visual_feat, decoder_state[0]) # decoder_state[0] = hidden_state
+        print("Attention physical features: ", attention_visual_features.shape)
         attention_social_features = self.process_social_attention(joint_feat, decoder_state[0])
+        print("Attention social features: ", attention_social_features.shape)
         attention_features = torch.cat((attention_visual_features, attention_social_features), 0)
+ 
         shape_features = attention_features.shape
         noise = self.create_white_noise(
             self.config.noise.noise_type,
             shape_features
         )
         features_noise = self.add_white_noise(attention_features, noise)
+        print("Features noise: ", features_noise.shape)
         pred_traj, _ = self.process_decoder(features_noise)
         return pred_traj
 

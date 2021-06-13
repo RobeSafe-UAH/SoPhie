@@ -21,7 +21,7 @@ class SATAttentionModule(nn.Module):
     def forward(self, feature_1, feature_decoder, num_agents=32):
         """
         Inputs:
-            - feature_1: Visual Extractor output (4D {batch*1, 512, 18, 18}) or Joint Extractor output (3D {L, 32*batch, dim_features})
+            - feature_1: Visual Extracto8r output (4D {batch*1, 512, 18, 18}) or Joint Extractor output (3D {L, 32*batch, dim_features})
             - feature_decoder: Generator output (LSTM based decoder; 3D {1, num_agents*batch, dim_features})
         Outputs:
             - alpha?
@@ -35,21 +35,25 @@ class SATAttentionModule(nn.Module):
 
         # Feature 1 processing
 
-        batch = feature_1.size(1) # num_agents x batch_size
-        batch_config = int(batch/num_agents)
+        batch = feature_decoder.size(0) # num_agents x batch_size
+        batch_size = int(batch/num_agents)
 
-        for i in range(batch_config):
+        print("\n")
+
+        for i in range(batch_size):
             if (len(feature_1.size()) == 4):
-                print("Visual Extractor")
+                print("Visual")
                 # Visual Extractor
                 feature_1_ind = torch.unsqueeze(feature_1[i, :, :, :],0)
                 feature_1_ind = feature_1_ind.contiguous().view(-1,feature_1_ind.size(2)*feature_1_ind.size(3)) # 4D -> 2D
             elif (len(feature_1.size()) == 3):
-                print("Joint Extractor")
+                print("Joint")
                 # Joint Extractor
                 feature_1_ind = feature_1[:,num_agents*i: num_agents*(i+1),:]
-                feature_1_ind = feature_1_ind.contiguous().view(-1, num_agents) # 3D -> 2D
-            print("feature_1_ind: ", feature_1_ind, feature_1_ind.shape)
+                # feature_1_ind = feature_1_ind.contiguous().view(-1, num_agents) # 3D -> 2D
+                feature_1_ind = feature_1_ind.contiguous().view(batch, -1) # 3D -> 2D
+
+            print("feature_1_ind: ", feature_1_ind.shape)
             print("Linear feature: ", self.linear_feature)
             linear_feature1_output = self.linear_feature(feature_1_ind)
 
@@ -62,5 +66,5 @@ class SATAttentionModule(nn.Module):
             else:
                 context_vector = torch.matmul(alpha, linear_feature1_output)
                 list_context_vector = torch.cat((list_context_vector,context_vector), 0)
-
+        print("List context: ", list_context_vector.shape)
         return alpha, list_context_vector

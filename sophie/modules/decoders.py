@@ -63,8 +63,8 @@ class Decoder(nn.Module):
             predicted_trajectories.append(rel_pos.view(batch, -1))
      
         pred_traj_fake_rel = torch.stack(predicted_trajectories, dim=0)
-        print("Shape: ", pred_traj_fake_rel.shape)
+        print("Pred Traj fake: ", pred_traj_fake_rel.shape)
         pred_traj_fake_rel = self.agentscorrector(pred_traj_fake_rel.view(-1,pred_traj_fake_rel.shape[1]))
-        print("BB")
+
         pred_traj_fake_rel = pred_traj_fake_rel.view(self.seq_len,pred_traj_fake_rel.shape[1],-1)
         return pred_traj_fake_rel, state_tuple[0]

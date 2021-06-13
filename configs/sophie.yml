@@ -39,7 +39,7 @@ sophie:
                 in_features: 128
                 out_features: 512
             linear_feature:
-                in_features: 324 # From 600x600 images to 18x18 (= 324) activation maps 2>
+                in_features: 324 # From 600x600 images to 18x18 (= 324) activation maps
                 out_features: 2
             softmax:
                 dim: 0
