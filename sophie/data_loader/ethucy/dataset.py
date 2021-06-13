@@ -257,6 +257,7 @@ class EthUcyDataset(Dataset):
                 self.img_shape, 
                 value[0]
             )
+            print("Frame list: ", frame_list_im)
             frame_list_im = np.concatenate(frame_list_im, axis=0)
             if iteration == 0:
                 frames_list = frame_list_im

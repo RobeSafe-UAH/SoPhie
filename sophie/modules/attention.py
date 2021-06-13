@@ -18,32 +18,39 @@ class SATAttentionModule(nn.Module):
         self.relu  = nn.ReLU()
         self.softmax = nn.Softmax(self.config.softmax.dim)
 
-
     def forward(self, feature_1, feature_decoder, num_agents=32):
         """
         Inputs:
             - feature_1: Visual Extractor output (4D {batch*1, 512, 18, 18}) or Joint Extractor output (3D {L, 32*batch, dim_features})
-            - feature_decoder: Generator output (LSTM based decoder; 3D {1, 32*batch, dim_features})
+            - feature_decoder: Generator output (LSTM based decoder; 3D {1, num_agents*batch, dim_features})
         Outputs:
             - alpha?
             - context_vector: (For physical attention, concentrates on feasible paths for each agent; For Social attention, highlights
               which other agents are most important to focus on when predicting the trajectory of the agent i)
         """
 
-        # Feature 1 processing
-        batch = feature_decoder.size(1)
-        batch_config = int(batch/num_agents)
+        # Feature decode processing
+
         feature_decoder = feature_decoder.contiguous().view(-1,feature_decoder.size(2)) # 3D -> 2D
+
+        # Feature 1 processing
+
+        batch = feature_1.size(1) # num_agents x batch_size
+        batch_config = int(batch/num_agents)
 
         for i in range(batch_config):
             if (len(feature_1.size()) == 4):
+                print("Visual Extractor")
                 # Visual Extractor
                 feature_1_ind = torch.unsqueeze(feature_1[i, :, :, :],0)
                 feature_1_ind = feature_1_ind.contiguous().view(-1,feature_1_ind.size(2)*feature_1_ind.size(3)) # 4D -> 2D
             elif (len(feature_1.size()) == 3):
+                print("Joint Extractor")
                 # Joint Extractor
                 feature_1_ind = feature_1[:,num_agents*i: num_agents*(i+1),:]
-                feature_1_ind = feature_1_ind.contiguous().view(batch,-1) # 3D -> 2D
+                feature_1_ind = feature_1_ind.contiguous().view(-1, num_agents) # 3D -> 2D
+            print("feature_1_ind: ", feature_1_ind, feature_1_ind.shape)
+            print("Linear feature: ", self.linear_feature)
             linear_feature1_output = self.linear_feature(feature_1_ind)
 
             # Feature decoder processing

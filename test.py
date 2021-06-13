@@ -30,8 +30,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 ## Configuration file
 
 with open(r'./configs/sophie.yml') as config_file:
-        config_file = yaml.safe_load(config_file)
-        config_file = Prodict.from_dict(config_file)
+    config_file = yaml.safe_load(config_file)
+    config_file = Prodict.from_dict(config_file)
 
 ## Batch size
 
@@ -39,13 +39,15 @@ batch_size = 16 # Dataloader batch
 
 ## Image
 
+im_channels = 3
 im_width = 600
 im_height = 600
 
 ## Processed image
 
 vgg_channels = 512
-vgg_channels_width = vgg_channels_height = 18
+vgg_channels_width = 18
+vgg_channels_height = 18
 
 ## Trajectories
 
@@ -80,33 +82,6 @@ def read_video(path, new_shape):
         frames_list.append(re_frame)
     cap.release()
     return frames_list
-
-def test_dataLoader():
-    data = EthUcyDataset("./data/datasets/zara1/train")
-    print(data)
-    batch_size = 64
-    loader_num_workers = 4
-    loader = DataLoader(
-        data,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=loader_num_workers,
-        collate_fn=seq_collate)
-
-    print("loader: ", loader)
-    print("device: ", device)
-    t0 = time.time()
-    for batch in loader:
-        batch = [tensor.cuda() for tensor in batch]
-        (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
-         loss_mask, seq_start_end) = batch
-
-        print("> ", obs_traj.shape, obs_traj_rel.shape, seq_start_end.shape)
-        t1 = time.time()
-        while(t1 - t0 < 120):
-            print(t1-t0)
-            t1 = time.time()
-        #assert 1 == 0, "aiie"
 
 def test_dataLoader_img():
     data = EthUcyDataset("./data/datasets/zara1/train", videos_path="./data/datasets/videos/")
@@ -256,11 +231,11 @@ def test_concat_features():
     )
 
     features_noise = generator.add_white_noise(attention_features, noise)
-    pred_traj, _ = generator.process_decoder(features_noise)
+    # pred_traj, _ = generator.process_decoder(features_noise)
 
-    print("Pred trajectories: ", pred_traj, pred_traj.shape, type(pred_traj))
+    # print("Pred trajectories: ", pred_traj, pred_traj.shape, type(pred_traj))
 
-    return pred_traj
+    # return pred_traj
 
 ## Multi-Layer Perceptron
 
@@ -297,10 +272,6 @@ def test_encoder():
 
 def test_decoder():
 
-    with open(r'./configs/sophie.yml') as config_file:
-        config_file = yaml.safe_load(config_file)
-        config_file = Prodict.from_dict(config_file)
-
     input_data = np.random.randn(768,2)
     input_data = torch.from_numpy(input_data).to(device).float()
 
@@ -317,27 +288,22 @@ def test_sophie_generator():
 
     # Image
 
-    width = 600
-    height = 600
-    channels = 3
-    batch_img = 1*dlb
-    image_test = torch.rand(batch_img, channels, height, width).to(device) # batch, channel, H, W
+    image_test = torch.rand(batch_size, im_channels, im_height, im_width).to(device) # batch, channel, H, W
 
     # Trajectories
 
-    trajectories_test = 10 * np.random.randn(po, na*dlb, tfd)
+    trajectories_test = 10 * np.random.randn(po, na*batch_size, tfd)
     trajectories_test = torch.from_numpy(trajectories_test).to(device).float()
 
-    # sample_dict = {'image' : image_test, 'trajectories' : trajectories_test, 'decoder_output' : decoder_output_test}
-    # sample_dict = {'image' : image_test, 'trajectories' : trajectories_test}
-    # sample = Prodict.from_dict(sample_dict)
     config_file.sophie.generator.decoder.linear_3.input_dim = config_file.dataset.batch_size*2*config_file.sophie.generator.social_attention.linear_decoder.out_features
     config_file.sophie.generator.decoder.linear_3.output_dim = config_file.dataset.batch_size*na
 
-    generator = SoPhieGenerator(config_file.sophie.generator)
-    generator.build()
-    generator.to(device)
-    generator.forward(image_test,trajectories_test)
+    print("Linear 3: ", config_file.sophie.generator.decoder.linear_3)
+
+    # generator = SoPhieGenerator(config_file.sophie.generator)
+    # generator.build()
+    # generator.to(device)
+    # generator.forward(image_test,trajectories_test)
 
 ## GAN discriminator
 
@@ -384,17 +350,16 @@ def test_aiodrive_dataset():
 
 if __name__ == "__main__":
     # test_read_file()
-    # test_dataLoader()
     # test_dataLoader_img()
     # test_visual_extractor() 
     # test_joint_extractor() 
     # test_physical_attention_model()
-    test_social_attention_model()
-    # test_concat_features() # Error !!
+    # test_social_attention_model()
+    # test_concat_features() 
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    # test_sophie_generator()
+    test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
 
