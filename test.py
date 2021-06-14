@@ -170,14 +170,14 @@ def test_physical_attention_model():
     predicted_trajectory = 10 * np.random.randn(1, na*batch_size, decoder_dim_features)
     predicted_trajectory = torch.from_numpy(predicted_trajectory).to(device).float()
 
-    print("Physical attention config: ", config_file.sophie.generator.physical_attention)
+    # print("Physical attention config: ", config_file.sophie.generator.physical_attention)
     physical_attention_module = SATAttentionModule(config_file.sophie.generator.physical_attention).to(device)
-    print("Physical Attention Module: ", physical_attention_module)
+    # print("Physical Attention Module: ", physical_attention_module)
 
     alpha, context_vector = physical_attention_module.forward(visual_extractor_features, predicted_trajectory)
 
-    print("Alpha: ", alpha.shape)
-    print("Context vector: ", context_vector.shape)
+    # print("Alpha: ", alpha.shape)
+    print("Physical context vector: ", context_vector.shape)
 
     return context_vector
 
@@ -197,16 +197,16 @@ def test_social_attention_model():
     hidden_decoder_features = 10 * np.random.randn(1, na*batch_size, decoder_dim_features)
     hidden_decoder_features = torch.from_numpy(hidden_decoder_features).to(device).float()
 
-    print("Social attention config: ", config_file.sophie.generator.social_attention)
+    # print("Social attention config: ", config_file.sophie.generator.social_attention)
     social_attention_module = SATAttentionModule(config_file.sophie.generator.social_attention).to(device)
-    print("Social Attention Module: ", social_attention_module)
+    # print("Social Attention Module: ", social_attention_module)
 
-    print("Joint extractor features: ", joint_extractor_features.shape)
-    print("Hidden decoder features: ", hidden_decoder_features.shape)
+    # print("Joint extractor features: ", joint_extractor_features.shape)
+    # print("Hidden decoder features: ", hidden_decoder_features.shape)
     alpha, context_vector = social_attention_module.forward(joint_extractor_features, hidden_decoder_features)
 
-    print("Alpha: ", alpha.shape)
-    print("Context vector: ", context_vector.shape)
+    # print("Alpha: ", alpha.shape)
+    print("Social context vector: ", context_vector.shape)
 
     return context_vector
 
@@ -214,23 +214,28 @@ def test_concat_features():
     """
     """
     
-    physical_context_vector = test_physical_attention_model()
-    social_context_vector = test_social_attention_model()
+    # physical_context_vector = test_physical_attention_model().contiguous()
+    # social_context_vector = test_social_attention_model().contiguous()
+    physical_context_vector = test_physical_attention_model().contiguous()
+    print("\n")
+    social_context_vector = test_social_attention_model().contiguous()
 
-    attention_features = torch.cat((physical_context_vector, social_context_vector), 0).to(device)
+    attention_features = torch.matmul(physical_context_vector, social_context_vector.t())
+    # attention_features = torch.cat((physical_context_vector, social_context_vector), 0).to(device)
+    print("\n")
     print("Attention features: ", attention_features.shape)
-    generator = SoPhieGenerator(config_file.sophie.generator)
+    # generator = SoPhieGenerator(config_file.sophie.generator)
 
-    generator.build()
-    generator.to(device)
+    # generator.build()
+    # generator.to(device)
 
-    shape_features = attention_features.shape
-    noise = generator.create_white_noise(
-        generator.config.noise.noise_type,
-        shape_features
-    )
+    # shape_features = attention_features.shape
+    # noise = generator.create_white_noise(
+    #     generator.config.noise.noise_type,
+    #     shape_features
+    # )
 
-    features_noise = generator.add_white_noise(attention_features, noise)
+    # features_noise = generator.add_white_noise(attention_features, noise)
     # pred_traj, _ = generator.process_decoder(features_noise)
 
     # print("Pred trajectories: ", pred_traj, pred_traj.shape, type(pred_traj))
@@ -358,11 +363,11 @@ if __name__ == "__main__":
     # test_joint_extractor() 
     # test_physical_attention_model()
     # test_social_attention_model()
-    # test_concat_features() 
+    test_concat_features() 
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    test_sophie_generator()
+    # test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
 

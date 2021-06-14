@@ -46,7 +46,7 @@ sophie:
         social_attention:
             linear_decoder:
                 in_features: 128
-                out_features: 256 # 8 (observations length) x 32 (batch = number of agents)
+                out_features: 256 # 8 (observations length) x 32 (number of agents)
             linear_feature:
                 in_features: 32
                 out_features: 2
