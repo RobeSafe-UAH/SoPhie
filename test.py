@@ -224,21 +224,22 @@ def test_concat_features():
     # attention_features = torch.cat((physical_context_vector, social_context_vector), 0).to(device)
     print("\n")
     print("Attention features: ", attention_features.shape)
-    # generator = SoPhieGenerator(config_file.sophie.generator)
+    generator = SoPhieGenerator(config_file.sophie.generator)
 
-    # generator.build()
-    # generator.to(device)
+    generator.build()
+    generator.to(device)
 
-    # shape_features = attention_features.shape
-    # noise = generator.create_white_noise(
-    #     generator.config.noise.noise_type,
-    #     shape_features
-    # )
+    shape_features = attention_features.shape
+    noise = generator.create_white_noise(
+        generator.config.noise.noise_type,
+        shape_features
+    )
 
-    # features_noise = generator.add_white_noise(attention_features, noise)
-    # pred_traj, _ = generator.process_decoder(features_noise)
+    features_noise = generator.add_white_noise(attention_features, noise)
+    print("Feature noise: ", features_noise.shape)
+    pred_traj, _ = generator.process_decoder(features_noise)
 
-    # print("Pred trajectories: ", pred_traj, pred_traj.shape, type(pred_traj))
+    print("Pred trajectories: ", pred_traj.shape)
 
     # return pred_traj
 
@@ -303,10 +304,10 @@ def test_sophie_generator():
     trajectories_test = 10 * np.random.randn(po, na*batch_size, tfd)
     trajectories_test = torch.from_numpy(trajectories_test).to(device).float()
 
-    config_file.sophie.generator.decoder.linear_3.input_dim = batch_size*2*config_file.sophie.generator.social_attention.linear_decoder.out_features
-    config_file.sophie.generator.decoder.linear_3.output_dim = batch_size*na
+    # config_file.sophie.generator.decoder.linear_3.input_dim = batch_size*2*config_file.sophie.generator.social_attention.linear_decoder.out_features
+    # config_file.sophie.generator.decoder.linear_3.output_dim = batch_size*na
 
-    print("Linear 3 Decoder: ", config_file.sophie.generator.decoder.linear_3)
+    # print("Linear 3 Decoder: ", config_file.sophie.generator.decoder.linear_3)
 
     generator = SoPhieGenerator(config_file.sophie.generator)
     generator.build()
@@ -363,11 +364,11 @@ if __name__ == "__main__":
     # test_joint_extractor() 
     # test_physical_attention_model()
     # test_social_attention_model()
-    test_concat_features() 
+    # test_concat_features() 
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    # test_sophie_generator()
+    test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
 

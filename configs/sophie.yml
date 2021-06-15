@@ -59,7 +59,7 @@ sophie:
             dropout: 0
             seq_len: 12
             linear_1:
-                input_dim: 2
+                input_dim: 32 # 2
                 output_dim: 64
             linear_2:
                 input_dim: 128 #*h_dim

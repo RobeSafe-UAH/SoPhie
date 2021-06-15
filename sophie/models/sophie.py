@@ -84,7 +84,9 @@ class SoPhieGenerator(nn.Module):
         """
         Define
         """
-        batch = trajectories.shape[1] 
+
+        batch = trajectories.shape[1]
+        batch_size = int(trajectories.shape[1]/num_agents)
 
         decoder_state = self.generator_decoder.init_hidden(batch) # hidden_state
         visual_feat = self.process_visual_feature(image)
@@ -94,7 +96,8 @@ class SoPhieGenerator(nn.Module):
         print("Attention physical features: ", attention_visual_features.shape)
         attention_social_features = self.process_social_attention(joint_feat, decoder_state[0])
         print("Attention social features: ", attention_social_features.shape)
-        attention_features = torch.cat((attention_visual_features, attention_social_features), 0)
+        attention_features = torch.matmul(attention_visual_features, attention_social_features.t())
+        # attention_features = torch.cat((attention_visual_features, attention_social_features), 0)
  
         shape_features = attention_features.shape
         noise = self.create_white_noise(
@@ -104,6 +107,7 @@ class SoPhieGenerator(nn.Module):
         features_noise = self.add_white_noise(attention_features, noise)
         print("Features noise: ", features_noise.shape)
         pred_traj, _ = self.process_decoder(features_noise)
+        print("Pred trajectories: ", pred_traj.shape)
         return pred_traj
 
 class SoPhieDiscriminator(nn.Module):
