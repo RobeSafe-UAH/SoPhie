@@ -39,14 +39,14 @@ sophie:
                 in_features: 128
                 out_features: 512
             linear_feature:
-                in_features: 324 # From 600x600 images to 18x18 (= 324) activation maps 2>
+                in_features: 324 # From 600x600 images to 18x18 (= 324) activation maps
                 out_features: 2
             softmax:
                 dim: 0
         social_attention:
             linear_decoder:
                 in_features: 128
-                out_features: 256 # 8 (observations length) x 32 (batch = number of agents)
+                out_features: 256 # 8 (observations length) x 32 (number of agents)
             linear_feature:
                 in_features: 32
                 out_features: 2
@@ -59,14 +59,14 @@ sophie:
             dropout: 0
             seq_len: 12
             linear_1:
-                input_dim: 2
+                input_dim: 32 # 2
                 output_dim: 64
             linear_2:
                 input_dim: 128 #*h_dim
                 output_dim: 64
             linear_3:
-                input_dim: #64 #*h_dim 
-                output_dim: #32
+                input_dim: 64 #*h_dim 
+                output_dim: 32
             mlp_config:
                 dim_list: [64, 128, 64, 2] 
                 activation: 'relu'
