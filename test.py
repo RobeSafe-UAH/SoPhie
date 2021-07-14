@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import yaml
 import cv2
@@ -345,17 +346,17 @@ def test_sophie_discriminator():
     discriminator.forward(trajectories)
 
 def test_aiodrive_dataset():
-    data = AioDriveDataset("./data/datasets/aiodrive_Car/train")
+    data = AioDriveDataset("./data/datasets/aiodrive/aiodrive_Car/train",
+        videos_path="./data/datasets/aiodrive/aiodrive_image_front_trainval/image_2")
     print(data)
-    assert 1 == 0, "aieeee"
-    batch_size = 64
-    loader_num_workers = 4
+    batch_size = 8
+    loader_num_workers = 0
     loader = DataLoader(
         data,
         batch_size=batch_size,
         shuffle=True,
         num_workers=loader_num_workers,
-        collate_fn=seq_collate_image)
+        collate_fn=seq_collate_image_aiodrive)
 
     print("loader: ", loader)
     print("device: ", device)
@@ -363,19 +364,60 @@ def test_aiodrive_dataset():
     for batch in loader:
         batch = [tensor.cuda() for tensor in batch]
         (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
-         loss_mask, seq_start_end, frames) = batch
+         loss_mask, seq_start_end, _, frames) = batch
 
-        print("> ", obs_traj.shape, pred_traj_gt.shape, frames.shape)
+        print("> ", obs_traj.shape, pred_traj_gt.shape, frames.shape, frames[0])
+        assert 0==1, "tesu"
         # t1 = time.time()
         # while(t1 - t0 < 120):
         #     print(t1-t0)
         #     t1 = time.time()
         #assert 1 == 0, "aiie"
 
+def load_id_frame():
+    vi_path = "/home/fkite/git-personal/SoPhie/data/datasets/aiodrive/aiodrive_image_front_trainval/image_2"
+    extension = "png"
+    id_frame = torch.load("id_frame_example.pt")
+
+    def get_folder_name(video_path, seq_name):
+        town = str(int(seq_name/1000))
+        seq = str(int(seq_name%1000))
+        folder = "Town{}_seq{}".format(town.zfill(2), seq.zfill(4))
+        full_path = os.path.join(video_path, folder)
+        return full_path
+
+    folder_name_ex = get_folder_name(vi_path, 3015)
+    #print("folder_name_ex: ",folder_name_ex)
+        
+    # print("id_frame ", id_frame.shape, id_frame)
+    #rint("id_frame 0 ", id_frame[:,0,2].shape, id_frame[:,1,1])
+    # print("id_frame 0 ", id_frame[0].shape, id_frame[0])
+    # print("id_frame 1 ", id_frame[0][0].shape, id_frame[0][0])
+    # print("id_frame 2 ", id_frame[0][0][0].shape, id_frame[0][0][0])
+    print("url: ", vi_path, extension)
+    frames = torch.load("frame_ex.pt")
+    print("frames: ", type(frames), frames)
+    def load_images(video_path, frames, extension, new_shape=(600,600)):
+        frames_list = []
+        for frame in frames:
+            folder_name = get_folder_name(video_path, frame[0].item())
+            image_id = str(int(frame[1].item()))
+            image_url = os.path.join(folder_name, "{}.{}".format(image_id.zfill(6), extension))
+            frame = cv2.imread(image_url)
+            frame = cv2.resize(frame, new_shape)
+            frames_list.append(np.expand_dims(frame, axis=0))
+        frames_arr = np.concatenate(frames_list, axis=0)
+        frames_arr = torch.from_numpy(frames_arr).type(torch.float32).permute(0, 3, 1, 2)
+        return frames_list
+
+    frames_list = load_images(vi_path, list(frames), extension)
+    # print("obs_traj: ", obs_traj.shape, obs_traj) # 8, 182, 2
+
 
 if __name__ == "__main__":
     # test_read_file()
     # test_dataLoader()
+    # test_dataLoader_img()
     # test_visual_extractor() 
     # test_joint_extractor() 
     # test_physical_attention_model()
@@ -387,6 +429,7 @@ if __name__ == "__main__":
     #test_sophie_generator()
     #test_sophie_discriminator()
     test_aiodrive_dataset()
+    #load_id_frame()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))

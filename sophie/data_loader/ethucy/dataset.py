@@ -285,6 +285,8 @@ class EthUcyDataset(Dataset):
         self.frames = frames_list # (1671, 600, 600, 3)
 
     def get_frames(self, path, new_shape, frames):
+        print("path: ", path)
+        print("frames ", frames)
         cap = cv2.VideoCapture(path) 
         num_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
         frames_list = []
@@ -298,6 +300,7 @@ class EthUcyDataset(Dataset):
             re_frame = cv2.resize(frame, new_shape)
             frames_list.append(np.expand_dims(re_frame, axis=0))
         cap.release()
+        print("frames_list ", frames_list)
         return frames_list
 
     def get_dataset_name(self, path):
