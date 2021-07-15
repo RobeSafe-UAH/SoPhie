@@ -361,6 +361,12 @@ def test_aiodrive_dataset():
         #     t1 = time.time()
         #assert 1 == 0, "aiie"
 
+def test_aiodrive_frames():
+    windows_frames = [30,180,330,480,630,780,930]
+    # data = AioDriveDataset("./data/datasets/aiodrive/aiodrive_Car/test",windows_frames=windows_frames,phase="testing",split="test")
+
+    data = AioDriveDataset("./data/datasets/aiodrive/aiodrive_Car/train",windows_frames=windows_frames,phase="training",split="train")
+
 def load_id_frame():
     vi_path = "/home/fkite/git-personal/SoPhie/data/datasets/aiodrive/aiodrive_image_front_trainval/image_2"
     extension = "png"
@@ -400,18 +406,40 @@ def load_id_frame():
     frames_list = load_images(vi_path, list(frames), extension)
     # print("obs_traj: ", obs_traj.shape, obs_traj) # 8, 182, 2
 
-def test_aiodrive_json():
-    data = {}
-    new_data = {}
+class AutoTree(dict):
+    """
+    Dictionary with unlimited levels
+    """
+    def __missing__(self, key):
+        value = self[key] = type(self)()
+        return value
 
-    prediction_lengths = [10,20,50]
-    object_class = 'Car'
-    seq_name = 'Town07_seq0000'
-    seq_frame = str(50)
-    trajectory_sample = str(0)
+def condition(x,class_name):
+    return x==class_name
+
+def test_json():
+    prediction_length = '10' # [10,20,50]
+    classes = {"Car":0, "Cyc":1, "Ped":2, "Mot":3, "Dum":4} # Car, Ped, Mot, Cyc, Dummy
+    seq_name = 'Town07_seq0000' #['Town07_seq0000','Town07_seq0001','Town07_seq0002']
+    seq_frame = '50' # [50,200,350,500]
+    trajectory_sample = '0'
     prob = 0.5
-    
+
+    real_objects_class = np.round(np.random.uniform(0,3,27)).reshape(1,-1)
+    dummy_objects_class = np.ones((1,5))*4 
+    object_class = np.hstack([real_objects_class,dummy_objects_class]).astype(int)
+    print("Object class: ", object_class, object_class.shape)
+
+    real_objects_id = np.random.randint(0,100,27).reshape(1,-1)
+    dummy_objects_id = np.ones((1,5))*-1
+    object_id = (np.hstack([real_objects_id,dummy_objects_id])).astype(int)
+    print("Object id: ", object_id, object_id.shape)
+
     pred_fake_trajectories = test_sophie_generator()
+    print("Shape: ", pred_fake_trajectories.shape)
+
+    object_indexes = []
+    data = AutoTree()
 
     # Lv 0: Prediction length (10, 20, 50)
     # Lv 1: Object class: Car, Ped, Cyc, Mot
@@ -419,49 +447,37 @@ def test_aiodrive_json():
     # Lv 3: First frame of the current prediction window (if using 0 to 49 to predict, it will be 50)
     # Lv 4: Trajectory sample for each object (Possible trajectories)
     # Lv 5: Object ID
-    # Lv 6: State (N (N = 10 frames in the future) x 2 (x,y BEV positions)), Prob: Probability value for this particular trajectory sample
+    # Lv 6: State (N (N = 10 frames in the future) x 2 (x,y BEV positions)), 
+    #       Prob: Probability value for this particular trajectory sample
 
     # {pred_len1: {obj_class: {seqname: {frame: {sample: {ID: {'state': N x 2, 'prob': 0.83}}}}}}}
 
-    print(">>>>>>>>>>>>>>>>>>>>>")
+    print("\n")
 
-    single_pred = pred_fake_trajectories[:,:na,:] # 12 x 32 x 2
+    for key,value in classes.items():
+        indexes = np.where(np.array([condition(xi,value) for xi in object_class]))[1]
 
-    agent_dict = {}
+        agent_dict = {}
+        # print("Indexes: ", indexes)
+        for i in range(pred_fake_trajectories.shape[1]): 
+            if i in indexes:
+                ground_pos = []
+                for j in range(pred_fake_trajectories.shape[0]): 
+                    ground_pos.append(pred_fake_trajectories[j,i,:].tolist()) # x,y
+                # We assume here i is the identifier
+                # print("Ground pos: ", ground_pos)
+                aux_dict = {}
+                aux_dict['state'] = ground_pos
+                aux_dict['prob'] = prob
+                agent_dict[str(object_id[0,i])] = aux_dict
 
-    for i in range(single_pred.shape[1]): 
-        ground_pos = []
-        for j in range(single_pred.shape[0]): 
-            aux = []
-            # aux.append(single_pred[j,i,0]) # x
-            # aux.append(single_pred[j,i,1]) # y
-            aux.append(single_pred[j,i,:]) # x,y 
-            ground_pos.append(ground_pos)
-        # We assume here i is the identifier
-        aux_dict = {}
-        aux_dict['state'] = ground_pos
-        aux_dict['prob'] = prob
-        agent_dict[str(i)] = aux_dict
+                data[prediction_length][key][seq_name][seq_frame][trajectory_sample] = agent_dict
 
-    prev_dict = {}
+    print("\n")
+    print("Data: ", data)
 
-    for i in reversed(range(5)):  
-        aux_dict = {}  
-        if i==4: 
-            aux_dict[trajectory_sample] = agent_dict
-        elif i==3:
-            aux_dict[seq_frame] = prev_dict
-        elif i==2:
-            aux_dict[seq_name] = prev_dict
-        elif i==1:
-            aux_dict[object_class] = prev_dict
-        else:
-            for prediction_length in prediction_lengths:
-                aux_dict[str(prediction_length)] = prev_dict
-        prev_dict = aux_dict
-
-    data = prev_dict
-    print("Data: ", data, type(data))
+    with open('data.json', 'w') as fp:
+        json.dump(data, fp)
 
 if __name__ == "__main__":
     # test_read_file()
@@ -478,8 +494,10 @@ if __name__ == "__main__":
     # test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
+    test_aiodrive_frames()
     # load_id_frame()
-    test_aiodrive_json()
+    # test_aiodrive_json()
+    # test_json()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))

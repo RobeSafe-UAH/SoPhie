@@ -6,7 +6,7 @@ number_agents: 32
 dataset:
     path: data/datasets/zara1
     video: data/datasets/videos
-    batch_size: 8 # 16 max
+    batch_size: 1 # 16 max
     shuffle: True
     num_workers: 0
 sophie:

@@ -38,7 +38,7 @@ class SATAttentionModule(nn.Module):
         batch = feature_decoder.size(1) # num_agents x batch_size
         batch_size = int(batch/num_agents)
 
-        flag = False
+        flag = True
 
         for i in range(batch_size):
             feature_decoder_ind = feature_decoder[:,num_agents*i:num_agents*(i+1),:] 
@@ -67,9 +67,9 @@ class SATAttentionModule(nn.Module):
             alpha = self.softmax(linear_decoder_output) # 32 x 512
 
             if not flag:
-                print("feature 1 ind: ", feature_1_ind.shape)
-                print("linear_feature1_output: ", linear_feature1_output.shape)
-                print("alpha: ", alpha.shape)
+                # print("feature 1 ind: ", feature_1_ind.shape)
+                # print("linear_feature1_output: ", linear_feature1_output.shape)
+                # print("alpha: ", alpha.shape)
                 flag = True
 
             if i == 0:
