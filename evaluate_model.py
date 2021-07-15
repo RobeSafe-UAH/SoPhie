@@ -49,7 +49,8 @@ def evaluate(args, loader, generator, num_samples, pred_len):
         for batch in loader:
             batch = [tensor.cuda() for tensor in batch]
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
-             loss_mask, seq_start_end, frames) = batch
+             loss_mask, seq_start_end, frames, prediction_length, object_class, seq_name, 
+             seq_frame, object_id) = batch
 
             ade, fde = [], []
             total_traj += pred_traj_gt.size(1)

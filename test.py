@@ -3,6 +3,7 @@ import numpy as np
 import yaml
 import cv2
 import time
+import json
 
 from types import SimpleNamespace
 from sophie.models import SoPhieDiscriminator, SoPhieGenerator
@@ -313,7 +314,9 @@ def test_sophie_generator():
     generator = SoPhieGenerator(config_file.sophie.generator)
     generator.build()
     generator.to(device)
-    generator.forward(image_test,trajectories_test)
+    pred_fake_trajectories = generator.forward(image_test,trajectories_test)
+
+    return pred_fake_trajectories
 
 ## GAN discriminator
 
@@ -374,7 +377,7 @@ def load_id_frame():
     #print("folder_name_ex: ",folder_name_ex)
         
     # print("id_frame ", id_frame.shape, id_frame)
-    #rint("id_frame 0 ", id_frame[:,0,2].shape, id_frame[:,1,1])
+    # print("id_frame 0 ", id_frame[:,0,2].shape, id_frame[:,1,1])
     # print("id_frame 0 ", id_frame[0].shape, id_frame[0])
     # print("id_frame 1 ", id_frame[0][0].shape, id_frame[0][0])
     # print("id_frame 2 ", id_frame[0][0][0].shape, id_frame[0][0][0])
@@ -397,6 +400,68 @@ def load_id_frame():
     frames_list = load_images(vi_path, list(frames), extension)
     # print("obs_traj: ", obs_traj.shape, obs_traj) # 8, 182, 2
 
+def test_aiodrive_json():
+    data = {}
+    new_data = {}
+
+    prediction_lengths = [10,20,50]
+    object_class = 'Car'
+    seq_name = 'Town07_seq0000'
+    seq_frame = str(50)
+    trajectory_sample = str(0)
+    prob = 0.5
+    
+    pred_fake_trajectories = test_sophie_generator()
+
+    # Lv 0: Prediction length (10, 20, 50)
+    # Lv 1: Object class: Car, Ped, Cyc, Mot
+    # Lv 2: Sequence name: Town07_seq0000, etc.
+    # Lv 3: First frame of the current prediction window (if using 0 to 49 to predict, it will be 50)
+    # Lv 4: Trajectory sample for each object (Possible trajectories)
+    # Lv 5: Object ID
+    # Lv 6: State (N (N = 10 frames in the future) x 2 (x,y BEV positions)), Prob: Probability value for this particular trajectory sample
+
+    # {pred_len1: {obj_class: {seqname: {frame: {sample: {ID: {'state': N x 2, 'prob': 0.83}}}}}}}
+
+    print(">>>>>>>>>>>>>>>>>>>>>")
+
+    single_pred = pred_fake_trajectories[:,:na,:] # 12 x 32 x 2
+
+    agent_dict = {}
+
+    for i in range(single_pred.shape[1]): 
+        ground_pos = []
+        for j in range(single_pred.shape[0]): 
+            aux = []
+            # aux.append(single_pred[j,i,0]) # x
+            # aux.append(single_pred[j,i,1]) # y
+            aux.append(single_pred[j,i,:]) # x,y 
+            ground_pos.append(ground_pos)
+        # We assume here i is the identifier
+        aux_dict = {}
+        aux_dict['state'] = ground_pos
+        aux_dict['prob'] = prob
+        agent_dict[str(i)] = aux_dict
+
+    prev_dict = {}
+
+    for i in reversed(range(5)):  
+        aux_dict = {}  
+        if i==4: 
+            aux_dict[trajectory_sample] = agent_dict
+        elif i==3:
+            aux_dict[seq_frame] = prev_dict
+        elif i==2:
+            aux_dict[seq_name] = prev_dict
+        elif i==1:
+            aux_dict[object_class] = prev_dict
+        else:
+            for prediction_length in prediction_lengths:
+                aux_dict[str(prediction_length)] = prev_dict
+        prev_dict = aux_dict
+
+    data = prev_dict
+    print("Data: ", data, type(data))
 
 if __name__ == "__main__":
     # test_read_file()
@@ -410,10 +475,11 @@ if __name__ == "__main__":
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    #test_sophie_generator()
-    #test_sophie_discriminator()
-    test_aiodrive_dataset()
-    #load_id_frame()
+    # test_sophie_generator()
+    # test_sophie_discriminator()
+    # test_aiodrive_dataset()
+    # load_id_frame()
+    test_aiodrive_json()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))
