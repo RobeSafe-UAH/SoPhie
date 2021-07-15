@@ -150,11 +150,8 @@ def load_images(video_path, frames, extension="png", new_shape=(600,600)):
         cont += 1
         image_id = str(int(frame[1].item()))
         image_url = os.path.join(folder_name, "{}.{}".format(image_id.zfill(6), extension))
-        print("image_url ", image_url)
         frame = cv2.imread(image_url)
-        print("frame ", frame.shape)
         frame = cv2.resize(frame, new_shape)
-        print("frame: ", frame.shape)
         frames_list.append(np.expand_dims(frame, axis=0))
     frames_arr = np.concatenate(frames_list, axis=0)
     return frames_arr
@@ -303,6 +300,8 @@ class AioDriveDataset(Dataset):
                 end_frame = int(start_frame + self.seq_len*skip)        # right-open, not including this frame   
                 frame = start_frame + self.obs_len
                 seq_name_int = seqname2int(seq_name)
+                if frame > 999:
+                    frame -= 1
                 seq_frame = np.array([seq_name_int, frame])
 
                 # reduce window during testing, only evaluate every N windows
@@ -315,14 +314,15 @@ class AioDriveDataset(Dataset):
                 for frame in range(start_frame, end_frame, skip):
                     curr_seq_data.append(data[frame == data[:, 0], :])        
                 curr_seq_data = np.concatenate(curr_seq_data, axis=0) # frame - id - x - y
-                #print("curr_seq_data ", curr_seq_data, curr_seq_data.shape)
 
                 # initialize data
                 peds_in_curr_seq = np.unique(curr_seq_data[:, 1]) # numero de peds en la ventana
                 peds_len = peds_in_curr_seq.shape[0]
-                if peds_len != 32:
+                if peds_len < 32:
                     dummy = [-1 for i in range(32 - peds_len)]
                     peds_in_curr_seq = np.concatenate((peds_in_curr_seq, dummy))
+                elif peds_len > 32:
+                    peds_in_curr_seq = peds_in_curr_seq[:32]
 
                 ### crea las esructuras de datos con peds_in_curr_seq de objetos por batch
                 curr_seq_rel   = np.zeros((len(peds_in_curr_seq), 2, self.seq_len))     # objects x 2 x seq_len
@@ -460,8 +460,8 @@ class AioDriveDataset(Dataset):
         non_linear_ped = np.asarray(non_linear_ped)
         seq_id_list = np.concatenate(seq_id_list, axis=0)
         frames_list = np.asarray(frames_list)
-        print("seq_list: ", seq_list.shape)
-        print("frames_list: ", frames_list.shape)
+        #print("seq_list: ", seq_list.shape)
+        #print("frames_list: ", frames_list.shape)
 
         # Convert numpy -> Torch Tensor
         self.obs_traj = torch.from_numpy(seq_list[:, :, :self.obs_len]).type(torch.float)

@@ -46,13 +46,15 @@ class SATAttentionModule(nn.Module):
             if (len(feature_1.size()) == 4):
                 # Visual Extractor
                 if not flag:
-                    print("Feature 1 physical: ", feature_1.shape)
+                    a=1
+                    #print("Feature 1 physical: ", feature_1.shape)
                 feature_1_ind = torch.unsqueeze(feature_1[i, :, :, :],0)
                 feature_1_ind = feature_1_ind.contiguous().view(-1,feature_1_ind.size(2)*feature_1_ind.size(3)) # 4D -> 2D
             elif (len(feature_1.size()) == 3):
                 # Joint Extractor
                 if not flag:
-                    print("Feature 1 social: ", feature_1.shape)
+                    #print("Feature 1 social: ", feature_1.shape)
+                    a=1
                 feature_1_ind = feature_1[:,num_agents*i:num_agents*(i+1),:]
                 feature_1_ind = feature_1_ind.contiguous().view(-1, num_agents) # 3D -> 2D
                 # feature_1_ind = feature_1_ind.contiguous().view(batch, -1) # 3D -> 2D
@@ -67,9 +69,9 @@ class SATAttentionModule(nn.Module):
             alpha = self.softmax(linear_decoder_output) # 32 x 512
 
             if not flag:
-                print("feature 1 ind: ", feature_1_ind.shape)
-                print("linear_feature1_output: ", linear_feature1_output.shape)
-                print("alpha: ", alpha.shape)
+                # print("feature 1 ind: ", feature_1_ind.shape)
+                # print("linear_feature1_output: ", linear_feature1_output.shape)
+                # print("alpha: ", alpha.shape)
                 flag = True
 
             if i == 0:
