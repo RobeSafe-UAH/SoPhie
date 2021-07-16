@@ -30,7 +30,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 ## Configuration file
 
-with open(r'./configs/sophie.yml') as config_file:
+with open(r'./configs/sophie_aiodrive.yml') as config_file:
     config_file = yaml.safe_load(config_file)
     config_file = Prodict.from_dict(config_file)
 
@@ -397,6 +397,10 @@ def load_id_frame():
     frames_list = load_images(vi_path, list(frames), extension)
     # print("obs_traj: ", obs_traj.shape, obs_traj) # 8, 182, 2
 
+def load_id_frame_ex():
+    id_frames = torch.load("id_frame_example.pt") # original: 32, 3, 20 -> dataloader
+    print("id_frames: ", id_frames.shape, id_frames)
+
 
 if __name__ == "__main__":
     # test_read_file()
@@ -413,6 +417,7 @@ if __name__ == "__main__":
     #test_sophie_generator()
     #test_sophie_discriminator()
     test_aiodrive_dataset()
+    #load_id_frame_ex()
     #load_id_frame()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"

@@ -157,8 +157,23 @@ def load_images(video_path, frames, extension="png", new_shape=(600,600)):
     return frames_arr
 
 def seq_collate_image_aiodrive(data): # id_frame
+    """
+    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped,
+             loss_mask, seq_start_end, frames, prediction_length, "object_class", "seq_name", 
+             "seq_frame", object_id) = batch
+
+        seq:  torch.Size([8, 2]) tensor([[3004.,  720.],
+            [4002.,   78.],
+            [1014.,  809.],
+            [3002.,  139.],
+            [4003.,   86.],
+            [2007.,  794.],
+            [4003.,  340.],
+            [4003.,   61.]])
+
+    """
     (obs_seq_list, pred_seq_list, obs_seq_rel_list, pred_seq_rel_list,
-     non_linear_ped_list, loss_mask_list, idframe_list, vi_path, extension, frame) = zip(*data)
+     non_linear_ped_list, loss_mask_list, idframe_list, vi_path, extension, frame, object_class, objects_id) = zip(*data)
 
     _len = [len(seq) for seq in obs_seq_list]
     cum_start_idx = [0] + np.cumsum(_len).tolist()
@@ -178,10 +193,17 @@ def seq_collate_image_aiodrive(data): # id_frame
     frames = load_images(list(vi_path), list(frame), extension[0])
     frames = torch.from_numpy(frames).type(torch.float32)
     frames = frames.permute(0, 3, 1, 2)
+    object_cls = torch.stack(object_class)
+    seq = torch.stack(frame)
+    obj_id = torch.stack(objects_id)
+
+    print("object_class ", object_cls.shape, object_cls)
+    print("seq: ",seq.shape, seq)
+    print("obj_id: ", obj_id.shape, obj_id)
 
     out = [
         obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, non_linear_ped,
-        loss_mask, seq_start_end, id_frame, frames
+        loss_mask, seq_start_end, id_frame, frames, object_cls, seq, obj_id
     ]
 
     return tuple(out)
@@ -245,6 +267,17 @@ def check_eval_windows(start_pred, obs_len, pred_len, split='test'):
 
     return check
 
+
+def getObjecClass(url_dataset):
+    url_list = url_dataset.split("/")
+    objectClass = ""
+    for url_id in url_list:
+        if "aiodrive_" in url_id:
+            objectClass = url_id
+    objectClass = objectClass.split("_")[-1]
+    return objectClass
+
+# <3 split test siempre activo
 class AioDriveDataset(Dataset):
     """Dataloder for the Trajectory datasets"""
     def __init__(self, data_dir, obs_len=8, pred_len=12, skip=1, threshold=0.002, min_ped=0, delim='\t', \
@@ -262,6 +295,8 @@ class AioDriveDataset(Dataset):
         - delim: Delimiter in the dataset files
         """
         super(AioDriveDataset, self).__init__()
+        self.objects_id_dict = {"Car": 0, "Cyc": 1, "Mot": 2, "Ped": 3}
+        self.dataset_name = "aiodrive"
         self.videos_path = videos_path
         self.video_extension = video_extension
         self.data_dir = data_dir
@@ -276,6 +311,8 @@ class AioDriveDataset(Dataset):
         non_linear_ped = []
         seq_id_list = []
         frames_list = []
+        object_class_id_list = []
+        object_id_list = []
         for path in all_files:
             print_str = 'load %s\r' % path
             sys.stdout.write(print_str)
@@ -285,6 +322,7 @@ class AioDriveDataset(Dataset):
             data = read_file(path, delim)
             
             # as testing files only contains past, so add more windows
+            print("split ", split)
             if split == 'test':
                 min_frame, max_frame = 0, 999
                 num_windows = int(max_frame - min_frame + 1 - skip*(self.seq_len - 1))      
@@ -329,15 +367,21 @@ class AioDriveDataset(Dataset):
                 curr_seq       = np.zeros((len(peds_in_curr_seq), 2, self.seq_len))
                 curr_loss_mask = np.zeros((len(peds_in_curr_seq)   , self.seq_len))     # objects x seq_len
                 id_frame_list  = np.zeros((len(peds_in_curr_seq), 3, self.seq_len))     # objects x 3 x seq_len
+                object_class_list = np.zeros(len(peds_in_curr_seq))
+                object_class_list.fill(-1)
                 id_frame_list.fill(0)
                 num_peds_considered = 0
                 _non_linear_ped = []
 
                 # loop through every object in this window
+                #print("peds_in_curr_seq: ", peds_in_curr_seq)
                 for _, ped_id in enumerate(peds_in_curr_seq):
                     if ped_id == -1:
                         num_peds_considered += 1
                         continue
+
+                    object_class = getObjecClass(path)
+                    object_class_id = self.objects_id_dict[object_class]
                     curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]      # frame - id - x - y for one of the id of the window, same id
                     pad_front    = int(curr_ped_seq[0, 0] ) - start_frame      # first frame of window       
                     pad_end      = int(curr_ped_seq[-1, 0]) - start_frame + skip # last frame of window
@@ -427,7 +471,6 @@ class AioDriveDataset(Dataset):
                     # record seqname, frame and ID information 20 - 3 - x
                     id_frame_list[_idx, :2, :] = cache_tmp
                     id_frame_list[_idx, 2, :] = seq_name_int # img_id - ped_id - seqname2int
-                    #print("_idx: ", _idx)
                     
                     # Linear vs Non-Linear Trajectory, only fit for the future part not past part
                     _non_linear_ped.append(poly_fit(curr_ped_seq, pred_len, threshold))     
@@ -436,6 +479,10 @@ class AioDriveDataset(Dataset):
                     frame_exist_index = np.array([frame_tmp - start_frame_now for frame_tmp in frame_existing])
                     frame_exist_index = (frame_exist_index / skip).astype('uint8')
                     curr_loss_mask[_idx, frame_exist_index] = 1
+
+                    # object id
+                    object_class_list[num_peds_considered] = object_class_id
+
                     num_peds_considered += 1
                     #print("b")
                   
@@ -452,6 +499,8 @@ class AioDriveDataset(Dataset):
                     seq_list_rel.append(curr_seq_rel[:num_peds_considered])
                     seq_id_list.append(id_frame_list[:num_peds_considered])
                     frames_list.append(seq_frame)
+                    object_class_id_list.append(object_class_list)
+                    object_id_list.append(id_frame_list[:num_peds_considered][:,1,0])
 
         self.num_seq = len(seq_list)
         seq_list = np.concatenate(seq_list, axis=0)             # objects x 2 x seq_len
@@ -460,6 +509,8 @@ class AioDriveDataset(Dataset):
         non_linear_ped = np.asarray(non_linear_ped)
         seq_id_list = np.concatenate(seq_id_list, axis=0)
         frames_list = np.asarray(frames_list)
+        object_class_id_list = np.asarray(object_class_id_list)
+        object_id_list = np.asarray(object_id_list)
         #print("seq_list: ", seq_list.shape)
         #print("frames_list: ", frames_list.shape)
 
@@ -474,6 +525,8 @@ class AioDriveDataset(Dataset):
         self.seq_start_end = [(start, end) for start, end in zip(cum_start_idx, cum_start_idx[1:])]
         self.seq_id_list = torch.from_numpy(seq_id_list).type(torch.float)
         self.frames_list = torch.from_numpy(frames_list).type(torch.float)
+        self.object_class_id_list = torch.from_numpy(object_class_id_list).type(torch.float)
+        self.object_id_list = torch.from_numpy(object_id_list).type(torch.float)
 
     def __len__(self):
         return self.num_seq
@@ -484,7 +537,8 @@ class AioDriveDataset(Dataset):
             self.obs_traj[start:end, :], self.pred_traj[start:end, :],
             self.obs_traj_rel[start:end, :], self.pred_traj_rel[start:end, :],
             self.non_linear_ped[start:end], self.loss_mask[start:end, :],
-            self.seq_id_list[start:end, :], self.videos_path, self.video_extension, self.frames_list[index, :]
+            self.seq_id_list[start:end, :], self.videos_path, self.video_extension, self.frames_list[index, :],
+            self.object_class_id_list[index], self.object_id_list[index]
         ]
 
         return out
