@@ -31,7 +31,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 ## Configuration file
 
-with open(r'./configs/sophie.yml') as config_file:
+with open(r'./configs/sophie_aiodrive.yml') as config_file:
     config_file = yaml.safe_load(config_file)
     config_file = Prodict.from_dict(config_file)
 
@@ -406,6 +406,7 @@ def load_id_frame():
     frames_list = load_images(vi_path, list(frames), extension)
     # print("obs_traj: ", obs_traj.shape, obs_traj) # 8, 182, 2
 
+<<<<<<< HEAD
 class AutoTree(dict):
     """
     Dictionary with unlimited levels
@@ -478,6 +479,12 @@ def test_json():
 
     with open('data.json', 'w') as fp:
         json.dump(data, fp)
+=======
+def load_id_frame_ex():
+    id_frames = torch.load("id_frame_example.pt") # original: 32, 3, 20 -> dataloader
+    print("id_frames: ", id_frames.shape, id_frames)
+
+>>>>>>> feature/trainer
 
 if __name__ == "__main__":
     # test_read_file()
@@ -491,6 +498,7 @@ if __name__ == "__main__":
     # test_mlp()
     # test_encoder()
     # test_decoder()
+<<<<<<< HEAD
     # test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
@@ -498,6 +506,13 @@ if __name__ == "__main__":
     # load_id_frame()
     # test_aiodrive_json()
     # test_json()
+=======
+    #test_sophie_generator()
+    #test_sophie_discriminator()
+    test_aiodrive_dataset()
+    #load_id_frame_ex()
+    #load_id_frame()
+>>>>>>> feature/trainer
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))

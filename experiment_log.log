@@ -1,8 +1,10 @@
-[INFO: trainer.py:   56]: Initializing train dataset
-[INFO: trainer.py:   65]: Initializing val dataset
-[INFO: trainer.py:   80]: There are 88.375 iterations per epoch
-[INFO: trainer.py:   90]: Generator model:
-[INFO: trainer.py:   91]: SoPhieGenerator(
+[INFO: trainer.py:   56]: Configuration: 
+[INFO: trainer.py:   57]: {'use_gpu': 1, 'dataset_name': 'aiodrive', 'number_agents': 32, 'dataset': {'path': 'data/datasets/aiodrive/aiodrive_Car/', 'video': 'data/datasets/aiodrive/aiodrive_image_front_trainval/image_2', 'batch_size': 8, 'shuffle': True, 'num_workers': 0}, 'sophie': {'generator': {'visual_extractor': {'type': 'vgg19', 'vgg': {'vgg_type': 19, 'batch_norm': False, 'pretrained': True, 'features': True}}, 'joint_extractor': {'type': 'encoder_sort', 'config': {'encoder': {'num_layers': 1, 'hidden_dim': 32, 'emb_dim': 16, 'mlp_config': {'dim_list': [2, 16], 'activation': 'relu', 'batch_norm': False, 'dropout': 0}, 'dropout': 0}}}, 'physical_attention': {'linear_decoder': {'in_features': 128, 'out_features': 512}, 'linear_feature': {'in_features': 324, 'out_features': 2}, 'softmax': {'dim': 0}}, 'social_attention': {'linear_decoder': {'in_features': 128, 'out_features': 256}, 'linear_feature': {'in_features': 32, 'out_features': 2}, 'softmax': {'dim': 0}}, 'decoder': {'num_layers': 1, 'hidden_dim': 128, 'emb_dim': 64, 'dropout': 0, 'seq_len': 12, 'linear_1': {'input_dim': 32, 'output_dim': 64}, 'linear_2': {'input_dim': 128, 'output_dim': 64}, 'linear_3': {'input_dim': 64, 'output_dim': 32}, 'mlp_config': {'dim_list': [64, 128, 64, 2], 'activation': 'relu', 'batch_norm': False, 'dropout': 0}}, 'noise': {'noise_type': 'gauss'}}, 'discriminator': {'encoder': {'num_layers': 1, 'hidden_dim': 64, 'emb_dim': 16, 'mlp_config': {'dim_list': [2, 16], 'activation': 'relu', 'batch_norm': False, 'dropout': 0}, 'dropout': 0}, 'classifier': {'mlp_config': {'dim_list': [64, 1024, 1], 'activation': 'relu', 'batch_norm': False, 'dropout': 0}}}}, 'hyperparameters': {'g_learning_rate': 0.0005, 'd_learning_rate': 0.0005, 'num_iterations': 20000, 'num_epochs': 250, 'd_steps': 2, 'g_steps': 1, 'timing': 0, 'print_every': 100, 'checkpoint_every': 500, 'output_dir': 'save', 'checkpoint_name': 'test', 'checkpoint_start_from': None, 'restore_from_checkpoint': None, 'clipping_threshold_d': 0, 'clipping_threshold_g': 0, 'obs_len': 8, 'best_k': 1, 'l2_loss_weight': 0, 'num_samples_check': 5000, 'pred_len': 8}, 'base_dir': PosixPath('/home/robesafe/git/SoPhie')}
+[INFO: trainer.py:   60]: Initializing train dataset
+[INFO: trainer.py:   70]: Initializing val dataset
+[INFO: trainer.py:   87]: There are 2482.5 iterations per epoch
+[INFO: trainer.py:   97]: Generator model:
+[INFO: trainer.py:   98]: SoPhieGenerator(
   (visual_feature_extractor): VisualExtractor(
     (module): VGG(
       (module): Sequential(
@@ -81,13 +83,13 @@
       )
     )
     (decoder): LSTM(64, 128)
-    (spatial_embedding): Linear(in_features=2, out_features=64, bias=True)
+    (spatial_embedding): Linear(in_features=32, out_features=64, bias=True)
     (hidden2pos): Linear(in_features=128, out_features=64, bias=True)
     (agentscorrector): Linear(in_features=4096, out_features=256, bias=True)
   )
 )
-[INFO: trainer.py:   98]: Discriminator model:
-[INFO: trainer.py:   99]: SoPhieDiscriminator(
+[INFO: trainer.py:  105]: Discriminator model:
+[INFO: trainer.py:  106]: SoPhieDiscriminator(
   (encoder): Encoder(
     (spatial_embedding): MLP(
       (module): Sequential(
@@ -109,9 +111,882 @@
     (softmax): Softmax(dim=1)
   )
 )
-[INFO: trainer.py:  136]: Starting epoch 1
-[INFO: trainer.py:  177]: t = 1 / 22093
-[INFO: trainer.py:  179]:   [D] D_data_loss: 1.567
-[INFO: trainer.py:  179]:   [D] D_total_loss: 1.567
-[INFO: trainer.py:  184]:   [G] G_discriminator_loss: 0.523
-[INFO: trainer.py:  184]:   [G] G_total_loss: 0.523
+[INFO: trainer.py:  143]: Starting epoch 1
+[INFO: trainer.py:  184]: t = 1 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.629
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.629
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.518
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.518
+[INFO: trainer.py:  184]: t = 101 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.606
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.606
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.170
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.170
+[INFO: trainer.py:  184]: t = 201 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.495
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.495
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.450
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.450
+[INFO: trainer.py:  184]: t = 301 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.602
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.602
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.508
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.508
+[INFO: trainer.py:  184]: t = 401 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.494
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.494
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.550
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.550
+[INFO: trainer.py:  184]: t = 501 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.658
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.658
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.610
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.610
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.659
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.495
+[INFO: trainer.py:  214]:   [val] d_loss: 1.679
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.449
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.034
+[INFO: trainer.py:  219]:   [train] ade_l: 4.862
+[INFO: trainer.py:  219]:   [train] ade_nl: 23.684
+[INFO: trainer.py:  219]:   [train] d_loss: 1.699
+[INFO: trainer.py:  219]:   [train] fde: 4.847
+[INFO: trainer.py:  219]:   [train] fde_l: 5.842
+[INFO: trainer.py:  219]:   [train] fde_nl: 28.462
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 9.665
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 9.665
+[INFO: trainer.py:  228]: New low for avg_disp_error
+[INFO: trainer.py:  234]: New low for avg_disp_error_nl
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 601 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.438
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.438
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.209
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.209
+[INFO: trainer.py:  184]: t = 701 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.729
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.729
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.372
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.372
+[INFO: trainer.py:  184]: t = 801 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.641
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.641
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.340
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.340
+[INFO: trainer.py:  184]: t = 901 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.450
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.450
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.506
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.506
+[INFO: trainer.py:  184]: t = 1001 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.512
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.512
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.417
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.417
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.442
+[INFO: trainer.py:  214]:   [val] ade_l: 5.658
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.494
+[INFO: trainer.py:  214]:   [val] d_loss: 1.677
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.448
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.299
+[INFO: trainer.py:  219]:   [train] ade_l: 4.899
+[INFO: trainer.py:  219]:   [train] ade_nl: 35.104
+[INFO: trainer.py:  219]:   [train] d_loss: 1.656
+[INFO: trainer.py:  219]:   [train] fde: 5.064
+[INFO: trainer.py:  219]:   [train] fde_l: 5.770
+[INFO: trainer.py:  219]:   [train] fde_nl: 41.350
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 12.340
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 12.340
+[INFO: trainer.py:  228]: New low for avg_disp_error
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 1101 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.695
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.695
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.165
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.165
+[INFO: trainer.py:  184]: t = 1201 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.522
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.522
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.532
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.532
+[INFO: trainer.py:  184]: t = 1301 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.447
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.447
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.586
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.586
+[INFO: trainer.py:  184]: t = 1401 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.741
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.741
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.601
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.601
+[INFO: trainer.py:  184]: t = 1501 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.654
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.654
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.427
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.427
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.658
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.494
+[INFO: trainer.py:  214]:   [val] d_loss: 1.675
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.449
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.011
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.011
+[INFO: trainer.py:  219]:   [train] ade: 5.453
+[INFO: trainer.py:  219]:   [train] ade_l: 6.128
+[INFO: trainer.py:  219]:   [train] ade_nl: 49.500
+[INFO: trainer.py:  219]:   [train] d_loss: 1.654
+[INFO: trainer.py:  219]:   [train] fde: 6.495
+[INFO: trainer.py:  219]:   [train] fde_l: 7.299
+[INFO: trainer.py:  219]:   [train] fde_nl: 58.963
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 23.267
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 23.267
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 1601 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.737
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.737
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.125
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.125
+[INFO: trainer.py:  143]: Starting epoch 2
+[INFO: trainer.py:  184]: t = 1701 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.577
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.577
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.434
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.434
+[INFO: trainer.py:  184]: t = 1801 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.645
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.645
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.546
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.546
+[INFO: trainer.py:  184]: t = 1901 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.658
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.658
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.194
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.194
+[INFO: trainer.py:  184]: t = 2001 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.912
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.912
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.358
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.358
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.442
+[INFO: trainer.py:  214]:   [val] ade_l: 5.658
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.494
+[INFO: trainer.py:  214]:   [val] d_loss: 1.675
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.448
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.976
+[INFO: trainer.py:  219]:   [train] ade_l: 5.983
+[INFO: trainer.py:  219]:   [train] ade_nl: 29.554
+[INFO: trainer.py:  219]:   [train] d_loss: 1.651
+[INFO: trainer.py:  219]:   [train] fde: 6.009
+[INFO: trainer.py:  219]:   [train] fde_l: 7.225
+[INFO: trainer.py:  219]:   [train] fde_nl: 35.691
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 15.265
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 15.265
+[INFO: trainer.py:  228]: New low for avg_disp_error
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 2101 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.850
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.850
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.252
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.252
+[INFO: trainer.py:  184]: t = 2201 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.619
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.619
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.208
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.208
+[INFO: trainer.py:  184]: t = 2301 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.768
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.768
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.551
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.551
+[INFO: trainer.py:  184]: t = 2401 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.531
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.531
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.526
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.526
+[INFO: trainer.py:  184]: t = 2501 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.905
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.905
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.564
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.564
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.442
+[INFO: trainer.py:  214]:   [val] ade_l: 5.658
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.494
+[INFO: trainer.py:  214]:   [val] d_loss: 1.680
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.448
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.011
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.011
+[INFO: trainer.py:  219]:   [train] ade: 5.395
+[INFO: trainer.py:  219]:   [train] ade_l: 6.347
+[INFO: trainer.py:  219]:   [train] ade_nl: 35.966
+[INFO: trainer.py:  219]:   [train] d_loss: 1.701
+[INFO: trainer.py:  219]:   [train] fde: 6.392
+[INFO: trainer.py:  219]:   [train] fde_l: 7.520
+[INFO: trainer.py:  219]:   [train] fde_nl: 42.611
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 18.104
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 18.104
+[INFO: trainer.py:  228]: New low for avg_disp_error
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 2601 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.722
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.722
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.181
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.181
+[INFO: trainer.py:  184]: t = 2701 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.463
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.463
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.478
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.478
+[INFO: trainer.py:  184]: t = 2801 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.748
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.748
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.475
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.475
+[INFO: trainer.py:  184]: t = 2901 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.534
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.534
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.574
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.574
+[INFO: trainer.py:  184]: t = 3001 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.702
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.702
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.542
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.542
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.659
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.495
+[INFO: trainer.py:  214]:   [val] d_loss: 1.678
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.449
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.225
+[INFO: trainer.py:  219]:   [train] ade_l: 4.676
+[INFO: trainer.py:  219]:   [train] ade_nl: 43.786
+[INFO: trainer.py:  219]:   [train] d_loss: 1.697
+[INFO: trainer.py:  219]:   [train] fde: 5.108
+[INFO: trainer.py:  219]:   [train] fde_l: 5.654
+[INFO: trainer.py:  219]:   [train] fde_nl: 52.945
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 10.834
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 10.834
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 3101 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.641
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.641
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.523
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.523
+[INFO: trainer.py:  184]: t = 3201 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.865
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.865
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.318
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.318
+[INFO: trainer.py:  184]: t = 3301 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.789
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.789
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.330
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.330
+[INFO: trainer.py:  143]: Starting epoch 3
+[INFO: trainer.py:  184]: t = 3401 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.884
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.884
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.377
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.377
+[INFO: trainer.py:  184]: t = 3501 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.707
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.707
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.506
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.506
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.442
+[INFO: trainer.py:  214]:   [val] ade_l: 5.658
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.493
+[INFO: trainer.py:  214]:   [val] d_loss: 1.678
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.448
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.681
+[INFO: trainer.py:  219]:   [train] ade_l: 5.488
+[INFO: trainer.py:  219]:   [train] ade_nl: 31.825
+[INFO: trainer.py:  219]:   [train] d_loss: 1.688
+[INFO: trainer.py:  219]:   [train] fde: 5.515
+[INFO: trainer.py:  219]:   [train] fde_l: 6.465
+[INFO: trainer.py:  219]:   [train] fde_nl: 37.496
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 18.536
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 18.536
+[INFO: trainer.py:  228]: New low for avg_disp_error
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 3601 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.516
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.516
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.172
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.172
+[INFO: trainer.py:  184]: t = 3701 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.800
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.800
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.477
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.477
+[INFO: trainer.py:  184]: t = 3801 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.523
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.523
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.213
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.213
+[INFO: trainer.py:  184]: t = 3901 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.640
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.640
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.382
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.382
+[INFO: trainer.py:  184]: t = 4001 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.743
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.743
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.234
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.234
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.659
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.494
+[INFO: trainer.py:  214]:   [val] d_loss: 1.678
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.449
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 5.489
+[INFO: trainer.py:  219]:   [train] ade_l: 6.498
+[INFO: trainer.py:  219]:   [train] ade_nl: 35.350
+[INFO: trainer.py:  219]:   [train] d_loss: 1.709
+[INFO: trainer.py:  219]:   [train] fde: 6.502
+[INFO: trainer.py:  219]:   [train] fde_l: 7.697
+[INFO: trainer.py:  219]:   [train] fde_nl: 41.875
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 22.633
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 22.633
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 4101 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.475
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.475
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.498
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.498
+[INFO: trainer.py:  184]: t = 4201 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.629
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.629
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.362
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.362
+[INFO: trainer.py:  184]: t = 4301 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.703
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.703
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.426
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.426
+[INFO: trainer.py:  184]: t = 4401 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.883
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.883
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.404
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.404
+[INFO: trainer.py:  184]: t = 4501 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.910
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.910
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.469
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.469
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.659
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.496
+[INFO: trainer.py:  214]:   [val] d_loss: 1.680
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.450
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.734
+[INFO: trainer.py:  219]:   [train] ade_l: 5.392
+[INFO: trainer.py:  219]:   [train] ade_nl: 38.778
+[INFO: trainer.py:  219]:   [train] d_loss: 1.662
+[INFO: trainer.py:  219]:   [train] fde: 5.695
+[INFO: trainer.py:  219]:   [train] fde_l: 6.486
+[INFO: trainer.py:  219]:   [train] fde_nl: 46.651
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 15.191
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 15.191
+[INFO: trainer.py:  234]: New low for avg_disp_error_nl
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 4601 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.511
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.511
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.208
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.208
+[INFO: trainer.py:  184]: t = 4701 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.475
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.475
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.586
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.586
+[INFO: trainer.py:  184]: t = 4801 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.438
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.438
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.403
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.403
+[INFO: trainer.py:  184]: t = 4901 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.886
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.886
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.586
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.586
+[INFO: trainer.py:  143]: Starting epoch 4
+[INFO: trainer.py:  184]: t = 5001 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.477
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.477
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.594
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.594
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.442
+[INFO: trainer.py:  214]:   [val] ade_l: 5.658
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.493
+[INFO: trainer.py:  214]:   [val] d_loss: 1.677
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.448
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 5.178
+[INFO: trainer.py:  219]:   [train] ade_l: 5.749
+[INFO: trainer.py:  219]:   [train] ade_nl: 52.082
+[INFO: trainer.py:  219]:   [train] d_loss: 1.666
+[INFO: trainer.py:  219]:   [train] fde: 6.057
+[INFO: trainer.py:  219]:   [train] fde_l: 6.726
+[INFO: trainer.py:  219]:   [train] fde_nl: 60.927
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 15.979
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 15.979
+[INFO: trainer.py:  228]: New low for avg_disp_error
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 5101 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.771
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.771
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.405
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.405
+[INFO: trainer.py:  184]: t = 5201 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.910
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.910
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.348
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.348
+[INFO: trainer.py:  184]: t = 5301 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.587
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.587
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.325
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.325
+[INFO: trainer.py:  184]: t = 5401 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.847
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.847
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.114
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.114
+[INFO: trainer.py:  184]: t = 5501 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.844
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.844
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.136
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.136
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.658
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.494
+[INFO: trainer.py:  214]:   [val] d_loss: 1.677
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.448
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 5.686
+[INFO: trainer.py:  219]:   [train] ade_l: 6.971
+[INFO: trainer.py:  219]:   [train] ade_nl: 30.837
+[INFO: trainer.py:  219]:   [train] d_loss: 1.647
+[INFO: trainer.py:  219]:   [train] fde: 6.797
+[INFO: trainer.py:  219]:   [train] fde_l: 8.333
+[INFO: trainer.py:  219]:   [train] fde_nl: 36.863
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 21.423
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 21.423
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 5601 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.700
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.700
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.312
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.312
+[INFO: trainer.py:  184]: t = 5701 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.551
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.551
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.378
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.378
+[INFO: trainer.py:  184]: t = 5801 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.622
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.622
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.370
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.370
+[INFO: trainer.py:  184]: t = 5901 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.871
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.871
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.448
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.448
+[INFO: trainer.py:  184]: t = 6001 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.525
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.525
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.395
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.395
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.659
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.495
+[INFO: trainer.py:  214]:   [val] d_loss: 1.675
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.449
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.688
+[INFO: trainer.py:  219]:   [train] ade_l: 5.555
+[INFO: trainer.py:  219]:   [train] ade_nl: 30.041
+[INFO: trainer.py:  219]:   [train] d_loss: 1.607
+[INFO: trainer.py:  219]:   [train] fde: 5.642
+[INFO: trainer.py:  219]:   [train] fde_l: 6.685
+[INFO: trainer.py:  219]:   [train] fde_nl: 36.155
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 14.512
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 14.512
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 6101 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.759
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.759
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.451
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.451
+[INFO: trainer.py:  184]: t = 6201 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.436
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.436
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.367
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.367
+[INFO: trainer.py:  184]: t = 6301 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.716
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.716
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.415
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.415
+[INFO: trainer.py:  184]: t = 6401 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.636
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.636
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.575
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.575
+[INFO: trainer.py:  184]: t = 6501 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.471
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.471
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.479
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.479
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.659
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.496
+[INFO: trainer.py:  214]:   [val] d_loss: 1.682
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.449
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.750
+[INFO: trainer.py:  219]:   [train] ade_l: 5.553
+[INFO: trainer.py:  219]:   [train] ade_nl: 32.865
+[INFO: trainer.py:  219]:   [train] d_loss: 1.679
+[INFO: trainer.py:  219]:   [train] fde: 5.682
+[INFO: trainer.py:  219]:   [train] fde_l: 6.642
+[INFO: trainer.py:  219]:   [train] fde_nl: 39.311
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 18.213
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 18.213
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 6601 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.649
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.649
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.159
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.159
+[INFO: trainer.py:  143]: Starting epoch 5
+[INFO: trainer.py:  184]: t = 6701 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.453
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.453
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.473
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.473
+[INFO: trainer.py:  184]: t = 6801 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.515
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.515
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.232
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.232
+[INFO: trainer.py:  184]: t = 6901 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.485
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.485
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.579
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.579
+[INFO: trainer.py:  184]: t = 7001 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.793
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.793
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.343
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.343
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.659
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.495
+[INFO: trainer.py:  214]:   [val] d_loss: 1.673
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.449
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.013
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.013
+[INFO: trainer.py:  219]:   [train] ade: 4.468
+[INFO: trainer.py:  219]:   [train] ade_l: 5.372
+[INFO: trainer.py:  219]:   [train] ade_nl: 26.572
+[INFO: trainer.py:  219]:   [train] d_loss: 1.707
+[INFO: trainer.py:  219]:   [train] fde: 5.348
+[INFO: trainer.py:  219]:   [train] fde_l: 6.429
+[INFO: trainer.py:  219]:   [train] fde_nl: 31.802
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 9.672
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 9.672
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 7101 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.533
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.533
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.556
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.556
+[INFO: trainer.py:  184]: t = 7201 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.461
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.461
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.357
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.357
+[INFO: trainer.py:  184]: t = 7301 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.867
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.867
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.379
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.379
+[INFO: trainer.py:  184]: t = 7401 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.666
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.666
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.320
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.320
+[INFO: trainer.py:  184]: t = 7501 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.514
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.514
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.412
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.412
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.442
+[INFO: trainer.py:  214]:   [val] ade_l: 5.658
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.493
+[INFO: trainer.py:  214]:   [val] d_loss: 1.676
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.447
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.665
+[INFO: trainer.py:  219]:   [train] ade_l: 5.472
+[INFO: trainer.py:  219]:   [train] ade_nl: 31.638
+[INFO: trainer.py:  219]:   [train] d_loss: 1.703
+[INFO: trainer.py:  219]:   [train] fde: 5.628
+[INFO: trainer.py:  219]:   [train] fde_l: 6.601
+[INFO: trainer.py:  219]:   [train] fde_nl: 38.164
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 12.192
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 12.192
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 7601 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.762
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.762
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.388
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.388
+[INFO: trainer.py:  184]: t = 7701 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.876
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.876
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.492
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.492
+[INFO: trainer.py:  184]: t = 7801 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.870
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.870
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.366
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.366
+[INFO: trainer.py:  184]: t = 7901 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.641
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.641
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.169
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.169
+[INFO: trainer.py:  184]: t = 8001 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.529
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.529
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.192
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.192
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.659
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.497
+[INFO: trainer.py:  214]:   [val] d_loss: 1.677
+[INFO: trainer.py:  214]:   [val] fde: 7.684
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.450
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.293
+[INFO: trainer.py:  219]:   [train] ade_l: 5.156
+[INFO: trainer.py:  219]:   [train] ade_nl: 25.647
+[INFO: trainer.py:  219]:   [train] d_loss: 1.685
+[INFO: trainer.py:  219]:   [train] fde: 5.169
+[INFO: trainer.py:  219]:   [train] fde_l: 6.208
+[INFO: trainer.py:  219]:   [train] fde_nl: 30.883
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 10.633
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 10.633
+[INFO: trainer.py:  234]: New low for avg_disp_error_nl
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 8101 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.611
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.611
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.456
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.456
+[INFO: trainer.py:  184]: t = 8201 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.828
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.828
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.193
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.193
+[INFO: trainer.py:  143]: Starting epoch 6
+[INFO: trainer.py:  184]: t = 8301 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.454
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.454
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.259
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.259
+[INFO: trainer.py:  184]: t = 8401 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.432
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.432
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.442
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.442
+[INFO: trainer.py:  184]: t = 8501 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.882
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.882
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.124
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.124
+[INFO: trainer.py:  203]: Checking stats on val ...
+[INFO: trainer.py:  207]: Checking stats on train ...
+[INFO: trainer.py:  214]:   [val] ade: 6.443
+[INFO: trainer.py:  214]:   [val] ade_l: 5.659
+[INFO: trainer.py:  214]:   [val] ade_nl: -46.495
+[INFO: trainer.py:  214]:   [val] d_loss: 1.676
+[INFO: trainer.py:  214]:   [val] fde: 7.683
+[INFO: trainer.py:  214]:   [val] fde_l: 6.748
+[INFO: trainer.py:  214]:   [val] fde_nl: -55.449
+[INFO: trainer.py:  214]:   [val] g_l2_loss_abs: 28.012
+[INFO: trainer.py:  214]:   [val] g_l2_loss_rel: 28.012
+[INFO: trainer.py:  219]:   [train] ade: 4.779
+[INFO: trainer.py:  219]:   [train] ade_l: 6.020
+[INFO: trainer.py:  219]:   [train] ade_nl: 23.194
+[INFO: trainer.py:  219]:   [train] d_loss: 1.647
+[INFO: trainer.py:  219]:   [train] fde: 5.869
+[INFO: trainer.py:  219]:   [train] fde_l: 7.392
+[INFO: trainer.py:  219]:   [train] fde_nl: 28.484
+[INFO: trainer.py:  219]:   [train] g_l2_loss_abs: 12.663
+[INFO: trainer.py:  219]:   [train] g_l2_loss_rel: 12.663
+[INFO: trainer.py:  248]: Saving checkpoint to /home/robesafe/git/SoPhie/save/test_with_model.pt
+[INFO: trainer.py:  250]: Done.
+[INFO: trainer.py:  256]: Saving checkpoint to save/test_no_model.pt
+[INFO: trainer.py:  267]: Done.
+[INFO: trainer.py:  184]: t = 8601 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.838
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.838
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.129
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.129
+[INFO: trainer.py:  184]: t = 8701 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.644
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.644
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.347
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.347
+[INFO: trainer.py:  184]: t = 8801 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.727
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.727
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.143
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.143
+[INFO: trainer.py:  184]: t = 8901 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.853
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.853
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.350
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.350
+[INFO: trainer.py:  184]: t = 9001 / 620625
+[INFO: trainer.py:  186]:   [D] D_data_loss: 1.435
+[INFO: trainer.py:  186]:   [D] D_total_loss: 1.435
+[INFO: trainer.py:  191]:   [G] G_discriminator_loss: 0.430
+[INFO: trainer.py:  191]:   [G] G_total_loss: 0.430
+[INFO: trainer.py:  203]: Checking stats on val ...
