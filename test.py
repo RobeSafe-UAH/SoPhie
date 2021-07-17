@@ -406,7 +406,6 @@ def load_id_frame():
     frames_list = load_images(vi_path, list(frames), extension)
     # print("obs_traj: ", obs_traj.shape, obs_traj) # 8, 182, 2
 
-<<<<<<< HEAD
 class AutoTree(dict):
     """
     Dictionary with unlimited levels
@@ -479,12 +478,74 @@ def test_json():
 
     with open('data.json', 'w') as fp:
         json.dump(data, fp)
-=======
+
+def test_evaluate_json_aiodrive():
+    prediction_length = '10'
+    trajectory_sample = '0'
+    data = torch.load("data_sophie_trainval.pt")
+    classes = {"Car":0, "Cyc":1, "Mot":2, "Ped":3, "Dum":4} # Car, Ped, Mot, Cyc, Dummy
+    prob = 1.0
+    batch_size_aiodrive = 8
+
+    generator = SoPhieGenerator(config_file.sophie.generator)
+    generator.build()
+    generator.to(device)
+
+    obs_traj = data['obs_traj']
+    frames = data['frames']
+
+    predicted_trajectories = generator.forward(frames,obs_traj) # 12 x batch_size*na (8x32) x 2
+
+    json_dict = AutoTree()
+
+    for element in range(batch_size_aiodrive):
+        # obs_traj = data['obs_traj'][:,na*element:na*(element+1),:] # 8 x batch_size*na (8x32) x 2 -> 8 x 32 x 2
+        # frames = data['frames'][element].reshape(1,3,600,600) # batch_size (8) x 3 x 600 x 600 -> 1 x 3 x 600 x 600
+        object_cls = data['object_cls'][element].reshape(1,-1).cpu().data.numpy() # 8 x 32 -> 1 x 32
+        seq = data['seq'][element].reshape(1,-1).cpu().data.numpy() # 8 x 2 -> 1 x 2
+        obj_id = data['obj_id'][element].reshape(1,-1).cpu().data.numpy() # 8 x 32 -> 1 x 32 
+        pred_fake_trajectories = predicted_trajectories[:,na*element:na*(element+1),:]
+        # pred_fake_trajectories = generator.forward(frames,obs_traj) # 12 x 32 x 2
+
+        object_indexes = []
+
+        xx = str(int(seq[0,0]/1000))
+        yyyy = str(int(seq[0,0]%1000))
+
+        seq_name = ""
+
+        if len(str(seq[0,0])) == 5:
+            seq_name = "Town"+xx.zfill(2)+"HD"+"_seq"+yyyy.zfill(4)
+        else:
+            seq_name = "Town"+xx.zfill(2)+"_seq"+yyyy.zfill(4)
+
+        seq_frame = str(int(seq[0,1]))
+
+        for key,value in classes.items():
+            indexes = np.where(np.array([condition(xi,value) for xi in object_cls]))[1]
+
+            agent_dict = {}
+            # print("Indexes: ", indexes)
+            for i in range(pred_fake_trajectories.shape[1]): 
+                if i in indexes:
+                    ground_pos = []
+                    for j in range(pred_fake_trajectories.shape[0]): 
+                        ground_pos.append(pred_fake_trajectories[j,i,:].tolist()) # x,y
+                    # We assume here i is the identifier
+                    # print("Ground pos: ", ground_pos)
+                    aux_dict = {}
+                    aux_dict['state'] = ground_pos
+                    aux_dict['prob'] = prob
+                    agent_dict[str(int(obj_id[0,i]))] = aux_dict
+
+                    json_dict[prediction_length][key][seq_name][seq_frame][trajectory_sample] = agent_dict
+
+    with open('test_results.json', 'w') as fp:
+        json.dump(json_dict, fp)
+
 def load_id_frame_ex():
     id_frames = torch.load("id_frame_example.pt") # original: 32, 3, 20 -> dataloader
     print("id_frames: ", id_frames.shape, id_frames)
-
->>>>>>> feature/trainer
 
 if __name__ == "__main__":
     # test_read_file()
@@ -498,21 +559,15 @@ if __name__ == "__main__":
     # test_mlp()
     # test_encoder()
     # test_decoder()
-<<<<<<< HEAD
     # test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
-    test_aiodrive_frames()
+    # test_aiodrive_frames()
     # load_id_frame()
     # test_aiodrive_json()
     # test_json()
-=======
-    #test_sophie_generator()
-    #test_sophie_discriminator()
-    test_aiodrive_dataset()
-    #load_id_frame_ex()
-    #load_id_frame()
->>>>>>> feature/trainer
+    test_evaluate_json_aiodrive()
+    # load_id_frame_ex()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))

@@ -7,4 +7,3 @@ Crow zara zara1 zara2
     https://repo.vi-seem.eu/handle/21.15102/VISEEM-316
 
     -> https://repo.vi-seem.eu/bitstream/handle/21.15102/VISEEM-316/Zara.zip?sequence=1&isAllowed=y
-

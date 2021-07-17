@@ -18,14 +18,6 @@ parser.add_argument('--model_path', type=str)
 parser.add_argument('--num_samples', default=20, type=int)
 parser.add_argument('--dset_type', default='test', type=str)
 
-class AutoTree(dict):
-    """
-    Dictionary with unlimited levels
-    """
-    def __missing__(self, key):
-        value = self[key] = type(self)()
-        return value
-
 def get_generator(checkpoint, config):
     generator = SoPhieGenerator(config.sophie.generator)
     generator.build()
@@ -49,8 +41,6 @@ def evaluate_helper(error, seq_start_end):
     return sum_
 
 def evaluate(args, loader, generator, num_samples, pred_len):
-    init_json = False
-    json_dict = AutoTree()
 
     ade_outer, fde_outer = [], []
     total_traj = 0
@@ -61,12 +51,8 @@ def evaluate(args, loader, generator, num_samples, pred_len):
              loss_mask, seq_start_end, frames, prediction_length, object_class, seq_name, 
              seq_frame, object_id) = batch
 
-            json_dict[prediction_length][object_class][seq_name][seq_frame] = []
-
             ade, fde = [], []
             total_traj += pred_traj_gt.size(1)
-
-            agent_dict = {}
 
             for _ in range(num_samples):
                 pred_traj_fake_rel = generator(
@@ -75,22 +61,6 @@ def evaluate(args, loader, generator, num_samples, pred_len):
                 pred_traj_fake = relative_to_abs(
                     pred_traj_fake_rel, obs_traj[-1]
                 )
-
-                for i in range(pred_traj_fake.shape[1]): 
-                    ground_pos = []
-                    for j in range(pred_traj_fake.shape[0]): 
-                        aux = []
-                        aux.append(pred_traj_fake[j,i,:]) # x,y 
-                        ground_pos.append(ground_pos)
-                    # We assume here i is the identifier
-                    aux_dict = {}
-                    aux_dict['state'] = ground_pos
-                    aux_dict['prob'] = prob
-                    agent_dict[str(object_id[i])] = aux_dict
-
-                # Create dict to json 
-
-                json_dict[prediction_length][object_class][seq_name][seq_frame].append(agent_dict)
 
                 ade.append(displacement_error(
                     pred_traj_fake, pred_traj_gt, mode='raw'

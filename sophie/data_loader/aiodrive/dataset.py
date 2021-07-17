@@ -138,7 +138,13 @@ def seq_collate(data): # id_frame
 def get_folder_name(video_path, seq_name):
     town = str(int(seq_name/1000))
     seq = str(int(seq_name%1000))
-    folder = "Town{}_seq{}".format(town.zfill(2), seq.zfill(4))
+    split = video_path.split('/')[-2].split('_')[-1]
+    hd = (split == "test") and town == "10"
+    folder = "Town{}{}_seq{}".format(
+        town.zfill(2),
+        "HD" if hd else "",
+        seq.zfill(4)
+    )
     full_path = os.path.join(video_path, folder)
     return full_path
 
@@ -150,6 +156,7 @@ def load_images(video_path, frames, extension="png", new_shape=(600,600)):
         cont += 1
         image_id = str(int(frame[1].item()))
         image_url = os.path.join(folder_name, "{}.{}".format(image_id.zfill(6), extension))
+        #print("image_url: ", image_url)
         frame = cv2.imread(image_url)
         frame = cv2.resize(frame, new_shape)
         frames_list.append(np.expand_dims(frame, axis=0))
@@ -197,9 +204,9 @@ def seq_collate_image_aiodrive(data): # id_frame
     seq = torch.stack(frame)
     obj_id = torch.stack(objects_id)
 
-    print("object_class ", object_cls.shape, object_cls)
-    print("seq: ",seq.shape, seq)
-    print("obj_id: ", obj_id.shape, obj_id)
+    # print("object_class ", object_cls.shape, object_cls)
+    # print("seq: ",seq.shape, seq)
+    # print("obj_id: ", obj_id.shape, obj_id)
 
     out = [
         obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, non_linear_ped,
@@ -313,6 +320,9 @@ class AioDriveDataset(Dataset):
         frames_list = []
         object_class_id_list = []
         object_id_list = []
+
+        print("Split: ", split)
+
         for path in all_files:
             print_str = 'load %s\r' % path
             sys.stdout.write(print_str)
@@ -322,7 +332,7 @@ class AioDriveDataset(Dataset):
             data = read_file(path, delim)
             
             # as testing files only contains past, so add more windows
-            print("split ", split)
+
             if split == 'test':
                 min_frame, max_frame = 0, 999
                 num_windows = int(max_frame - min_frame + 1 - skip*(self.seq_len - 1))      
@@ -333,19 +343,14 @@ class AioDriveDataset(Dataset):
                 num_windows = int(max_frame - min_frame + 1 - skip*(self.seq_len - 1))      # include all frames for past and future
 
             # loop through every windows
-
-            print("Windows frames: ", windows_frames)
-
             for window_index in range(num_windows):
                 start_frame = int(window_index + min_frame)
                 end_frame = int(start_frame + self.seq_len*skip)        # right-open, not including this frame  
-
+               
                 if split=='test':
                     if windows_frames and start_frame not in windows_frames:
                         continue
-
-                print("Start frame: ", start_frame)
-                print("End frame: ", end_frame)
+                    
                 frame = start_frame + self.obs_len
                 seq_name_int = seqname2int(seq_name)
                 if frame > 999:
@@ -402,45 +407,45 @@ class AioDriveDataset(Dataset):
                     # pad front and back data to make the trajectory complete
                     if pad_end - pad_front != self.seq_len * skip:
                         
-        #                 # pad end
-        #                 to_be_paded_end = int(self.seq_len - pad_end / skip)
-        #                 pad_end_seq  = np.expand_dims(curr_ped_seq[-1, :], axis=0)
-        #                 pad_end_seq  = np.repeat(pad_end_seq, to_be_paded_end, axis=0)
-        #                 frame_offset = np.zeros((to_be_paded_end, 4), dtype='float32')
-        #                 frame_offset[:, 0] = np.array(range(1, to_be_paded_end+1))
-        #                 pad_end_seq += frame_offset * skip                          # shift first columns for frame
-        #                 curr_ped_seq = np.concatenate((curr_ped_seq, pad_end_seq), axis=0)
+                        # pad end
+                        to_be_paded_end = int(self.seq_len - pad_end / skip)
+                        pad_end_seq  = np.expand_dims(curr_ped_seq[-1, :], axis=0)
+                        pad_end_seq  = np.repeat(pad_end_seq, to_be_paded_end, axis=0)
+                        frame_offset = np.zeros((to_be_paded_end, 4), dtype='float32')
+                        frame_offset[:, 0] = np.array(range(1, to_be_paded_end+1))
+                        pad_end_seq += frame_offset * skip                          # shift first columns for frame
+                        curr_ped_seq = np.concatenate((curr_ped_seq, pad_end_seq), axis=0)
 
-        #                 # pad front
-        #                 to_be_paded_front = int(pad_front / skip)
-        #                 pad_front_seq = np.expand_dims(curr_ped_seq[0, :], axis=0)
-        #                 pad_front_seq = np.repeat(pad_front_seq, to_be_paded_front, axis=0)
-        #                 frame_offset = np.zeros((to_be_paded_front, 4), dtype='float32')
-        #                 frame_offset[:, 0] = np.array(range(-to_be_paded_front, 0))
-        #                 pad_front_seq += frame_offset * skip
-        #                 curr_ped_seq = np.concatenate((pad_front_seq, curr_ped_seq), axis=0)
+                        # pad front
+                        to_be_paded_front = int(pad_front / skip)
+                        pad_front_seq = np.expand_dims(curr_ped_seq[0, :], axis=0)
+                        pad_front_seq = np.repeat(pad_front_seq, to_be_paded_front, axis=0)
+                        frame_offset = np.zeros((to_be_paded_front, 4), dtype='float32')
+                        frame_offset[:, 0] = np.array(range(-to_be_paded_front, 0))
+                        pad_front_seq += frame_offset * skip
+                        curr_ped_seq = np.concatenate((pad_front_seq, curr_ped_seq), axis=0)
 
-        #                 # set pad front and end to correct values
-        #                 pad_front = 0
-        #                 pad_end = self.seq_len * skip
+                        # set pad front and end to correct values
+                        pad_front = 0
+                        pad_end = self.seq_len * skip
 
-        #             # add edge case when the object reappears at a bad frame
-        #             # in other words, missing intermediate frame
-        #             if curr_ped_seq.shape[0] != (pad_end - pad_front) / skip:
-        #                 frame_all = list(range(int(curr_ped_seq[0, 0]), int(curr_ped_seq[-1, 0])+skip, skip))     
-        #                 frame_missing, _ = remove_list_from_list(frame_all, curr_ped_seq[:, 0].tolist())
+                    # add edge case when the object reappears at a bad frame
+                    # in other words, missing intermediate frame
+                    if curr_ped_seq.shape[0] != (pad_end - pad_front) / skip:
+                        frame_all = list(range(int(curr_ped_seq[0, 0]), int(curr_ped_seq[-1, 0])+skip, skip))     
+                        frame_missing, _ = remove_list_from_list(frame_all, curr_ped_seq[:, 0].tolist())
 
-        #                 # pad all missing frames with zeros
-        #                 pad_seq = np.expand_dims(curr_ped_seq[-1, :], axis=0)
-        #                 pad_seq = np.repeat(pad_seq, len(frame_missing), axis=0)
-        #                 pad_seq.fill(0)
-        #                 pad_seq[:, 0] = np.array(frame_missing)
-        #                 pad_seq[:, 1] = ped_id          # fill ID
-        #                 curr_ped_seq = np.concatenate((curr_ped_seq, pad_seq), axis=0)
-        #                 curr_ped_seq = curr_ped_seq[np.argsort(curr_ped_seq[:, 0])]
+                        # pad all missing frames with zeros
+                        pad_seq = np.expand_dims(curr_ped_seq[-1, :], axis=0)
+                        pad_seq = np.repeat(pad_seq, len(frame_missing), axis=0)
+                        pad_seq.fill(0)
+                        pad_seq[:, 0] = np.array(frame_missing)
+                        pad_seq[:, 1] = ped_id          # fill ID
+                        curr_ped_seq = np.concatenate((curr_ped_seq, pad_seq), axis=0)
+                        curr_ped_seq = curr_ped_seq[np.argsort(curr_ped_seq[:, 0])]
 
-        #             assert pad_front == 0, 'error'
-        #             assert pad_end == self.seq_len * skip, 'error'
+                    assert pad_front == 0, 'error'
+                    assert pad_end == self.seq_len * skip, 'error'
                     
                     # make sure the seq_len frames are continuous, no jumping frames
                     start_frame_now = int(curr_ped_seq[0, 0])

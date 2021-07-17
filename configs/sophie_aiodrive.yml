@@ -5,7 +5,10 @@ dataset_name: aiodrive
 number_agents: 32
 dataset:
     path: data/datasets/aiodrive/aiodrive_Car/
-    video: data/datasets/aiodrive/aiodrive_image_front_trainval/image_2
+    # TODO: Improve this
+    absolute_route: True
+    final_submission: True
+    video: /home/robesafe/shared_home/aiodrive_image_front_test/image_2
     batch_size: 8 # 16 max
     shuffle: True
     num_workers: 0
