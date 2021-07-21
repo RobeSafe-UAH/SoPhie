@@ -547,6 +547,21 @@ def load_id_frame_ex():
     id_frames = torch.load("id_frame_example.pt") # original: 32, 3, 20 -> dataloader
     print("id_frames: ", id_frames.shape, id_frames)
 
+def evaluate_json():
+    with open("final_submission_v1.json") as jsonFile:
+        jsonObject = json.load(jsonFile)
+        jsonFile.close()
+
+    print("My object: ", jsonObject['10']['Car']['Town07_seq0001']['800']['0']['325'])
+
+def test_autotree():
+    json_dict = AutoTree()
+
+    json_dict['apple']['tree']['red'] = 5
+    json_dict['orange']['new_tree']['orange_colour'] = 7
+    print("json dict: ", json_dict)
+    print("keys: ", json_dict.keys())
+
 if __name__ == "__main__":
     # test_read_file()
     # test_dataLoader()
@@ -566,8 +581,10 @@ if __name__ == "__main__":
     # load_id_frame()
     # test_aiodrive_json()
     # test_json()
-    test_evaluate_json_aiodrive()
+    # test_evaluate_json_aiodrive()
     # load_id_frame_ex()
+    # evaluate_json()
+    test_autotree()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))

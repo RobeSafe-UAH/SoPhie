@@ -7,7 +7,7 @@ dataset:
     path: data/datasets/aiodrive/aiodrive_Car/
     # TODO: Improve this
     absolute_route: True
-    final_submission: True
+    test_submission: True
     video: /home/robesafe/shared_home/aiodrive_image_front_test/image_2
     batch_size: 8 # 16 max
     shuffle: True

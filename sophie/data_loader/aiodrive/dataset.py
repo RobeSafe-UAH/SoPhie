@@ -328,6 +328,10 @@ class AioDriveDataset(Dataset):
             sys.stdout.write(print_str)
             sys.stdout.flush()
             _, seq_name, _ = fileparts(path)
+
+            if seq_name != "Town07_seq0001":
+                continue
+
             print(">> ", path, seq_name)
             data = read_file(path, delim)
             
@@ -349,7 +353,10 @@ class AioDriveDataset(Dataset):
                
                 if split=='test':
                     if windows_frames and start_frame not in windows_frames:
+                        # print("Continue")
                         continue
+
+                # print("Start frame: ", start_frame)
                     
                 frame = start_frame + self.obs_len
                 seq_name_int = seqname2int(seq_name)
@@ -358,9 +365,10 @@ class AioDriveDataset(Dataset):
                 seq_frame = np.array([seq_name_int, frame])
 
                 # reduce window during testing, only evaluate every N windows
-                if phase == 'testing':
-                    check_pass = check_eval_windows(start_frame+self.obs_len*skip, self.obs_len*skip, self.pred_len*skip, split=split)
-                    if not check_pass: continue
+                # if phase == 'testing':
+                #     check_pass = check_eval_windows(start_frame+self.obs_len*skip, self.obs_len*skip, self.pred_len*skip, split=split)
+                #     if not check_pass: 
+                #         continue
 
                 # get data in current window
                 curr_seq_data = []
@@ -369,153 +377,169 @@ class AioDriveDataset(Dataset):
                 curr_seq_data = np.concatenate(curr_seq_data, axis=0) # frame - id - x - y
 
                 # initialize data
+
+                peds_in_curr_seq_list = []
+
                 peds_in_curr_seq = np.unique(curr_seq_data[:, 1]) # numero de peds en la ventana
                 peds_len = peds_in_curr_seq.shape[0]
-                if peds_len < 32:
-                    dummy = [-1 for i in range(32 - peds_len)]
-                    peds_in_curr_seq = np.concatenate((peds_in_curr_seq, dummy))
-                elif peds_len > 32:
-                    peds_in_curr_seq = peds_in_curr_seq[:32]
+
+                num_agents = 32
+                num_mini_batches = math.ceil(float(peds_len/32))
+
+                for mini_batch in range(num_mini_batches):
+                    if mini_batch == num_mini_batches-1:
+                        peds_in_curr_seq_1 = peds_in_curr_seq[num_agents*mini_batch:]
+                        dummy = [-1 for i in range(32 - peds_in_curr_seq_1.shape[0])]
+                        peds_in_curr_seq_1 = np.concatenate((peds_in_curr_seq_1, dummy))
+                        peds_in_curr_seq_list.append(peds_in_curr_seq_1)
+                    else:
+                        peds_in_curr_seq_1 = peds_in_curr_seq[num_agents*mini_batch:num_agents*(mini_batch+1)]
+                        peds_in_curr_seq_list.append(peds_in_curr_seq_1)
 
                 ### crea las esructuras de datos con peds_in_curr_seq de objetos por batch
-                curr_seq_rel   = np.zeros((len(peds_in_curr_seq), 2, self.seq_len))     # objects x 2 x seq_len
-                curr_seq       = np.zeros((len(peds_in_curr_seq), 2, self.seq_len))
-                curr_loss_mask = np.zeros((len(peds_in_curr_seq)   , self.seq_len))     # objects x seq_len
-                id_frame_list  = np.zeros((len(peds_in_curr_seq), 3, self.seq_len))     # objects x 3 x seq_len
-                object_class_list = np.zeros(len(peds_in_curr_seq))
-                object_class_list.fill(-1)
-                id_frame_list.fill(0)
-                num_peds_considered = 0
-                _non_linear_ped = []
+                # print(">>>>>>>>>>>>>")
+                for current_peds in peds_in_curr_seq_list:
+                    # print("Current ped: ", current_peds)
+                    curr_seq_rel   = np.zeros((len(current_peds), 2, self.seq_len))     # objects x 2 x seq_len
+                    curr_seq       = np.zeros((len(current_peds), 2, self.seq_len))
+                    curr_loss_mask = np.zeros((len(current_peds)   , self.seq_len))     # objects x seq_len
+                    id_frame_list  = np.zeros((len(current_peds), 3, self.seq_len))     # objects x 3 x seq_len
+                    object_class_list = np.zeros(len(current_peds))
+                    object_class_list.fill(-1)
+                    id_frame_list.fill(0)
+                    num_peds_considered = 0
+                    _non_linear_ped = []
 
-                # loop through every object in this window
-                #print("peds_in_curr_seq: ", peds_in_curr_seq)
-                for _, ped_id in enumerate(peds_in_curr_seq):
-                    if ped_id == -1:
-                        num_peds_considered += 1
-                        continue
-
-                    object_class = getObjecClass(path)
-                    object_class_id = self.objects_id_dict[object_class]
-                    curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]      # frame - id - x - y for one of the id of the window, same id
-                    pad_front    = int(curr_ped_seq[0, 0] ) - start_frame      # first frame of window       
-                    pad_end      = int(curr_ped_seq[-1, 0]) - start_frame + skip # last frame of window
-                    assert pad_end % skip == 0, 'error'
-                    frame_existing = curr_ped_seq[:, 0].tolist() # frames of windows
-                    #print("frame_existing: ", frame_existing, pad_front, pad_end, curr_ped_seq)
-
-                    # pad front and back data to make the trajectory complete
-                    if pad_end - pad_front != self.seq_len * skip:
-                        
-                        # pad end
-                        to_be_paded_end = int(self.seq_len - pad_end / skip)
-                        pad_end_seq  = np.expand_dims(curr_ped_seq[-1, :], axis=0)
-                        pad_end_seq  = np.repeat(pad_end_seq, to_be_paded_end, axis=0)
-                        frame_offset = np.zeros((to_be_paded_end, 4), dtype='float32')
-                        frame_offset[:, 0] = np.array(range(1, to_be_paded_end+1))
-                        pad_end_seq += frame_offset * skip                          # shift first columns for frame
-                        curr_ped_seq = np.concatenate((curr_ped_seq, pad_end_seq), axis=0)
-
-                        # pad front
-                        to_be_paded_front = int(pad_front / skip)
-                        pad_front_seq = np.expand_dims(curr_ped_seq[0, :], axis=0)
-                        pad_front_seq = np.repeat(pad_front_seq, to_be_paded_front, axis=0)
-                        frame_offset = np.zeros((to_be_paded_front, 4), dtype='float32')
-                        frame_offset[:, 0] = np.array(range(-to_be_paded_front, 0))
-                        pad_front_seq += frame_offset * skip
-                        curr_ped_seq = np.concatenate((pad_front_seq, curr_ped_seq), axis=0)
-
-                        # set pad front and end to correct values
-                        pad_front = 0
-                        pad_end = self.seq_len * skip
-
-                    # add edge case when the object reappears at a bad frame
-                    # in other words, missing intermediate frame
-                    if curr_ped_seq.shape[0] != (pad_end - pad_front) / skip:
-                        frame_all = list(range(int(curr_ped_seq[0, 0]), int(curr_ped_seq[-1, 0])+skip, skip))     
-                        frame_missing, _ = remove_list_from_list(frame_all, curr_ped_seq[:, 0].tolist())
-
-                        # pad all missing frames with zeros
-                        pad_seq = np.expand_dims(curr_ped_seq[-1, :], axis=0)
-                        pad_seq = np.repeat(pad_seq, len(frame_missing), axis=0)
-                        pad_seq.fill(0)
-                        pad_seq[:, 0] = np.array(frame_missing)
-                        pad_seq[:, 1] = ped_id          # fill ID
-                        curr_ped_seq = np.concatenate((curr_ped_seq, pad_seq), axis=0)
-                        curr_ped_seq = curr_ped_seq[np.argsort(curr_ped_seq[:, 0])]
-
-                    assert pad_front == 0, 'error'
-                    assert pad_end == self.seq_len * skip, 'error'
-                    
-                    # make sure the seq_len frames are continuous, no jumping frames
-                    start_frame_now = int(curr_ped_seq[0, 0])
-                    if curr_ped_seq[-1, 0] != start_frame_now + (self.seq_len-1)*skip:
-                        num_peds_considered += 1
-                        continue
-
-                    # make sure that past data has at least one frame
-                    past_frame_list = [*range(start_frame_now, start_frame_now + self.obs_len * skip, skip)]
-                    common = find_unique_common_from_lists(past_frame_list, frame_existing, only_com=True)
-                    #print("common ", common)
-                    if len(common) == 0:
-                        num_peds_considered += 1
-                        continue
-
-                    # make sure that future GT data has at least one frame
-                    if phase != 'testing':
-                        gt_frame_list = [*range(start_frame_now + self.obs_len*skip, start_frame_now + self.seq_len*skip, skip)]
-                        common = find_unique_common_from_lists(gt_frame_list, frame_existing, only_com=True)
-                        if len(common) == 0: 
+                    # loop through every object in this window
+                    # print("current_peds: ", current_peds)
+                    for _, ped_id in enumerate(current_peds):
+                        if ped_id == -1:
                             num_peds_considered += 1
                             continue
 
-                    # only keep the state
-                    cache_tmp = np.transpose(curr_ped_seq[:, :2])       # 2xseq_len | [0,:] list of frames | [1,:] id
-                    curr_ped_seq = np.transpose(curr_ped_seq[:, 2:])    # 2 x seq_len | [0,:] x | [1,:] y
+                        object_class = getObjecClass(path)
+                        object_class_id = self.objects_id_dict[object_class]
+                        curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]      # frame - id - x - y for one of the id of the window, same id
+                        pad_front    = int(curr_ped_seq[0, 0] ) - start_frame      # first frame of window       
+                        pad_end      = int(curr_ped_seq[-1, 0]) - start_frame + skip # last frame of window
+                        assert pad_end % skip == 0, 'error'
+                        frame_existing = curr_ped_seq[:, 0].tolist() # frames of windows
+                        #print("frame_existing: ", frame_existing, pad_front, pad_end, curr_ped_seq)
 
-                    # print("cache_tmp: ", cache_tmp, cache_tmp.shape)
-                    # print("curr_ped_seq: ", curr_ped_seq, curr_ped_seq.shape)
+                        # pad front and back data to make the trajectory complete
+                        if pad_end - pad_front != self.seq_len * skip:
+                            
+                            # pad end
+                            to_be_paded_end = int(self.seq_len - pad_end / skip)
+                            pad_end_seq  = np.expand_dims(curr_ped_seq[-1, :], axis=0)
+                            pad_end_seq  = np.repeat(pad_end_seq, to_be_paded_end, axis=0)
+                            frame_offset = np.zeros((to_be_paded_end, 4), dtype='float32')
+                            frame_offset[:, 0] = np.array(range(1, to_be_paded_end+1))
+                            pad_end_seq += frame_offset * skip                          # shift first columns for frame
+                            curr_ped_seq = np.concatenate((curr_ped_seq, pad_end_seq), axis=0)
 
-                    # Make coordinates relative
-                    rel_curr_ped_seq = np.zeros(curr_ped_seq.shape)
-                    rel_curr_ped_seq[:, 1:] = curr_ped_seq[:, 1:] - curr_ped_seq[:, :-1]
-                    _idx = num_peds_considered
-                    curr_seq[_idx, :, :] = curr_ped_seq     
-                    curr_seq_rel[_idx, :, :] = rel_curr_ped_seq
+                            # pad front
+                            to_be_paded_front = int(pad_front / skip)
+                            pad_front_seq = np.expand_dims(curr_ped_seq[0, :], axis=0)
+                            pad_front_seq = np.repeat(pad_front_seq, to_be_paded_front, axis=0)
+                            frame_offset = np.zeros((to_be_paded_front, 4), dtype='float32')
+                            frame_offset[:, 0] = np.array(range(-to_be_paded_front, 0))
+                            pad_front_seq += frame_offset * skip
+                            curr_ped_seq = np.concatenate((pad_front_seq, curr_ped_seq), axis=0)
 
-                    # record seqname, frame and ID information 20 - 3 - x
-                    id_frame_list[_idx, :2, :] = cache_tmp
-                    id_frame_list[_idx, 2, :] = seq_name_int # img_id - ped_id - seqname2int
+                            # set pad front and end to correct values
+                            pad_front = 0
+                            pad_end = self.seq_len * skip
+
+                        # add edge case when the object reappears at a bad frame
+                        # in other words, missing intermediate frame
+                        if curr_ped_seq.shape[0] != (pad_end - pad_front) / skip:
+                            frame_all = list(range(int(curr_ped_seq[0, 0]), int(curr_ped_seq[-1, 0])+skip, skip))     
+                            frame_missing, _ = remove_list_from_list(frame_all, curr_ped_seq[:, 0].tolist())
+
+                            # pad all missing frames with zeros
+                            pad_seq = np.expand_dims(curr_ped_seq[-1, :], axis=0)
+                            pad_seq = np.repeat(pad_seq, len(frame_missing), axis=0)
+                            pad_seq.fill(0)
+                            pad_seq[:, 0] = np.array(frame_missing)
+                            pad_seq[:, 1] = ped_id          # fill ID
+                            curr_ped_seq = np.concatenate((curr_ped_seq, pad_seq), axis=0)
+                            curr_ped_seq = curr_ped_seq[np.argsort(curr_ped_seq[:, 0])]
+
+                        assert pad_front == 0, 'error'
+                        assert pad_end == self.seq_len * skip, 'error'
+                        
+                        # make sure the seq_len frames are continuous, no jumping frames
+                        start_frame_now = int(curr_ped_seq[0, 0])
+                        if curr_ped_seq[-1, 0] != start_frame_now + (self.seq_len-1)*skip:
+                            num_peds_considered += 1
+                            continue
+
+                        # make sure that past data has at least one frame
+                        past_frame_list = [*range(start_frame_now, start_frame_now + self.obs_len * skip, skip)]
+                        common = find_unique_common_from_lists(past_frame_list, frame_existing, only_com=True)
+                        #print("common ", common)
+                        if len(common) == 0:
+                            num_peds_considered += 1
+                            continue
+
+                        # make sure that future GT data has at least one frame
+                        if phase != 'testing':
+                            gt_frame_list = [*range(start_frame_now + self.obs_len*skip, start_frame_now + self.seq_len*skip, skip)]
+                            common = find_unique_common_from_lists(gt_frame_list, frame_existing, only_com=True)
+                            if len(common) == 0: 
+                                num_peds_considered += 1
+                                continue
+
+                        # only keep the state
+                        cache_tmp = np.transpose(curr_ped_seq[:, :2])       # 2xseq_len | [0,:] list of frames | [1,:] id
+                        curr_ped_seq = np.transpose(curr_ped_seq[:, 2:])    # 2 x seq_len | [0,:] x | [1,:] y
+
+                        # print("cache_tmp: ", cache_tmp, cache_tmp.shape)
+                        # print("curr_ped_seq: ", curr_ped_seq, curr_ped_seq.shape)
+
+                        # Make coordinates relative
+                        rel_curr_ped_seq = np.zeros(curr_ped_seq.shape)
+                        rel_curr_ped_seq[:, 1:] = curr_ped_seq[:, 1:] - curr_ped_seq[:, :-1]
+                        _idx = num_peds_considered
+                        curr_seq[_idx, :, :] = curr_ped_seq     
+                        curr_seq_rel[_idx, :, :] = rel_curr_ped_seq
+
+                        # record seqname, frame and ID information 20 - 3 - x
+                        id_frame_list[_idx, :2, :] = cache_tmp
+                        id_frame_list[_idx, 2, :] = seq_name_int # img_id - ped_id - seqname2int
+                        
+                        # Linear vs Non-Linear Trajectory, only fit for the future part not past part
+
+                        if phase != 'testing':
+                            _non_linear_ped.append(poly_fit(curr_ped_seq, pred_len, threshold))     
+
+                        # add mask onto padded dummay data
+                        frame_exist_index = np.array([frame_tmp - start_frame_now for frame_tmp in frame_existing])
+                        frame_exist_index = (frame_exist_index / skip).astype('uint8')
+                        curr_loss_mask[_idx, frame_exist_index] = 1
+
+                        # object id
+                        object_class_list[num_peds_considered] = object_class_id
+
+                        num_peds_considered += 1
+                        #print("b")
                     
-                    # Linear vs Non-Linear Trajectory, only fit for the future part not past part
-                    _non_linear_ped.append(poly_fit(curr_ped_seq, pred_len, threshold))     
-
-                    # add mask onto padded dummay data
-                    frame_exist_index = np.array([frame_tmp - start_frame_now for frame_tmp in frame_existing])
-                    frame_exist_index = (frame_exist_index / skip).astype('uint8')
-                    curr_loss_mask[_idx, frame_exist_index] = 1
-
-                    # object id
-                    object_class_list[num_peds_considered] = object_class_id
-
-                    num_peds_considered += 1
-                    #print("b")
-                  
-                #print("num_peds_considered ", num_peds_considered)
-                #num_peds_considered = 32
-                if num_peds_considered > min_ped:
-                    if len(_non_linear_ped) != num_peds_considered:
-                        dummy = [-1 for i in range(num_peds_considered - len(_non_linear_ped))]
-                        _non_linear_ped = _non_linear_ped + dummy
-                    non_linear_ped += _non_linear_ped
-                    num_peds_in_seq.append(num_peds_considered)
-                    loss_mask_list.append(curr_loss_mask[:num_peds_considered])
-                    seq_list.append(curr_seq[:num_peds_considered])
-                    seq_list_rel.append(curr_seq_rel[:num_peds_considered])
-                    seq_id_list.append(id_frame_list[:num_peds_considered])
-                    frames_list.append(seq_frame)
-                    object_class_id_list.append(object_class_list)
-                    object_id_list.append(id_frame_list[:num_peds_considered][:,1,0])
+                    #print("num_peds_considered ", num_peds_considered)
+                    #num_peds_considered = 32
+                    if num_peds_considered > min_ped:
+                        if len(_non_linear_ped) != num_peds_considered:
+                            dummy = [-1 for i in range(num_peds_considered - len(_non_linear_ped))]
+                            _non_linear_ped = _non_linear_ped + dummy
+                        non_linear_ped += _non_linear_ped
+                        num_peds_in_seq.append(num_peds_considered)
+                        loss_mask_list.append(curr_loss_mask[:num_peds_considered])
+                        seq_list.append(curr_seq[:num_peds_considered])
+                        seq_list_rel.append(curr_seq_rel[:num_peds_considered])
+                        seq_id_list.append(id_frame_list[:num_peds_considered])
+                        frames_list.append(seq_frame)
+                        object_class_id_list.append(object_class_list)
+                        object_id_list.append(id_frame_list[:num_peds_considered][:,1,0])
 
         self.num_seq = len(seq_list)
         seq_list = np.concatenate(seq_list, axis=0)             # objects x 2 x seq_len
@@ -542,6 +566,7 @@ class AioDriveDataset(Dataset):
         self.frames_list = torch.from_numpy(frames_list).type(torch.float)
         self.object_class_id_list = torch.from_numpy(object_class_id_list).type(torch.float)
         self.object_id_list = torch.from_numpy(object_id_list).type(torch.float)
+        # print("ID List: ", self.object_id_list)
 
     def __len__(self):
         return self.num_seq

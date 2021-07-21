@@ -19,9 +19,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model_path', type=str)
 parser.add_argument('--num_samples', default=20, type=int)
 parser.add_argument('--dset_type', default='test', type=str)
+parser.add_argument('--results_path', default='results/aiodrive', type=str)
 parser.add_argument('--results_file', default='test_json', type=str)
+parser.add_argument('--skip', default=1, type=int)
 
-classes = {"Car":0, "Cyc":1, "Mot":2, "Ped":3, "Dum":4} # Car, Ped, Mot, Cyc, Dummy
+classes = {"Car":0, "Cyc":1, "Mot":2, "Ped":3, "Dum":-1} # Car, Ped, Mot, Cyc, Dummy
 
 class AutoTree(dict):
     """
@@ -34,34 +36,45 @@ class AutoTree(dict):
 def condition(x,class_name):
     return x==class_name
 
-def store_json(json_dict,predicted_trajectories_og,object_cls_og,seq_og,obj_id_og):
-    prediction_length = '10'
-    trajectory_sample = '0'
+def store_json(json_dict, predicted_trajectories_og, object_cls_og, seq_og,obj_id_og, prediction_length):
+    # TODO: Improve trajectory samples!!!! (At this moment, it is the same both for '0' and '1')
+    trajectory_samples = ['0','1']
     prob = 1.0
     na = 32 # Number of agents
     batch_size = int(predicted_trajectories_og.shape[1]/na)
+
+    # print(">>>>>>>>>>>>>")
+
+    # print("New batch")
 
     for element in range(batch_size):
         object_cls = object_cls_og[element].reshape(1,-1).cpu().data.numpy() # batch_size x 32 -> 1 x 32
         seq = seq_og[element].reshape(1,-1).cpu().data.numpy() # batch_size x 2 -> 1 x 2
         obj_id = obj_id_og[element].reshape(1,-1).cpu().data.numpy() # batch_size x 32 -> 1 x 32 
         pred_fake_trajectories = predicted_trajectories_og[:,na*element:na*(element+1),:] # 12 x batch_size*na (8x32) x 2 -> 12 x 32 x 2
-
+        
         object_indexes = []
+
+        # if seq[0,0] == 7001 and seq[0,1] == 800:
+        #     print("obj id: ", obj_id)
+        #     print("cls: ", object_cls)
+        #     print("....................")
 
         xx = str(int(seq[0,0]/1000))
         yyyy = str(int(seq[0,0]%1000))
 
         seq_name = ""
 
-        if len(str(seq[0,0])) == 5:
+        if xx == '10':
             seq_name = "Town"+xx.zfill(2)+"HD"+"_seq"+yyyy.zfill(4)
         else:
             seq_name = "Town"+xx.zfill(2)+"_seq"+yyyy.zfill(4)
 
         seq_frame = str(int(seq[0,1]))
-
+        # print("..................")
         for key,value in classes.items():
+            if value == -1: # Dummy class
+                continue
             indexes = np.where(np.array([condition(xi,value) for xi in object_cls]))[1]
 
             agent_dict = {}
@@ -72,12 +85,27 @@ def store_json(json_dict,predicted_trajectories_og,object_cls_og,seq_og,obj_id_o
                     for j in range(pred_fake_trajectories.shape[0]): 
                         if j<10:
                             ground_pos.append(pred_fake_trajectories[j,i,:].tolist()) # x,y
-                    # We assume here i is the identifier
-                    # print("Ground pos: ", ground_pos)
                     aux_dict = {}
                     aux_dict['state'] = ground_pos
                     aux_dict['prob'] = prob
                     agent_dict[str(int(obj_id[0,i]))] = aux_dict
+
+            if json_dict[prediction_length][key][seq_name][seq_frame][trajectory_samples[0]]: # Not empty
+                # print("Comb: ", prediction_length, key, seq_name, seq_frame, trajectory_sample)
+                # print("To add keys: ", agent_dict.keys())
+                previous_agent_dict = json_dict[prediction_length][key][seq_name][seq_frame][trajectory_samples[0]]
+                # print("Prev keys: ", previous_agent_dict.keys())
+                previous_agent_dict.update(agent_dict)
+                # print("New keys: ", previous_agent_dict.keys())
+                agent_dict = previous_agent_dict
+
+            if key=="Mot":
+                print("agent dict: ", agent_dict)
+
+            if agent_dict:
+                print("me meto")
+                print("agent dict: ", agent_dict, type(agent_dict))
+                for trajectory_sample in trajectory_samples:
                     json_dict[prediction_length][key][seq_name][seq_frame][trajectory_sample] = agent_dict
     return json_dict
 
@@ -104,28 +132,24 @@ def evaluate_helper(error, seq_start_end):
         sum_ += _error
     return sum_
 
-def evaluate(args, loader, generator, num_samples, pred_len, results_file='test_json', final_submission=False):
+def evaluate(args, loader, generator, num_samples, pred_len, results_path, results_file, test_submission=False, skip=1):
     init_json = False
     json_dict = AutoTree()
+    prediction_length = 10*skip # 10 (1 s), 20 (2 s), 50 (5 s)
 
     final_ade, final_fde = 0,0
     ade_outer, fde_outer = [], []
     total_traj = 0
     with torch.no_grad():
-        for batch in loader:
-            print("Evaluating ...")
+        for batch_index, batch in enumerate(loader):
+            print("Evaluating batch: ", batch_index)
             batch = [tensor.cuda() for tensor in batch]
 
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_real, non_linear_ped, loss_mask, seq_start_end,
              _, frames, object_cls, seq, obj_id) = batch
 
-            print("Frames: ", frames, frames.shape)
-            print("Classes: ", object_cls, object_cls.shape)
-            print("Seq: ", seq, seq.shape)
-            print("Obj id: ", obj_id, obj_id.shape)
-            print("Obs traj: ", obs_traj, obs_traj.shape)
-
-            assert 1 == 0
+            # print("Frames: ", frames, frames.shape)
+            # print("Classes: ", object_clpath, obs_traj.shape)
 
             ade, fde = [], []
             total_traj += pred_traj_gt.size(1)
@@ -138,24 +162,24 @@ def evaluate(args, loader, generator, num_samples, pred_len, results_file='test_
                     pred_traj_fake_rel, obs_traj[-1]
                 )
 
-                json_dict = store_json(json_dict,pred_traj_fake,object_cls,seq,obj_id)
+                json_dict = store_json(json_dict,pred_traj_fake,object_cls,seq,obj_id,prediction_length)
                 # print("json dict: ", json_dict)
 
-                if not final_submission:
+                if not test_submission:
                     ade.append(displacement_error(
                         pred_traj_fake, pred_traj_gt, mode='raw'
                     ))
                     fde.append(final_displacement_error(
                         pred_traj_fake[-1], pred_traj_gt[-1], mode='raw'
                     ))
-            if not final_submission:
+            if not test_submission:
                 ade_sum = evaluate_helper(ade, seq_start_end)
                 fde_sum = evaluate_helper(fde, seq_start_end)
 
                 ade_outer.append(ade_sum)
                 fde_outer.append(fde_sum)
 
-        if not final_submission:
+        if not test_submission:
             final_ade = sum(ade_outer) / (total_traj * pred_len)
             final_fde = sum(fde_outer) / (total_traj)
         else:
@@ -163,12 +187,28 @@ def evaluate(args, loader, generator, num_samples, pred_len, results_file='test_
             final_fde = -1
 
     print("Finish evaluation")
-    final_results = results_file + '.json'
+
+    print("json dict: ", json_dict)
+    
+    final_results = os.path.join(results_path, results_file + '.json')
+    if os.path.isfile(final_results):
+        print("The file does exist")
+        with open(final_results) as f:
+            previous_dict = json.load(f)
+            previous_lengths = previous_dict.keys()
+            print("Previous lengths: ", previous_lengths)
+            if str(prediction_length) in previous_lengths:
+                print("Update prediction_length: ", prediction_length)
+            else:
+                print("New prediction length: ", prediction_length)
+            previous_dict[str(prediction_length)] = json_dict[str(prediction_length)]
+            json_dict = previous_dict
+
     print("Final results file: ", final_results)
     with open(final_results, 'w') as fp:
         json.dump(json_dict, fp)
 
-    return ade, fde
+    return final_ade, final_fde
 
 def main(args):
     if os.path.isdir(args.model_path):
@@ -187,8 +227,14 @@ def main(args):
         config_file = Prodict.from_dict(config_file)
         config_file.base_dir = BASE_DIR
 
-    windows_frames = [30,180,330,480,630,780,930] # Validating test
-    final_submission = config_file.dataset.final_submission
+    # windows_frames = [30,180,330,480,630,780,930] # Validating test
+    windows_frames = [42,192,342,492,642,792,942] # Final submission (test)
+    test_submission = config_file.dataset.test_submission
+    skip = args.skip # skip = 1 (prediction 1 s) ; skip = 2 (prediction 2 s) ....
+    obs_len = 8
+    pred_len = 12 
+    if test_submission:
+        pred_len = 0 # 0 only in test, since we do not have these data
 
     for path in paths:
         checkpoint = torch.load(path)
@@ -202,11 +248,9 @@ def main(args):
 
         print("videos_path: ", videos_path)
         
-        # windows_frames = [42,192,342,492,642,792,942] # Final submission
-        # skip = 1 (prediction 1 s) ; skip = 2 (prediction 2 s) ....
         data_test = AioDriveDataset(test_path, videos_path=videos_path, 
-                                    windows_frames=windows_frames, skip=1, 
-                                    obs_len=8, pred_len=0)
+                                    windows_frames=windows_frames, skip=skip, 
+                                    obs_len=obs_len, pred_len=pred_len, phase='testing')
         pred_len = data_test.pred_len
 
         test_loader = DataLoader(
@@ -218,7 +262,8 @@ def main(args):
 
         ade, fde = evaluate(checkpoint.config_cp, test_loader, 
                             generator, args.num_samples, pred_len, 
-                            args.results_file, final_submission)
+                            args.results_path, args.results_file,
+                            test_submission, skip=skip)
 
         print('Dataset: {}, Pred Len: {}, ADE: {:.2f}, FDE: {:.2f}'.format(
             config_file.dataset.path, pred_len, ade, fde))
