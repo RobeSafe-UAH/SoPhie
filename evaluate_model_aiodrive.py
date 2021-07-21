@@ -47,6 +47,8 @@ def store_json(json_dict, predicted_trajectories_og, object_cls_og, seq_og,obj_i
 
     # print("New batch")
 
+    # print("keys 1: ", json_dict['10'].keys())
+
     for element in range(batch_size):
         object_cls = object_cls_og[element].reshape(1,-1).cpu().data.numpy() # batch_size x 32 -> 1 x 32
         seq = seq_og[element].reshape(1,-1).cpu().data.numpy() # batch_size x 2 -> 1 x 2
@@ -90,23 +92,28 @@ def store_json(json_dict, predicted_trajectories_og, object_cls_og, seq_og,obj_i
                     aux_dict['prob'] = prob
                     agent_dict[str(int(obj_id[0,i]))] = aux_dict
 
-            if json_dict[prediction_length][key][seq_name][seq_frame][trajectory_samples[0]]: # Not empty
-                # print("Comb: ", prediction_length, key, seq_name, seq_frame, trajectory_sample)
-                # print("To add keys: ", agent_dict.keys())
-                previous_agent_dict = json_dict[prediction_length][key][seq_name][seq_frame][trajectory_samples[0]]
-                # print("Prev keys: ", previous_agent_dict.keys())
-                previous_agent_dict.update(agent_dict)
-                # print("New keys: ", previous_agent_dict.keys())
-                agent_dict = previous_agent_dict
+            keys = json_dict[str(prediction_length)].keys()
+            if key in keys:
+                if json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_samples[0]]: # Not empty
+                    # print("keys 3: ", json_dict['10'].keys())
+                    # print("Comb: ", prediction_length, key, seq_name, seq_frame, trajectory_sample)
+                    # print("To add keys: ", agent_dict.keys())
+                    previous_agent_dict = json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_samples[0]]
+                    # print("Prev keys: ", previous_agent_dict.keys())
+                    previous_agent_dict.update(agent_dict)
+                    # print("New keys: ", previous_agent_dict.keys())
+                    agent_dict = previous_agent_dict
+            # print(".............")
+            # if key=="Mot" or key=="Ped" or key=="Cyc":
+            #     print("agent dict: ", agent_dict)
 
-            if key=="Mot":
-                print("agent dict: ", agent_dict)
-
-            if agent_dict:
-                print("me meto")
-                print("agent dict: ", agent_dict, type(agent_dict))
+            if agent_dict: # Not empty
+                # print("key: ", key)
+                # print("me meto")
+                # print("agent dict: ", agent_dict, type(agent_dict))
+                # print("keys 4: ", json_dict['10'].keys())
                 for trajectory_sample in trajectory_samples:
-                    json_dict[prediction_length][key][seq_name][seq_frame][trajectory_sample] = agent_dict
+                    json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_sample] = agent_dict
     return json_dict
 
 def get_generator(checkpoint, config):
@@ -163,6 +170,7 @@ def evaluate(args, loader, generator, num_samples, pred_len, results_path, resul
                 )
 
                 json_dict = store_json(json_dict,pred_traj_fake,object_cls,seq,obj_id,prediction_length)
+                
                 # print("json dict: ", json_dict)
 
                 if not test_submission:
@@ -187,8 +195,9 @@ def evaluate(args, loader, generator, num_samples, pred_len, results_path, resul
             final_fde = -1
 
     print("Finish evaluation")
+    print("Classes: ", json_dict['10'].keys())
 
-    print("json dict: ", json_dict)
+    # print("json dict: ", json_dict)
     
     final_results = os.path.join(results_path, results_file + '.json')
     if os.path.isfile(final_results):
@@ -197,12 +206,15 @@ def evaluate(args, loader, generator, num_samples, pred_len, results_path, resul
             previous_dict = json.load(f)
             previous_lengths = previous_dict.keys()
             print("Previous lengths: ", previous_lengths)
+            # print("json dict: ", json_dict)
             if str(prediction_length) in previous_lengths:
                 print("Update prediction_length: ", prediction_length)
             else:
                 print("New prediction length: ", prediction_length)
+            # print("json dict 2: ", json_dict[str(prediction_length)])
             previous_dict[str(prediction_length)] = json_dict[str(prediction_length)]
             json_dict = previous_dict
+            
 
     print("Final results file: ", final_results)
     with open(final_results, 'w') as fp:

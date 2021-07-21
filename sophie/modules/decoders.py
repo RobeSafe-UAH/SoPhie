@@ -81,6 +81,8 @@ class Decoder(nn.Module):
             else:
                 pred_traj_fake_rel = pred_traj_fake_rel.view(self.seq_len,pred_traj_fake_rel.shape[1],-1)
                 list_pred_traj_fake_rel = torch.cat((list_pred_traj_fake_rel,pred_traj_fake_rel), 1)
+
+        print("list pred traj: ", list_pred_traj_fake_rel, list_pred_traj_fake_rel.shape)
         
         return list_pred_traj_fake_rel, state_tuple[0] ## state_tuple??
 

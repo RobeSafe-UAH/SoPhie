@@ -305,6 +305,7 @@ def test_sophie_generator():
 
     trajectories_test = 10 * np.random.randn(po, na*batch_size, tfd)
     trajectories_test = torch.from_numpy(trajectories_test).to(device).float()
+    print("Previous trajectories: ", trajectories_test, trajectories_test.shape)
 
     # config_file.sophie.generator.decoder.linear_3.input_dim = batch_size*2*config_file.sophie.generator.social_attention.linear_decoder.out_features
     # config_file.sophie.generator.decoder.linear_3.output_dim = batch_size*na
@@ -315,6 +316,8 @@ def test_sophie_generator():
     generator.build()
     generator.to(device)
     pred_fake_trajectories = generator.forward(image_test,trajectories_test)
+
+    print("pred_fake_trajectories: ", pred_fake_trajectories, pred_fake_trajectories.shape)
 
     return pred_fake_trajectories
 
@@ -574,7 +577,7 @@ if __name__ == "__main__":
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    # test_sophie_generator()
+    test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
     # test_aiodrive_frames()
@@ -584,7 +587,7 @@ if __name__ == "__main__":
     # test_evaluate_json_aiodrive()
     # load_id_frame_ex()
     # evaluate_json()
-    test_autotree()
+    # test_autotree()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))
