@@ -551,11 +551,31 @@ def load_id_frame_ex():
     print("id_frames: ", id_frames.shape, id_frames)
 
 def evaluate_json():
-    with open("final_submission_v1.json") as jsonFile:
+    with open("results/aiodrive/final_submission_v2.json") as jsonFile:
         jsonObject = json.load(jsonFile)
         jsonFile.close()
 
-    print("My object: ", jsonObject['10']['Car']['Town07_seq0001']['800']['0']['325'])
+    # del jsonObject['10']
+    # del jsonObject['20']
+
+    # with open('testing_v3.json', 'w') as fp:
+    #     json.dump(jsonObject, fp)
+
+    pl = ['10','20','50']
+    cl = ['Car','Cyc','Ped','Mot']
+
+    for p in pl:
+        for c in cl:
+            for key in jsonObject[p][c].keys():
+                num_keys = jsonObject[p][c][key].keys()
+                for key_a in num_keys:
+                    ts = list(jsonObject[p][c][key][key_a].keys())
+                    
+                    if '0' in ts and '1' in ts:
+                        continue
+                    else:
+                        print("ts: ", ts)
+                        print("Wrong")
 
 def test_autotree():
     json_dict = AutoTree()
@@ -577,7 +597,7 @@ if __name__ == "__main__":
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    test_sophie_generator()
+    # test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
     # test_aiodrive_frames()
@@ -586,7 +606,7 @@ if __name__ == "__main__":
     # test_json()
     # test_evaluate_json_aiodrive()
     # load_id_frame_ex()
-    # evaluate_json()
+    evaluate_json()
     # test_autotree()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"

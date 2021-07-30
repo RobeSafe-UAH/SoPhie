@@ -17,6 +17,7 @@ from sophie.utils.utils import relative_to_abs
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_path', type=str)
+parser.add_argument('--dataset_path', default='data/datasets/aiodrive/aiodrive_Car/', type=str)
 parser.add_argument('--num_samples', default=20, type=int)
 parser.add_argument('--dset_type', default='test', type=str)
 parser.add_argument('--results_path', default='results/aiodrive', type=str)
@@ -144,6 +145,10 @@ def evaluate(args, loader, generator, num_samples, pred_len, results_path, resul
     json_dict = AutoTree()
     prediction_length = 10*skip # 10 (1 s), 20 (2 s), 50 (5 s)
 
+    print("\n\n")
+
+    print("Prediction length: ", prediction_length)
+
     final_ade, final_fde = 0,0
     ade_outer, fde_outer = [], []
     total_traj = 0
@@ -154,9 +159,6 @@ def evaluate(args, loader, generator, num_samples, pred_len, results_path, resul
 
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_real, non_linear_ped, loss_mask, seq_start_end,
              _, frames, object_cls, seq, obj_id) = batch
-
-            # print("Frames: ", frames, frames.shape)
-            # print("Classes: ", object_clpath, obs_traj.shape)
 
             ade, fde = [], []
             total_traj += pred_traj_gt.size(1)
@@ -195,28 +197,29 @@ def evaluate(args, loader, generator, num_samples, pred_len, results_path, resul
             final_fde = -1
 
     print("Finish evaluation")
-    print("Classes: ", json_dict['10'].keys())
-
-    # print("json dict: ", json_dict)
+    object_class = list(json_dict[str(prediction_length)].keys())[0]
+    print("Object class: ", object_class)
     
     final_results = os.path.join(results_path, results_file + '.json')
     if os.path.isfile(final_results):
         print("The file does exist")
         with open(final_results) as f:
             previous_dict = json.load(f)
-            previous_lengths = previous_dict.keys()
+            previous_dict = AutoTree(previous_dict)
+            previous_lengths = list(previous_dict.keys())
+            try:
+                classes_length_previous_dict = list(previous_dict[str(prediction_length)].keys())
+            except:
+                classes_length_previous_dict = []
             print("Previous lengths: ", previous_lengths)
-            # print("json dict: ", json_dict)
-            if str(prediction_length) in previous_lengths:
-                print("Update prediction_length: ", prediction_length)
+            print(f"Classes prediction length {prediction_length}: ", classes_length_previous_dict)
+            if str(prediction_length) in previous_lengths and object_class in classes_length_previous_dict:
+                print(f"Update prediction_length {prediction_length} and class {object_class}")
             else:
-                print("New prediction length: ", prediction_length)
-            # print("json dict 2: ", json_dict[str(prediction_length)])
-            previous_dict[str(prediction_length)] = json_dict[str(prediction_length)]
+                print(f"New prediction_length {prediction_length} and class {object_class}")
+            previous_dict[str(prediction_length)][object_class] = json_dict[str(prediction_length)][object_class]
             json_dict = previous_dict
-            
 
-    print("Final results file: ", final_results)
     with open(final_results, 'w') as fp:
         json.dump(json_dict, fp)
 
@@ -251,7 +254,7 @@ def main(args):
     for path in paths:
         checkpoint = torch.load(path)
         generator = get_generator(checkpoint.config_cp, config_file)
-        test_path = os.path.join(config_file.base_dir, config_file.dataset.path, "test")
+        test_path = os.path.join(config_file.base_dir, args.dataset_path, "test")
 
         if config_file.dataset.absolute_route:
             videos_path = config_file.dataset.video
@@ -272,13 +275,15 @@ def main(args):
             num_workers=config_file.dataset.num_workers,
             collate_fn=seq_collate_image_aiodrive)
 
+        print("\n\nresults file: ", args.results_file)
+
         ade, fde = evaluate(checkpoint.config_cp, test_loader, 
                             generator, args.num_samples, pred_len, 
                             args.results_path, args.results_file,
                             test_submission, skip=skip)
 
         print('Dataset: {}, Pred Len: {}, ADE: {:.2f}, FDE: {:.2f}'.format(
-            config_file.dataset.path, pred_len, ade, fde))
+            args.dataset_path, pred_len, ade, fde))
 
 if __name__ == '__main__':
     args = parser.parse_args()

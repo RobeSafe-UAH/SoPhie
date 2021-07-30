@@ -4,7 +4,11 @@ use_gpu: 1
 dataset_name: aiodrive
 number_agents: 32
 dataset:
-    path: data/datasets/aiodrive/aiodrive_Car/
+    path: data/datasets/aiodrive/aiodrive_Cyc/
+         # data/datasets/aiodrive/aiodrive_Cyc/  
+         # data/datasets/aiodrive/aiodrive_Car/
+         # data/datasets/aiodrive/aiodrive_Mot/
+         # data/datasets/aiodrive/aiodrive_Ped/
     # TODO: Improve this
     absolute_route: True
     test_submission: True

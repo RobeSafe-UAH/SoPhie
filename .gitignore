@@ -4,6 +4,8 @@ __pycache__
 
 *.pt
 
+*.json
+
 experiment_log.log
 
 sophie/__pycache__

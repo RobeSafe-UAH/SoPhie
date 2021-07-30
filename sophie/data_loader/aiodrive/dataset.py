@@ -329,8 +329,8 @@ class AioDriveDataset(Dataset):
             sys.stdout.flush()
             _, seq_name, _ = fileparts(path)
 
-            # if seq_name != "Town07_seq0001":
-            #     continue
+            if seq_name != "Town07_seq0001":
+                continue
 
             print(">> ", path, seq_name)
             data = read_file(path, delim)
