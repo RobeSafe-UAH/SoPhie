@@ -1,3 +1,6 @@
+import sys
+sys.path.append("/home/robesafe/libraries/SoPhie")
+
 import argparse
 import os
 import yaml

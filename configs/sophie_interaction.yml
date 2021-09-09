@@ -1,18 +1,12 @@
 # SoPhie configuration file
 # SoPhie model
 use_gpu: 1
-dataset_name: aiodrive
+dataset_name: interaction
 number_agents: 32
 dataset:
-    path: data/datasets/aiodrive/aiodrive_Car/
-         # data/datasets/aiodrive/aiodrive_Cyc/  
-         # data/datasets/aiodrive/aiodrive_Car/
-         # data/datasets/aiodrive/aiodrive_Mot/
-         # data/datasets/aiodrive/aiodrive_Ped/
-    # TODO: Improve this
-    absolute_route: True
+    path: from data, not absolute routes
     test_submission: True
-    video: /home/robesafe/libraries/SoPhie/data/datasets/aiodrive/aiodrive_image_front_test/image_2
+    video: from data, not absolute route
     batch_size: 8 # 16 max
     shuffle: True
     num_workers: 0
@@ -125,8 +119,8 @@ hyperparameters:
     restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 0
-    obs_len: 8
     best_k: 1
     l2_loss_weight: 0
     num_samples_check: 5000
-    pred_len: 8
+    obs_len: 8
+    pred_len: 12

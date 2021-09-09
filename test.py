@@ -551,31 +551,30 @@ def load_id_frame_ex():
     print("id_frames: ", id_frames.shape, id_frames)
 
 def evaluate_json():
-    with open("results/aiodrive/final_submission_v2.json") as jsonFile:
+    with open("results/aiodrive/submission_95_percent_training_all_objects_1s_2s.json") as jsonFile:
         jsonObject = json.load(jsonFile)
         jsonFile.close()
 
-    # del jsonObject['10']
-    # del jsonObject['20']
+    jsonObject.pop('10')
 
-    # with open('testing_v3.json', 'w') as fp:
-    #     json.dump(jsonObject, fp)
+    with open('results/aiodrive/submission_95_percent_training_all_objects_2s.json', 'w') as fp:
+        json.dump(jsonObject, fp)
 
-    pl = ['10','20','50']
-    cl = ['Car','Cyc','Ped','Mot']
+    # pl = ['10','20','50']
+    # cl = ['Car','Cyc','Ped','Mot']
 
-    for p in pl:
-        for c in cl:
-            for key in jsonObject[p][c].keys():
-                num_keys = jsonObject[p][c][key].keys()
-                for key_a in num_keys:
-                    ts = list(jsonObject[p][c][key][key_a].keys())
+    # for p in pl:
+    #     for c in cl:
+    #         for key in jsonObject[p][c].keys():
+    #             num_keys = jsonObject[p][c][key].keys()
+    #             for key_a in num_keys:
+    #                 ts = list(jsonObject[p][c][key][key_a].keys())
                     
-                    if '0' in ts and '1' in ts:
-                        continue
-                    else:
-                        print("ts: ", ts)
-                        print("Wrong")
+    #                 if '0' in ts and '1' in ts:
+    #                     continue
+    #                 else:
+    #                     print("ts: ", ts)
+    #                     print("Wrong")
 
 def test_autotree():
     json_dict = AutoTree()
