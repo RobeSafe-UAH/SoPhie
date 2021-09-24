@@ -56,7 +56,7 @@ def evaluate(loader, generator, num_samples, pred_len, results_path, results_fil
     ade_outer, fde_outer = [], []
     total_traj = 0
 
-    with torch.no_grad():
+    with torch.no_grad(): # When testing, gradient calculation is not required
         
 
 def main(args):
@@ -100,7 +100,7 @@ def main(args):
                                  collate_fn=seq_collate_image
                                  )
 
-        # Evaluate, store results and get metrics
+        # Evaluate, store results in .json file and get metrics
 
         ade, fde = evaluate(checkpoint.config_cp, test_loader,
                             generator, args.num_samples, pred_len,
