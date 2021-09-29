@@ -17,6 +17,7 @@ from sophie.modules.decoders import Decoder
 from sophie.modules.attention import SATAttentionModule
 
 from prodict import Prodict
+import imageio
 
 import torch
 from torch import nn
@@ -584,6 +585,22 @@ def test_autotree():
     print("json dict: ", json_dict)
     print("keys: ", json_dict.keys())
 
+def load_npy():
+    # MIA_10316_driveable_area_mat_2019_05_28
+    # MIA_10316_ground_height_mat_2019_05_28
+    # MIA_10316_halluc_bbox_table
+    # MIA_10316_npyimage_to_city_se2_2019_05_28
+
+    # PIT_10314_driveable_area_mat_2019_05_28
+    # PIT_10314_ground_height_mat_2019_05_28
+    # PIT_10314_halluc_bbox_table
+    # PIT_10314_npyimage_to_city_se2_2019_05_28
+
+    img_array = np.load("./data/datasets/argoverse/hd-maps/map_files/PIT_10314_halluc_bbox_table.npy") # .astype(np.uint8)
+    print("Shape: ", img_array.shape)
+    print("Image: PIT_10314_halluc_bbox_table")
+    imageio.imsave("/home/robesafe/shared_home/PIT_10314_halluc_bbox_table.png",img_array)
+
 if __name__ == "__main__":
     # test_read_file()
     # test_dataLoader()
@@ -605,8 +622,9 @@ if __name__ == "__main__":
     # test_json()
     # test_evaluate_json_aiodrive()
     # load_id_frame_ex()
-    evaluate_json()
+    # evaluate_json()
     # test_autotree()
+    load_npy()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))

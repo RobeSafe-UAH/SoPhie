@@ -1,3 +1,11 @@
+#!/usr/bin/env python3.8
+# -*- coding: utf-8 -*-
+
+"""
+Created on Mon Sep 27 12:20:11 2021
+@author: Carlos Gómez-Huélamo and Miguel Eduardo Ortiz Huamaní
+"""
+
 import argparse
 import json
 import numpy as np
@@ -37,9 +45,13 @@ class AutoTree(dict):
         return value
 
 def condition(x,class_name):
+    """
+    """
     return x==class_name
 
 def evaluate_helper(error, seq_start_end):
+    """
+    """
     sum_ = 0
     error = torch.stack(error, dim=1)
 
@@ -55,6 +67,8 @@ def evaluate_helper(error, seq_start_end):
 # Ad-hoc generator for each dataset
 
 def get_generator(checkpoint, config):
+    """
+    """
     config.sophie.generator.decoder.linear_3.input_dim = config.dataset.batch_size*2*config.sophie.generator.social_attention.linear_decoder.out_features
     config.sophie.generator.decoder.linear_3.output_dim = config.dataset.batch_size*config.number_agents
     generator = SoPhieGenerator(config.sophie.generator)
@@ -67,7 +81,10 @@ def get_generator(checkpoint, config):
 # Evaluate model functions
 
 def store_json(json_dict, predicted_trajectories_og, object_cls_og, seq_og,obj_id_og, prediction_length):
+    """
+    """
     # TODO: Get multimodal prediction, not only the best one (At this moment, it is the same both for '0' and '1')
+    # TODO: Store pred_fake_trajectories in Argoverse format
     trajectory_samples = ['0','1']
     prob = 1.0 # Does not make sense, if multimodal, each prediction should have a certain probability
     na = 32 # Number of agents
@@ -83,7 +100,7 @@ def store_json(json_dict, predicted_trajectories_og, object_cls_og, seq_og,obj_i
         
         object_indexes = []
 
-        # AIODRIVE
+        # AIODRIVE format
         # xx = str(int(seq[0,0]/1000))
         # yyyy = str(int(seq[0,0]%1000))
 
@@ -94,41 +111,91 @@ def store_json(json_dict, predicted_trajectories_og, object_cls_og, seq_og,obj_i
         # else:
         #     seq_name = "Town"+xx.zfill(2)+"_seq"+yyyy.zfill(4)
 
-        seq_frame = str(int(seq[0,1]))
-        # print("..................")
-        for key,value in classes.items():
-            if value == -1: # Dummy class
-                continue
-            indexes = np.where(np.array([condition(xi,value) for xi in object_cls]))[1]
+        # seq_frame = str(int(seq[0,1]))
 
-            agent_dict = {}
-            # print("Indexes: ", indexes)
-            for i in range(pred_fake_trajectories.shape[1]): 
-                if i in indexes:
-                    ground_pos = []
-                    for j in range(pred_fake_trajectories.shape[0]): 
-                        if j<10:
-                            ground_pos.append(pred_fake_trajectories[j,i,:].tolist()) # x,y
-                    aux_dict = {}
-                    aux_dict['state'] = ground_pos
-                    aux_dict['prob'] = prob
-                    agent_dict[str(int(obj_id[0,i]))] = aux_dict
+        # for key,value in classes.items():
+        #     if value == -1: # Dummy class
+        #         continue
+        #     indexes = np.where(np.array([condition(xi,value) for xi in object_cls]))[1]
 
-            keys = json_dict[str(prediction_length)].keys()
-            if key in keys:
-                if json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_samples[0]]: # Not empty
-                    previous_agent_dict = json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_samples[0]]
-                    previous_agent_dict.update(agent_dict)
-                    agent_dict = previous_agent_dict
-            if agent_dict: # Not empty
-                for trajectory_sample in trajectory_samples:
-                    json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_sample] = agent_dict
+        #     agent_dict = {}
+        #     # print("Indexes: ", indexes)
+        #     for i in range(pred_fake_trajectories.shape[1]): 
+        #         if i in indexes:
+        #             ground_pos = []
+        #             for j in range(pred_fake_trajectories.shape[0]): 
+        #                 if j<10:
+        #                     ground_pos.append(pred_fake_trajectories[j,i,:].tolist()) # x,y
+        #             aux_dict = {}
+        #             aux_dict['state'] = ground_pos
+        #             aux_dict['prob'] = prob
+        #             agent_dict[str(int(obj_id[0,i]))] = aux_dict
+
+        #     keys = json_dict[str(prediction_length)].keys()
+        #     if key in keys:
+        #         if json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_samples[0]]: # Not empty
+        #             previous_agent_dict = json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_samples[0]]
+        #             previous_agent_dict.update(agent_dict)
+        #             agent_dict = previous_agent_dict
+        #     if agent_dict: # Not empty
+        #         for trajectory_sample in trajectory_samples:
+        #             json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_sample] = agent_dict
     return json_dict
 
+def evaluate(loader, generator, num_samples, pred_len, results_path, results_file, test_submission=False, skip=1):
+    """
+    """
+    init_json = False
+    json_dict = AutoTree()
+    prediction_length = 10*skip # 10 (1 s), 20 (2 s), 50 (5 s)
 
+    final_ade, final_fde = 0,0
+    ade_outer, fde_outer = [], []
+    total_traj = 0
 
+    with torch.no_grad(): # When testing, gradient calculation is not required
+        for batch_index, batch in enumerate(loader):
+            print("Evaluating batch: ", batch_index)
+            batch = [tensor.cuda() for tensor in batch]
+
+            (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
+             non_linear_obj, loss_mask, frames, object_class, 
+             seq_frame, object_id) = batch
+
+            ade, fde = [], []
+            total_traj += pred_traj_gt.size(1)
+
+            for _ in range(num_samples):
+                pred_traj_fake_rel = generator(frames, obs_traj)
+                pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1]) # Absolute coordinates
+
+                json_dict = store_json(json_dict, pred_traj_fake, object_class, seq_frame, object_id, prediction_length)
+
+                if not test_submission: # We cannot compute ADE and FDE metrics if we do not have the gt data for those frames
+                    ade.append(displacement_error(
+                        pred_traj_fake, pred_traj_gt, mode='raw'
+                    ))
+                    fde.append(final_displacement_error(
+                        pred_traj_fake[-1], pred_traj_gt[-1], mode='raw'
+                    ))
+
+            if not test_submission:
+                ade_sum = evaluate_helper(ade, seq_start_end)
+                fde_sum = evaluate_helper(fde, seq_start_end)
+
+                ade_outer.append(ade_sum)
+                fde_outer.append(fde_sum)
+
+        if not test_submission:
+            final_ade = sum(ade_outer) / (total_traj * pred_len)
+            final_fde = sum(fde_outer) / (total_traj)
+        else:
+            final_ade = -1
+            final_fde = -1    
 
 def main(args):
+    """
+    """
     if os.path.isdir(args.model_path): # Model path is a folder
         filenames = os.listdir(args.model_path)
         filenames.sort()
@@ -148,33 +215,40 @@ def main(args):
     # windows_frames, skip, obs_len ... ?
     obs_len = config_file.hyperparameters.obs_len
     pred_len = config_file.hyperparameters.pred_len
+    skip = args.skip # skip = 1 (prediction 1 s) ; skip = 2 (prediction 2 s) ....
+    test_submission = config_file.dataset.test_submission
+    windows_frames = [42,192,342,492,642,792,942] # Final submission (test) 
 
     for path in paths:
         checkpoint = torch.load(path)
         generator = get_generator(checkpoint.config_cp, config_file)
-        test_path = os.path.join(config_file.base_dir, args.dataset_path, "test") # Trajectories
-        videos_path = os.path.join(config_file.base_dir, config_file.dataset.video) # Images
+        data_dir = os.path.join(config_file.base_dir, args.dataset_path, "test") # Trajectories
+        frames_path = os.path.join(config_file.base_dir, config_file.dataset.frames_path) # Physical information
+        frames_extension = config_file.dataset.frames_extension
+        num_agents = config_file.number_agents
 
         # Dataset
 
-        data_test = ArgoverseDataset(test_path=test_path, videos_path=videos_path, 
-                                       obs_len=obs_len, pred_len=pred_len, phase='testing')
+        data_test = RobeSafeMotionForecastingDataset(data_dir=data_dir, obs_len=obs_len, pred_len=pred_len, 
+                                                     skip=skip, phase='testing', windows_frames=windows_frames,
+                                                     frames_path=frames_path, frames_extension=frames_extension,
+                                                     num_agents=num_agents)
 
         # Pytorch Dataloader
 
-        test_loader = DataLoader(data_test, 
-                                 batch_size=config_file.dataset.batch_size,
-                                 shuffle=config_file.dataset.shuffle,
-                                 num_workers=config_file.dataset.num_workers,
-                                 collate_fn=seq_collate_image
-                                 )
+        loader = DataLoader(data_test, 
+                            batch_size=config_file.dataset.batch_size,
+                            shuffle=config_file.dataset.shuffle,
+                            num_workers=config_file.dataset.num_workers,
+                            collate_fn=seq_collate_image
+                            )
 
         # Evaluate, store results in .json file and get metrics
 
-        ade, fde = evaluate(checkpoint.config_cp, test_loader,
+        ade, fde = evaluate(loader,
                             generator, args.num_samples, pred_len,
                             args.results_path, args.results_file,
-                            test_submission)
+                            test_submission, skip)
 
         print('Dataset: {}, Pred Len: {}, ADE: {:.2f}, FDE: {:.2f}'.format(
                args.dataset_path, pred_len, ade, fde))

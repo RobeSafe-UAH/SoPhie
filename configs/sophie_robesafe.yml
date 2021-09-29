@@ -1,12 +1,13 @@
 # SoPhie configuration file
 # SoPhie model
 use_gpu: 1
-dataset_name: interaction
+dataset_name: RobeSafe
 number_agents: 32
 dataset:
-    path: from data, not absolute routes
+    path: from data folder, not absolute routes
     test_submission: True
-    video: from data, not absolute route
+    frames_path: from data folder, not absolute route # Physical (Visual) info
+    frames_extension: 'npy'
     batch_size: 8 # 16 max
     shuffle: True
     num_workers: 0
