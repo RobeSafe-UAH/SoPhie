@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Created on Fri Sep 24 13:59:17 2021
+Created on Tue Oct 12 18:29:36 2021
 @author: Carlos Gómez-Huélamo and Miguel Eduardo Ortiz Huamaní
 """
 
@@ -15,286 +15,167 @@ import numpy as np
 import os
 import sys
 import torch 
+import pandas as pd
+import time
+import gc # Garbage Collector
 
 from torch.utils.data import Dataset
 
-np.set_printoptions(precision=3, suppress=True)
+# TODO
+# 1. Generate here the trajectories in the format <frame_id> <object_id> <x> <y> instead of storing as well
+#    as the sequence separators
+# 2. List comprehension or vectorize relative displacements
 
-## File managements functions
+def distance_filter(sequences, seq_separators, dist_threshold):
+  """
+  """
+  print("Sequences before distance filtering: ", sequences.shape)
+  start = time.time()
+  filtered_sequences = []
+  new_seq_separators = []
+  new_seq_separators.append(0)
+  aux_seq_separator = 0
 
-def safe_list(input_data):
-    """
-    """
-    safe_data = copy.copy(input_data)
-    return safe_data
-
-def safe_path(input_path):
-    """
-    """
-    safe_data = copy.copy(input_path)
-    safe_data = os.path.normpath(safe_data)
-    return safe_data
-
-def isstring(string_test):
-    """
-    """
-    return isinstance(string_test, str)
-
-def find_unique_common_from_lists(input_list1, input_list2, only_com=False):
-    """
-    """
-    input_list1 = safe_list(input_list1)
-    input_list2 = safe_list(input_list2)
-
-    common_list = list(set(input_list1).intersection(input_list2))
-
-    if only_com:
-        return common_list
-    else: # Find index of the common elements
-        index_list1 = []
-        for index in range(len(input_list1)):
-            item = input_list1[index]
-            if item in common_list:
-                index_list1.append(index)
-
-        index_list2 = []
-        for index in range(len(input_list2)):
-            item = input_list2[index]
-            if item in common_list:
-                index_list2.append(index)
-        return common_list, index_list1, index_list2
-
-def remove_list_from_list(input_list, list_toremove_src):
-    """
-    """
-    list_remained = safe_list(input_list)
-    list_toremove = safe_list(list_toremove_src)
-    list_removed = []
-
-    for item in list_toremove:
-        try:
-            list_remained.remove(item)
-            list_removed.append(item)
-        except ValueError:
-            if warning: 
-                print("Item to remove is not in the list. Remove operation is not done")
-    return list_remained, list_removed
-
-def load_list_from_folder(folder_path, ext_filter=None, depth=1, recursive=False, sort=True, save_path=None):
-    """
-    """
-    folder_path = safe_path(folder_path)
-    if isstring(ext_filter): ext_filter = [ext_filter]
-
-    full_list = []
-    if depth is None: # Find all files recursively
-        recursive = True
-        wildcard_prefix = '**'
-        if ext_filter is not None:
-            for ext_tmp in ext_filter:
-                wildcard = os.path.join(wildcard_prefix,'*'+ext_tmp)
-                curlist = glob2.glob(os.path.join(folder_path,wildcard))
-                if sort: curlist = sorted(curlist)
-                full_list += curlist
-        else:
-            wildcard = wildcard_prefix
-            curlist = glob2.glob(os.path.join(folder_path, wildcard))
-            if sort: curlist = sorted(curlist)
-            full_list += curlist
-    else: # Find files based on depth and recursive flag
-        wildcard_prefix = '*'
-        for index in range(depth-1): wildcard_prefix = os.path.join(wildcard_prefix, '*')
-        if ext_filter is not None:
-            for ext_tmp in ext_filter:
-                # wildcard = wildcard_prefix + string2ext_filter(ext_tmp)
-                wildcard = wildcard_prefix + ext_tmp
-                curlist = glob.glob(os.path.join(folder_path, wildcard))
-                if sort: curlist = sorted(curlist)
-                full_list += curlist
-            # zxc
-        else:
-            wildcard = wildcard_prefix
-            curlist = glob.glob(os.path.join(folder_path, wildcard))
-            # print(curlist)
-            if sort: curlist = sorted(curlist)
-            full_list += curlist
-        if recursive and depth > 1:
-            newlist, _ = load_list_from_folder(folder_path=folder_path, ext_filter=ext_filter, depth=depth-1, recursive=True)
-            full_list += newlist
-
-    full_list = [os.path.normpath(path_tmp) for path_tmp in full_list]
-    num_elem = len(full_list)
-
-    return full_list, num_elem
-
-def fileparts(input_path):
-    good_path = safe_path(input_path)
-    if len(good_path) == 0: 
-        return('','','')
-    if good_path[-1] == '/':
-        if len(good_path) > 1: 
-            return (good_path[:-1],'','') # Ignore the final '/'
-        else:
-            return (good_path,'','') # Ignore the final '/'
-
-    directory = os.path.dirname(os.path.abspath(good_path))
-    filename = os.path.splitext(os.path.basename(good_path))[0]
-    ext = os.path.splitext(good_path)[1]
-
-    return (directory, filename, ext)
-
-def get_folder_name(video_path, seq_name):
-    """
-    """
-
-    print("REQUIRED HERE?")
-
-def load_images(video_path, frames):
-    """
-    """
-
-    print("Aquí tenemos mapa rasterizado para una secuencia, pero solo uno por secuencia????")
-
-def read_file(_path, delim='tab'):
-    """
-    """
-    data = []
-    if delim == 'tab':
-        delim = '\t'
-    elif delim == 'space':
-        delim = ' '
-    with open(_path, 'r') as f:
-        for line in f:
-            line = line.strip().split(delim)
-            line = [float(i) for i in line]
-            data.append(line)
-    return np.asarray(data)
-
-def ignore_file(path):
-    """
-    """
-    first_token = path.split("/")[-1][0]
-    return True if firsk_token == "." else False
-
-## End File management functions
-
-## Motion Prediction functions
-
-def poly_fit(traj, traj_len, threshold):
-   """
-    Input:
-        - traj: Numpy array of shape (2, traj_len)
-        - traj_len: Len of trajectory
-        - threshold: Minimum error to be considered for non linear traj
-    Output:
-        - 1.0 -> Non Linear 
-        - 0.0 -> Linear
-    """ 
-    t = np.linspace(0, traj_len-1, traj_len)
-    res_x = np.polyfit(t, traj[0, -traj_len:], 2, full=True)[1]
-    res_y = np.polyfit(t, traj[1, -traj_len:], 2, full=True)[1]
-
-    if res_x + res_y >= threshold:
-        return 1.0
+  for i in range(len(seq_separators)):
+    if i < len(seq_separators)-1:
+          sequence = sequences[seq_separators[i]:seq_separators[i+1],:]
     else:
-        return 0.0
+        sequence = sequences[seq_separators[i]:,:]
 
-def seq_collate(data):
+    ref_x, ref_y = 0, 0
+
+    sequence_distance = []
+    av_indices = np.where(sequence[:,1] == 0)[0]
+
+    for j in range(len(av_indices)):
+      if j < len(av_indices)-1:
+          sub_sequence = sequence[av_indices[j]:av_indices[j+1],:]
+      else:
+          sub_sequence = sequence[av_indices[j]:,:]
+      av_x, av_y = sub_sequence[0,2], sub_sequence[0,3]
+      sub_sequence_distances = [math.sqrt(pow(x-av_x,2)+pow(y-av_y,2)) for _,_,x,y,_ in sub_sequence]
+      sequence_distance.append(sub_sequence_distances)
+    sequence_distance = np.concatenate(sequence_distance).reshape(-1,1)
+    to_keep = np.where(sequence_distance[:,0] <= dist_threshold)[0]
+    filtered_sequence = np.take(sequence, to_keep, axis=0)
+    filtered_sequences.append(filtered_sequence)
+
+    if i < len(seq_separators)-1:
+        new_seq_separator = filtered_sequence.shape[0]
+        aux_seq_separator += new_seq_separator
+        new_seq_separators.append(aux_seq_separator)
+
+  filtered_sequences = np.concatenate(filtered_sequences)
+  new_seq_separators = np.array(new_seq_separators)
+  print("Sequences after distance filtering: ", filtered_sequences.shape)
+  end = time.time()
+  print(f"Time consumed by distance filter: {end-start}")
+  return filtered_sequences, new_seq_separators
+
+def dummies_filter(filtered_by_distance_sequences, new_seq_separators, num_agents_per_obs=10):
+  """
+  """
+  start = time.time()
+  seq_separator_pre = 0
+  dummy_filtered_sequences = []
+
+  for t in range(new_seq_separators.shape[0]):
+      if t < new_seq_separators.shape[0] - 1:
+          filtered_by_distance_sequence = filtered_by_distance_sequences[new_seq_separators[t,0]:new_seq_separators[t+1,0],:]
+      else:
+          filtered_by_distance_sequence = filtered_by_distance_sequences[new_seq_separators[t,0]:,:]
+
+      obs_windows = np.where(filtered_by_distance_sequence[:,1] == 0)[0]
+
+      for i in range(len(obs_windows)):
+          if i < len(obs_windows) - 1:
+              agents_in_obs = obs_windows[i+1] - obs_windows[i] - 1 # Not including the ego-vehicle
+              sub_sequence = filtered_by_distance_sequence[obs_windows[i]:obs_windows[i+1],:] # Including ego-vehicle
+          else:
+              agents_in_obs = filtered_by_distance_sequence.shape[0] - obs_windows[i] - 1
+              sub_sequence = filtered_by_distance_sequence[obs_windows[i]:,:] # Including ego-vehicle
+
+          if agents_in_obs < num_agents_per_obs - 1: # We introduce dummy data
+              timestamp = sub_sequence[0,0]
+              dummy_agents = num_agents_per_obs - agents_in_obs - 1
+              dummy_array = np.array([timestamp,-1,-1.0,-1.0,-1]) # timestamp, object_id, x, y, object_class
+              dummy_array = np.tile(dummy_array,dummy_agents).reshape(-1,5)
+              dummy_sub_sequence = np.concatenate([sub_sequence,dummy_array])
+          elif agents_in_obs == num_agents_per_obs - 1:
+              dummy_sub_sequence = sub_sequence
+          else:
+              agents_dist = []
+
+              for j in range(sub_sequence.shape[0]):
+                  if sub_sequence[j,1] == 0: # The AV starts the observations of a sequence and also for each timestamp
+                      av_x = sub_sequence[j,2]
+                      av_y = sub_sequence[j,3]
+                  else:
+                      obj_x = sub_sequence[j,2]
+                      obj_y = sub_sequence[j,3]
+
+                      dist = math.sqrt(pow(obj_x-av_x,2)+pow(obj_y-av_y,2))
+                      agents_dist.append(dist)
+              agents_dist = np.array(agents_dist)
+              sorted_indeces = np.argsort(agents_dist)
+
+              to_delete_indeces = sorted_indeces[num_agents_per_obs-1:] # Only keep the closest num_agents_per_obs agents 
+                                                                    # (-1 since index starts in 0)
+              dummy_sub_sequence = np.delete(sub_sequence,to_delete_indeces,axis=0)
+
+          dummy_filtered_sequences.append(dummy_sub_sequence)
+
+  dummy_filtered_sequences = np.concatenate(dummy_filtered_sequences)
+  print("Dummy filtered sequences: ", dummy_filtered_sequences.shape)
+  end = time.time()
+  print(f"Time consumed by dummy filter: {end-start}")
+  return dummy_filtered_sequences  
+
+def relative_displacements(num_sequences, fixed_sized_sequences, num_agents_per_obs=10, num_obs=50, num_last_obs=19):
     """
-    This functions takes as input the dataset output (see __getitem__ function) and transforms to
-    a particular format to feed the Pytorch standard dataloader
-
-    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt,
-    non_linear_obj, loss_mask, seq_id_list, frames_path, 
-    frames_extension, frames_list, object_class_id_list, object_id_list)
-
-                                 |
-                                 v
-
-    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
-    non_linear_obj, loss_mask, id_frame, frames, "object_cls", 
-    "seq", "obj_id") = batch
     """
+    start = time.time()
+    num_positions = num_obs * num_agents_per_obs
+    print("Num sequences: ", num_sequences)
+    print("Sequences: ", fixed_sized_sequences.shape)
+    print("Num positions: ", num_positions)
+    assert num_sequences == fixed_sized_sequences.shape[0] / num_positions
+    print("Num sequences: ", num_sequences)
+    
+    relative_sequences = []
+    ego_vehicle_origin = []
 
-    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt,
-     non_linear_obj, loss_mask, seq_id_list, frames_path, 
-     frames_extension, frames_list, object_class_id_list, object_id_list) = zip(*data)
+    for i in range(num_sequences):
+        if i < num_sequences - 1:
+            sequence = fixed_sized_sequences[num_positions*i:num_positions*(i+1),:]
+        else:
+            sequence = fixed_sized_sequences[num_positions*i:,:]
 
-    _len = [len(seq) for seq in obs_traj]
-    cum_start_idx = [0] + np.cumsum(_len).tolist()
-    seq_start_end = [[start, end] for start, end in zip(cum_start_idx, cum_start_idx[1:])]
+        origin_x = sequence[num_last_obs*num_agents_per_obs,2]
+        origin_y = sequence[num_last_obs*num_agents_per_obs,3]
+        origin = np.array([origin_x, origin_y]).reshape(1,2)
+        ego_vehicle_origin.append(origin)
 
-    # Data format: batch, input_size, seq_len
-    # LSTM input format: seq_len, batch, input_size
+        for j in range(sequence.shape[0]):
+            if np.int64(sequence[j,1]) != -1:
+                sequence[j,2] -= origin_x
+                sequence[j,3] -= origin_y
+        relative_sequences.append(sequence)
+    ego_vehicle_origin = np.concatenate(ego_vehicle_origin)
+    relative_sequences = np.concatenate(relative_sequences)
+    end = time.time()
+    print(f"Time consumed by relative displacements: {end-start}")
+    
+    return relative_sequences, ego_vehicle_origin
 
-    obs_traj = torch.cat(obs_traj, dim=0).permute(2, 0, 1)
-    pred_traj_gt = torch.cat(pred_traj_gt, dim=0).permute(2, 0, 1)
-    obs_traj_rel = torch.cat(obs_traj_rel, dim=0).permute(2, 0, 1)
-    pred_traj_rel_gt = torch.cat(pred_traj_rel_gt, dim=0).permute(2, 0, 1)
-    non_linear_obj = torch.cat(non_linear_obj)
-    loss_mask = torch.cat(loss_mask, dim=0)
-    seq_start_end = torch.LongTensor(seq_start_end)
-    id_frame = torch.cat(seq_id_list, dim=0).permute(2, 0, 1) # seq_len - peds_in_curr_seq - 3
-    frames = load_images(list(frames_path), list(frames_list), frames_extension[0])
-    frames = torch.from_numpy(frames).type(torch.float32)
-    frames = frames.permute(0, 3, 1, 2)
-    object_cls = torch.stack(object_class_id_list)
-    seq = torch.stack(frames_list)
-    obj_id = torch.stack(object_id_list)
+class ArgoverseMotionForecastingDataset(Dataset):
 
-    out = [
-            obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt, non_linear_obj,
-            loss_mask, seq_start_end, frames, object_cls, seq, obj_id
-          ] # id_frame??????
-
-    return tuple(out)
-
-# TODO: DELETE THIS, these functions must be in another file as ad-hoc dataset functions
-
-def seqname2int(seqname): # Ex: Town01_seq0001.txt -> 1*1000 + 1 
-    city_id, seq_id = seqname.split('_')
-    city_id = int(city_id[4:6])
-    seq_id = int(seq_id[3:])
-    final_id = city_id * 1000 + seq_id
-
-    return final_id
-
-def check_eval_windows(start_pred, obs_len, pred_len, phase='test'):
-    # start_pred:       the frame index starts to predict in this window, e.g., seq of 0-9 -> 10-19 has start frame at 10
-    # pred_len:         the number of frames to predict 
-    # phase:            train, val, test
-
-    if phase == 'test':
-        reserve_interval = 50
-        pred_len = 50
-        obs_len  = 50
-    else:
-        reserve_interval = 0
-    check = (start_pred - obs_len) % (obs_len + pred_len + reserve_interval) == 0
-
-    return check
-
-def getObjecClass(url_dataset):
-    url_list = url_dataset.split("/")
-    objectClass = ""
-    for url_id in url_list:
-        if "aiodrive_" in url_id:
-            objectClass = url_id
-    objectClass = objectClass.split("_")[-1]
-    return objectClass
-
-# End TODO: DELETE THIS, these functions must be in another file as ad-hoc dataset functions   
-
-class RobeSafeMotionForecastingDataset(Dataset):
-    """
-    Dataloader for generic trajectory forecasting datasets
-    """
-
-    def __init__(self, data_dir, obs_len=8, pred_len=12, skip=1, threshold=0.002,
-                 min_objs=0, windows_frames=None, phase='train', delim='\t', frames_path="", frames_extension='png', num_agents=32):
+    def __init__(self, trajectory_file, sequence_separators_file, obs_len=20, pred_len=30, skip=1, threshold=0.002,
+                 min_objs=0, windows_frames=None, phase='train', delim='\t', frames_path="", frames_extension='png', num_agents=10):
         """
-        - data_dir: Directory containing dataset files in the format 
-          <frame_id> <object_id> <x> <y>
+        - trajectory_file: File (.npy) with all sequences vertically concatenated in the format <frame_id> <object_id> <x> <y>
+        - sequence_separators_file: File (.npy) with the indexes to separate the original sequences (before filtering). We must use
+          separators since each trajectory has a different number of lines (observations)
         - obs_len: Number of observed frames in prior (input) trajectories
         - pred_len: Number of predicted frames in posterior (output) trajectories
         - skip: Number of frames to skip while making the dataset
@@ -306,29 +187,137 @@ class RobeSafeMotionForecastingDataset(Dataset):
         - delim: Delimiter in the dataset files
         - frames_path: Path to physical information 
         - frames_extension: png, npy (e.g. HD maps), jpg, etc.
-        - num_agents: Number of agents to be considered in a single forward. If there are less than num_agents,
-          dummy variables are used to predict. If there are more, it is distributed in total_agents % num_agents
+        - num_agents: Number of agents to be considered in a single forward (including the ego-vehicle). If there are less than num_agents,
+          dummy variables are used to predict. If there are more, agents are filtered by its distance to the ego-vehicle
           forwards but using the same physical information and frame index
         """
-        super(RobeSafeMotionForecastingDataset, self).__init__()
-        self.dataset_name = "robesafe_motion_forecasting_dataset"
+
+        # Initialize variables
+
+        super(ArgoverseMotionForecastingDataset, self).__init__()
+        self.dataset_name = "argoverse_motion_forecasting_dataset"
         self.objects_id_dict = {"Car": 0, "Cyc": 1, "Mot": 2, "Ped": 3} # TODO: Get this by argument
-        self.data_dir = data_dir
         self.obs_len, self.pred_len = obs_len, pred_len
         self.seq_len = self.obs_len + self.pred_len
         self.skip, self.delim = skip, delim
         self.frames_path = frames_path
 
-        all_files, _ = load_list_from_folder(self.data_dir)
-        num_objs_in_seq = []
-        seq_list = []
-        seq_list_rel = []
-        loss_mask_list = []
-        non_linear_obj = []
-        seq_id_list = []
-        frames_list = []
-        object_class_id_list = []
-        object_id_list = []
+        self.repo_folder = "/home/robesafe/libraries/SoPhie/"
+        self.parent_folder = "data/datasets/argoverse/motion-forecasting/train/"
+        """
+        # Load trajectory_file and sequence_separators
+        
+        with open(trajectory_file, 'rb') as obs_file:
+          joined_obs_trajectories =  np.load(obs_file)
+          print("Trajectories shape: ", joined_obs_trajectories.shape)
+
+        with open(sequence_separators_file, 'rb') as seq_sep_file:
+          seq_separators = np.load(seq_sep_file).reshape(-1)
+          print("Separators shape: ", seq_separators.shape)
+
+        # Get maximum distance between AV and AGENT for the last observation of the past positions
+
+        max_distance = 0
+        index_max_distance = 0
+
+        for i in range(len(seq_separators)):
+          # print("i: ", i)
+          start = seq_separators[i]
+          if i < len(seq_separators) - 1:  
+            end = seq_separators[i+1]
+            sequence = joined_obs_trajectories[start:end,:]
+          else:
+            sequence = joined_obs_trajectories[start:,:]
+
+          av_indeces = np.where(sequence[:,1] == 0)[0]
+          agent_indeces = np.where(sequence[:,1] == 1)[0]
+          av_last_observation_row = av_indeces[obs_len-1]
+          agent_last_observation_row = agent_indeces[obs_len-1]
+
+          x_av, y_av = sequence[av_last_observation_row,2], sequence[av_last_observation_row,3]
+          x_agent, y_agent = sequence[agent_last_observation_row,2], sequence[agent_last_observation_row,3]
+
+          dist = math.sqrt(pow(x_av-x_agent,2)+pow(y_av-y_agent,2))
+
+          if dist > max_distance:
+            max_distance = dist
+            index_max_distance = i
+
+        print("Max distance: ", max_distance)
+        print("Index max distance: ", index_max_distance)
+
+        # Apply distance filter based on maximum distance between agent and ego-vehicle
+          
+        print("-----------------> Distance filter")
+        distance_filtered_sequences, new_seq_separators = distance_filter(joined_obs_trajectories, seq_separators, max_distance)
+        del joined_obs_trajectories # Free memory
+        gc.collect()
+
+        distance_filtered_sequences_file = self.repo_folder + self.parent_folder + "distance_filtered_sequences.npy"
+        print("Save: ", distance_filtered_sequences.shape)
+        with open(distance_filtered_sequences_file, 'wb') as aux_file:
+            np.save(aux_file, distance_filtered_sequences)
+
+        new_seq_separators_file = self.repo_folder + self.parent_folder + "new_seq_separators.npy"
+        print("Save: ", new_seq_separators)
+        with open(new_seq_separators_file, 'wb') as aux_file:
+            np.save(aux_file, new_seq_separators)    
+
+        # Apply dummy filter to get a fixed shape of each sequence: {Num_obs (50 in this case) x Num_max_agents (10, for example, including tge ego-vehicle)
+        # x 5 (columns), so it results in a tensor of 500 x 5 x num_sequences (num_files)
+
+        distance_filtered_sequences_file = self.repo_folder + self.parent_folder + "distance_filtered_sequences.npy"
+        with open(distance_filtered_sequences_file, 'rb') as aux_file:
+            distance_filtered_sequences = np.load(aux_file).reshape(-1,5)
+            print("Shape distance filtered: ", distance_filtered_sequences.shape)
+
+        new_seq_separators_file = self.repo_folder + self.parent_folder + "new_seq_separators.npy"
+        with open(new_seq_separators_file, 'rb') as aux_file:
+            new_seq_separators = np.load(aux_file).reshape(-1,1)
+            print("New seq shape: ", new_seq_separators.shape)
+
+        print("-----------------> Dummy filter")
+        fixed_sized_sequences = dummies_filter(distance_filtered_sequences, new_seq_separators, num_agents_per_obs=10)
+        del distance_filtered_sequences # Free memory
+        gc.collect()
+
+
+        fixed_size_sequences_file = self.repo_folder + self.parent_folder + "fixed_size_sequences.npy"
+        print("Save: ", fixed_sized_sequences.shape)
+        with open(fixed_size_sequences_file, 'wb') as aux_file:
+            np.save(aux_file, fixed_sized_sequences)
+        """
+        # Get relative displacements
+
+        fixed_size_sequences_file = self.repo_folder + self.parent_folder + "fixed_size_sequences.npy"
+        with open(fixed_size_sequences_file, 'rb') as aux_file:
+            fixed_sized_sequences = np.load(aux_file).reshape(-1,5)
+
+        print("-----------------> Relative displacements")
+        num_sequences = 205942
+        relative_sequences, ego_vehicle_origin = relative_displacements(num_sequences, fixed_sized_sequences, num_agents_per_obs=10, num_obs=50, num_last_obs=19)
+        del fixed_sized_sequences # Free memory
+        gc.collect()
+
+        # Save checkpoint
+
+        relative_sequences_file = self.repo_folder + self.parent_folder + "relative_sequences.npy"
+        with open(relative_sequences_file, 'wb') as aux_file:
+            np.save(aux_file, relative_sequences)
+
+        ego_vehicle_origin_file = self.repo_folder + self.parent_folder + "ego_vehicle_origin.npy"
+        with open(ego_vehicle_origin_file, 'wb') as aux_file:
+            np.save(aux_file, ego_vehicle_origin)
+
+
+
+
+
+
+
+
+
+
 
         for path in all_files:
             print_str = 'load %s\r' % path
@@ -587,20 +576,4 @@ class RobeSafeMotionForecastingDataset(Dataset):
               ]   
 
         return out
-
-
-
-                
-
-
-
-
-
-
-
-
-    
-
-
-
 

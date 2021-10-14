@@ -1,9 +1,13 @@
 import os
 import numpy as np
+import copy
 import yaml
 import cv2
+import glob, glob2
 import time
 import json
+import pandas as pd
+import math
 
 from types import SimpleNamespace
 from sophie.models import SoPhieDiscriminator, SoPhieGenerator
@@ -601,6 +605,722 @@ def load_npy():
     print("Image: PIT_10314_halluc_bbox_table")
     imageio.imsave("/home/robesafe/shared_home/PIT_10314_halluc_bbox_table.png",img_array)
 
+def safe_list(input_data):
+    """
+    """
+    safe_data = copy.copy(input_data)
+    return safe_data
+
+def safe_path(input_path):
+    """
+    """
+    safe_data = copy.copy(input_path)
+    safe_data = os.path.normpath(safe_data)
+    return safe_data
+
+def isstring(string_test):
+    """
+    """
+    return isinstance(string_test, str)
+
+def load_list_from_folder(folder_path, ext_filter=None, depth=1, recursive=False, sort=True, save_path=None):
+    """
+    """
+    folder_path = safe_path(folder_path)
+    if isstring(ext_filter): ext_filter = [ext_filter]
+
+    full_list = []
+    if depth is None: # Find all files recursively
+        recursive = True
+        wildcard_prefix = '**'
+        if ext_filter is not None:
+            for ext_tmp in ext_filter:
+                wildcard = os.path.join(wildcard_prefix,'*'+ext_tmp)
+                curlist = glob2.glob(os.path.join(folder_path,wildcard))
+                if sort: curlist = sorted(curlist)
+                full_list += curlist
+        else:
+            wildcard = wildcard_prefix
+            curlist = glob2.glob(os.path.join(folder_path, wildcard))
+            if sort: curlist = sorted(curlist)
+            full_list += curlist
+    else: # Find files based on depth and recursive flag
+        wildcard_prefix = '*'
+        for index in range(depth-1): wildcard_prefix = os.path.join(wildcard_prefix, '*')
+        if ext_filter is not None:
+            for ext_tmp in ext_filter:
+                # wildcard = wildcard_prefix + string2ext_filter(ext_tmp)
+                wildcard = wildcard_prefix + ext_tmp
+                curlist = glob.glob(os.path.join(folder_path, wildcard))
+                if sort: curlist = sorted(curlist)
+                full_list += curlist
+            # zxc
+        else:
+            wildcard = wildcard_prefix
+            curlist = glob.glob(os.path.join(folder_path, wildcard))
+            # print(curlist)
+            if sort: curlist = sorted(curlist)
+            full_list += curlist
+        if recursive and depth > 1:
+            newlist, _ = load_list_from_folder(folder_path=folder_path, ext_filter=ext_filter, depth=depth-1, recursive=True)
+            full_list += newlist
+
+    full_list = [os.path.normpath(path_tmp) for path_tmp in full_list]
+    num_elem = len(full_list)
+
+    return full_list, num_elem
+
+def store_city():
+    """
+    """
+
+    folder = "data/datasets/argoverse/motion-forecasting/train/data/"
+    files, num_files = load_list_from_folder(folder)
+    file_id_list = []
+    for file_name in files:
+        file_id = int(os.path.normpath(file_name).split('/')[-1].split('.')[0])
+        file_id_list.append(file_id)
+    print("Num files: ", num_files)
+
+    file_id_list.sort()
+
+    # city_id_list = []
+    city_id_array = np.zeros((len(file_id_list)))
+
+    start = time.time()
+
+    for i,file_id in enumerate(file_id_list):
+        track_file = folder + str(file_id) + ".csv"
+        df = pd.read_csv(track_file)
+
+        city = np.array(df['CITY_NAME']).reshape(-1,1)
+        city = city[0,0]
+
+        print("city: ", city)
+
+        if city == "PIT":
+            city_id_array[i] = 0
+        else:
+            city_id_array[i] = 1
+
+        print("i: ", i)
+
+    city_id_file = "data/datasets/argoverse/motion-forecasting/train/city_id.npy"
+    with open(city_id_file, 'wb') as city_id_file:
+        np.save(city_id_file, city_id_array)
+
+    end = time.time()
+
+    print(f"Time consumed: {end-start}")
+
+def test_argoverse_csv():
+    # Create a dict and store in JSON format to get the conversion between our object_id and Argoverse track_id
+    track_id_coded_flag = False
+    # pasar los datos de train a una única estructura numpy array (seq x timestamp x (frame_id | object_id | x | y))
+    data_structure_flag = True
+    debug_time = False
+    filter_by_distance = False
+    load_checkpoint = False
+
+    folder = "data/datasets/argoverse/motion-forecasting/train/data/"
+    coding_folder = "data/datasets/argoverse/motion-forecasting/train/track_id_coded/"
+    # folder = "shared_home/benchmarks/argoverse/motion-forecasting/train/data/"
+    # coding_folder = "shared_home/benchmarks/argoverse/motion-forecasting/train/track_id_coded/"
+    parent_folder = '/'.join(os.path.normpath(folder).split('/')[:-1])
+
+    files, num_files = load_list_from_folder(folder)
+    file_id_list = []
+    for file_name in files:
+        file_id = int(os.path.normpath(file_name).split('/')[-1].split('.')[0])
+        file_id_list.append(file_id)
+    print("Num files: ", num_files)
+
+    file_id_list.sort()
+
+    if track_id_coded_flag:
+        limit = 10000
+        track_id_coded = dict()
+        seq_start = 0
+        seq_end = 0
+        new_json = True
+
+        # for i,track_file in enumerate(files):
+        for i,file_id in enumerate(file_id_list):
+            # print(f"Encoding sequence {i}")
+            if new_json:
+                track_id_coded = dict()
+                start = time.time()
+                seq_start = file_id
+                new_json = False
+            track_file = folder + str(file_id) + ".csv"
+            df = pd.read_csv(track_file)
+            col_track_id = np.array(df['TRACK_ID'])
+            object_type = np.array(df['OBJECT_TYPE'])
+
+            # col_track_id = df['TRACK_ID']
+            # object_type = df['OBJECT_TYPE']
+
+            # Get AV and AGENT ids in Argoverse format
+
+            agents = dict()
+            cont = 0
+
+            first_av_row = np.where(object_type == 'AV')[0][0]
+            agents[cont] = col_track_id[first_av_row] # 0 == AV
+            cont += 1
+            first_agent_row = np.where(object_type == 'AGENT')[0][0]
+            agents[cont] = col_track_id[first_agent_row] # 1 == AGENT
+            cont += 1
+
+            for row in col_track_id:       
+                if row not in agents.values(): # From 2 to n, OTHERS
+                    agents[cont] = row
+                    cont += 1 
+
+            track_id_coded[track_file] = agents
+            
+            # Store JSON
+
+            if (i % limit == 0 and i > 0) or i == num_files-1:
+                seq_end = file_id
+                track_id_coded['sequences'] = "/seq_" + str(seq_start) + "_" + str(seq_end)
+                
+                print(f"Store JSON from sequence {seq_start} to {seq_end}")
+                print("JSON length: ", len(track_id_coded)-1) # -1 since one key represents the stored sequences
+
+                if not os.path.isdir(parent_folder + "/track_id_coded"):
+                    os.mkdir(parent_folder + "/track_id_coded")
+                track_id_coded_json = parent_folder + "/track_id_coded" + "/seq_" + str(seq_start) + "_" + str(seq_end) + ".json"
+                print(track_id_coded_json)
+                with open(track_id_coded_json, "w") as outfile:
+                    json.dump(track_id_coded, outfile)
+                new_json = True
+
+                end = time.time()
+                print(f"Time consumed: {end-start}\n")
+
+    if data_structure_flag:
+        dist_threshold = 20
+        checkpoint = 10000
+
+        track_id_coded_files, num_track_id_coded_files = load_list_from_folder(coding_folder)
+
+        # Load JSON files
+
+        json_files = []
+        for track_id_coded_file in track_id_coded_files:
+            with open(track_id_coded_file) as json_file:
+                data = json.load(json_file)
+                json_files.append(data)
+
+        seqs = np.array([]).reshape(2,0)
+        for json_file in json_files:
+            # seq_name = os.path.normpath(file_name).split('/')[-1].split('.')[0]
+            seq_name = json_file['sequences']
+            start = int(os.path.normpath(seq_name).split('_')[1])
+            end = int(os.path.normpath(seq_name).split('_')[-1].split('.')[0])
+            seq = np.array([start,end]).reshape(-1,1)
+            seqs = np.hstack([seqs,seq])
+
+        print("JSON files loaded")
+
+        # Load checkpoint
+
+        last_file_id = -1
+
+        if load_checkpoint:
+            try:
+                obs_trajectories_file = "data/datasets/argoverse/motion-forecasting/train/obs_trajectories.npy"
+                # obs_trajectories_file = "shared_home/benchmarks/argoverse/motion-forecasting/train/obs_trajectories.npy"
+                with open(obs_trajectories_file, 'rb') as obs_file:
+                    obs_trajectories = np.load(obs_file)
+                    for i in range(obs_trajectories.shape[0]-1,0,-1):
+                        if obs_trajectories[i,1] == np.float64(-1):
+                            last_file_id = int(obs_trajectories[i,0])
+                            csv_start = last_file_id + 1
+                            print(f"Start from {last_file_id}.csv")
+                            break 
+            except:
+                obs_trajectories = np.array([]).reshape(0,4)
+                last_file_id = -1
+                csv_start = 1
+                print(f"Start from 1.csv")
+
+        # Calculate the trajectories
+
+        print_time = False
+        npy_store_start = time.time()
+        seq_separators_only_indexes = [] # The trajectories file DO NOT include separators
+        previous_index = 0
+        seq_separators_only_indexes.append(previous_index)
+        aux_traj = []
+        start_npy = True
+        
+        for t,file_id in enumerate(file_id_list):
+            if file_id > last_file_id:
+                if start_npy:
+                    csv_start = file_id
+                    start_npy = False
+                if debug_time: print("--------------------")
+                if debug_time: print("file id: ", file_id)
+                a_start = time.time()
+                track_file = folder + str(file_id) + ".csv"
+                # print(f"Analyzing {file_id}.csv")
+                data = dict()
+                for k in range(seqs.shape[1]):
+                    if file_id >= seqs[0,k] and file_id <= seqs[1,k]:
+                        # aux_json_file = coding_folder + 'seq_' + str(int(seqs[0,k])) + '_' + str(int(seqs[1,k])) + '.json'
+                        # with open(aux_json_file) as json_file:
+                        #     data = json.load(json_file)
+                        data = json_files[k]
+                a_end = time.time()
+                if debug_time: print(f"Time consumed from first part: {a_end-a_start}")
+                a_start = time.time()
+                df = pd.read_csv(track_file)
+
+
+                folder = "data/datasets/argoverse/motion-forecasting/train/data/"
+                # folder = "shared_home/benchmarks/argoverse/motion-forecasting/train/data/"
+                track_file = folder + str(file_id) + ".csv"
+                
+                dict1 = data[track_file] # Standard IDs (Keys) to Argoverse values (Values)
+                dict2 = dict(zip(dict1.values(), dict1.keys())) # Argoverse values (Keys) to standard IDs (Values)
+
+                timestamps = np.array(df['TIMESTAMP']).reshape(-1,1)
+                track_ids = np.array(df['TRACK_ID']).reshape(-1,1)
+                x_pos = np.array(df['X']).reshape(-1,1)
+                y_pos = np.array(df['Y']).reshape(-1,1)
+
+                # Additional column to represent the class: 0 == AV, 1 == AGENT, 2 == OTHERS
+                
+                object_type = np.array(df['OBJECT_TYPE']).reshape(-1,1)
+                object_class = [0 if obj=="AV" else 1 if obj=="AGENT" else 2 for obj in object_type]
+                object_class = np.array(object_class).reshape(-1,1)
+
+                coded_track_ids = np.vectorize(dict2.get)(track_ids).astype(np.int64)
+
+                print("Coded: ", coded_track_ids)
+                assert 1 == 0
+                
+                seq_sophie_format = (timestamps,coded_track_ids,x_pos,y_pos,object_class)
+                seq_sophie_format = np.concatenate(seq_sophie_format, axis=1)
+                # print("seq_sophie_format: ", seq_sophie_format, seq_sophie_format.shape)
+                a_end = time.time()
+                if debug_time: print(f"Time consumed from second part: {a_end-a_start}")
+
+                a_start = time.time()
+
+                # sequence_separator = np.array([file_id,-1,-1,-1]).reshape(1,4)
+                # seq_sophie_format = np.concatenate([sequence_separator,seq_sophie_format]) 
+                aux_traj.append(seq_sophie_format)
+
+                # Get separators
+
+                if t != len(file_id_list) - 1: # Save all except the last one, since it represents the end
+                    seq_len = timestamps.shape[0]
+                    previous_index += seq_len
+                    seq_separators_only_indexes.append(previous_index)
+
+                a_end = time.time()
+                if debug_time: print(f"Time consumed from third part: {a_end-a_start}")
+
+                if (t > 0 and t % checkpoint == 0) or(t == len(file_id_list) - 1):
+                    a_start = time.time()
+                    aux_traj = np.concatenate(aux_traj, axis=0)
+                    # obs_trajectories = np.concatenate([obs_trajectories, aux_traj])
+                    a_end = time.time()
+
+                    npy_store_end = time.time()
+                    csv_end = file_id
+                    print(f"Time consumed from {csv_start}.csv to {csv_end}.csv: {npy_store_end-npy_store_start}")
+                    npy_store_start = npy_store_end
+                    start_npy = True
+
+                    # Save checkpoint
+
+                    if not os.path.isdir(parent_folder + "/obs_trajectories"):
+                        os.mkdir(parent_folder + "/obs_trajectories")
+
+                    obs_trajectories_file_root = "data/datasets/argoverse/motion-forecasting/train/obs_trajectories/obs_trajectories_"
+                    # obs_trajectories_file_root = "data/datasets/argoverse/motion-forecasting/train/obs_trajectories/obs_trajectories_"
+                    # obs_trajectories_file_root = "shared_home/benchmarks/argoverse/motion-forecasting/train/obs_trajectories/obs_trajectories_"
+                    obs_trajectories_file = obs_trajectories_file_root + str(csv_start) + "_" + str(csv_end) + "_csv" + ".npy"
+                    with open(obs_trajectories_file, 'wb') as obs_file:
+                        # np.save(obs_file, obs_trajectories)
+                        np.save(obs_file, aux_traj)
+
+                    aux_traj = []
+
+                    # if t == len(file_id_list) - 1:
+                    #     seq_separators_file = "data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy"
+                    #     seq_separators_only_indexes = np.array(seq_separators_only_indexes)
+                    #     with open(seq_separators_file, 'wb') as seq_file:
+                    #         np.save(seq_file, seq_separators_only_indexes)
+        # print("obs_trajectories: ", obs_trajectories, obs_trajectories.shape)
+        # obs_trajectories_file = "shared_home/benchmarks/motion-forecasting/train/obs_trajectories.npy"
+        # with open(obs_trajectories_file, 'wb') as obs_file:
+        #     np.save(obs_file, obs_trajectories)
+
+def concat_npy_files():
+    # folder = "data/datasets/argoverse/motion-forecasting/train/obs_trajectories_without_separators"
+    folder = "data/datasets/argoverse/motion-forecasting/train/obs_trajectories"
+    # folder = "shared_home/benchmarks/argoverse/motion-forecasting/train/obs_trajectories"
+    files, num_files = load_list_from_folder(folder)
+
+    starts = []
+    for file_name in files:
+        seq_name = os.path.normpath(file_name).split('/')[-1].split('.')[0]
+        start = int(os.path.normpath(seq_name).split('_')[2])
+        starts.append(start)
+
+    starts = np.array(starts)
+    sort_index = np.argsort(starts)
+
+    obs_trajectories_list = []
+    rows = 0
+    for t in sort_index: # Concat sorted .npy files
+        obs_trajectories_file = files[t]
+        print("File: ", files[t])
+        with open(obs_trajectories_file, 'rb') as obs_file:
+            obs_trajectories = np.load(obs_file)
+            print("Shape: ", obs_trajectories.shape)
+            rows += obs_trajectories.shape[0]
+            obs_trajectories_list.append(obs_trajectories)
+
+    print("\nNumber of rows: ", rows)
+    joined_obs_trajectories = np.concatenate(obs_trajectories_list, axis=0)
+
+    obs_trajectories_file = "data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
+    # obs_trajectories_file = "shared_home/benchmarks/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
+    with open(obs_trajectories_file, 'wb') as obs_file:
+        np.save(obs_file, joined_obs_trajectories)
+
+def separate_in_sequences(joined_obs_trajectories):
+    if np.int64(joined_obs_trajectories[1]) == -1: return 1
+    else: return 0
+
+def separate_in_sequences_v2(obj_id):
+    if np.int64(obj_id) == -1: return 1
+    else: return 0
+
+def distance_filter(sequences, relative_batch_separators, dist_threshold):
+
+    print("-----------------> Distance filter")
+    filtered_sequences = np.array([]).reshape(0,4)
+    new_seq_separators = []
+    new_seq_separators.append(0)
+    aux_seq_separator = 0
+
+    print("Shape seq: ", sequences.shape)
+    print("relative batch separators: ", relative_batch_separators)
+
+    for i, batch_separator in enumerate(relative_batch_separators):
+        print("batch separator: ", batch_separator)
+        if i < len(relative_batch_separators)-1:
+            sequence = sequences[relative_batch_separators[i]:relative_batch_separators[i+1],:]
+        else:
+            sequence = sequences[relative_batch_separators[i]:,:]
+
+        print("Seq: ", sequence[0,:], sequence.shape)
+        to_filter_by_distance = np.zeros((sequence.shape[0]))
+        ref_x, ref_y = 0, 0
+        for t in range(sequence.shape[0]):
+            if sequence[t,1] == 0: # The AV starts the observations of a sequence and also for each timestamp
+                av_x = sequence[t,2]
+                av_y = sequence[t,3]
+                # print("--------------")
+                # print("ref: ", av_x,av_y)
+            else:
+                obj_x = sequence[t,2]
+                obj_y = sequence[t,3]
+
+                dist = math.sqrt(pow(obj_x-av_x,2)+pow(obj_y-av_y,2))
+                # print("Dist to AV: ", dist)
+                if dist > dist_threshold:
+                    to_filter_by_distance[t] = 1
+
+        # print("Before filtering: ", sequence.shape)
+        filtered_sequence = sequence[to_filter_by_distance[:] != 1]
+        filtered_sequences = np.concatenate([filtered_sequences, filtered_sequence])
+        near_objects = np.count_nonzero(to_filter_by_distance == 0)
+        print("Objects after dist filter (including ego obs): ", filtered_sequence.shape[0])
+
+        if i < len(relative_batch_separators)-1:
+            new_seq_separator = filtered_sequence.shape[0]
+            aux_seq_separator += new_seq_separator
+            new_seq_separators.append(aux_seq_separator)
+        # print("After filtering: ", sequence.shape)
+    return filtered_sequences, new_seq_separators
+
+def dummies_filter(filtered_by_distance_sequences, new_seq_separators, agents_per_obs=9):
+    """
+    """
+
+    print("-----------------> Dummy filter")
+
+    print(filtered_by_distance_sequences.shape)
+
+    seq_separator_pre = 0
+
+    dummy_filtered_sequences = np.array([]).reshape(0,4)
+
+    # print("New seq separators: ", new_seq_separators)
+    for t, seq_separator in enumerate(new_seq_separators):
+        if t < len(new_seq_separators) - 1:
+            # print("seq separators: ", new_seq_separators[t], new_seq_separators[t+1])
+            filtered_by_distance_sequence = filtered_by_distance_sequences[new_seq_separators[t]:new_seq_separators[t+1],:]
+        else:
+            # print("from seq_separator to the end: ", new_seq_separators[t])
+            filtered_by_distance_sequence = filtered_by_distance_sequences[new_seq_separators[t]:,:]
+
+        # print("filtered by distance seq: ", filtered_by_distance_sequence.shape)#, filtered_by_distance_sequence)
+        # dummy_filtered_sequence = 
+
+        obs_windows = np.where(filtered_by_distance_sequence[:,1] == 0)[0]
+
+        # print("obs windows: ", obs_windows, len(obs_windows))
+
+        for i in range(len(obs_windows)):
+            # print("i: ", i)
+            if i < len(obs_windows) - 1:
+                agents_in_obs = obs_windows[i+1] - obs_windows[i] - 1
+                sub_sequence = filtered_by_distance_sequence[obs_windows[i]:obs_windows[i+1],:] # Including ego-vehicle
+            else:
+                agents_in_obs = filtered_by_distance_sequence.shape[0] - obs_windows[i] - 1
+                sub_sequence = filtered_by_distance_sequence[obs_windows[i]:,:] # Including ego-vehicle
+            # print("agents in obs: ", agents_in_obs)
+
+            if agents_in_obs < agents_per_obs: # We introduce dummy data
+                timestamp = sub_sequence[0,0]
+                dummy_agents = agents_per_obs - agents_in_obs
+                dummy_array = np.array([timestamp,-1,-1.0,-1.0])
+                dummy_array = np.tile(dummy_array,dummy_agents).reshape(-1,4)
+                dummy_sub_sequence = np.concatenate([sub_sequence,dummy_array])
+                # print("Pre: ", sub_sequence.shape)
+                # print("Post: ", dummy_sub_sequence.shape)
+            elif agents_in_obs == agents_per_obs:
+                dummy_sub_sequence = sub_sequence
+            else:
+                # Sort agents by distance
+                # print("\n..................")
+                agents_dist = []
+
+                for t in range(sub_sequence.shape[0]):
+                    if sub_sequence[t,1] == 0: # The AV starts the observations of a sequence and also for each timestamp
+                        av_x = sub_sequence[t,2]
+                        av_y = sub_sequence[t,3]
+                        # print("--------------")
+                        # print("ref: ", av_x,av_y)
+                    else:
+                        obj_x = sub_sequence[t,2]
+                        obj_y = sub_sequence[t,3]
+
+                        dist = math.sqrt(pow(obj_x-av_x,2)+pow(obj_y-av_y,2))
+                        agents_dist.append(dist)
+                agents_dist = np.array(agents_dist)
+                sorted_indeces = np.argsort(agents_dist)
+                # print("Agents dist: ", agents_dist)
+                # print("Sorted: ", sorted_indeces)
+
+                to_delete_indeces = sorted_indeces[agents_per_obs:] # Only keep the closest agents_per_obs agents
+
+                # print("to delete indeces: ", to_delete_indeces)
+                # print("sub sequence shape: ", sub_sequence.shape)
+                dummy_sub_sequence = np.delete(sub_sequence,to_delete_indeces,axis=0)
+                # print("dummy sequence: ", dummy_sub_sequence)
+                # print("shape after cropping: ", dummy_sub_sequence.shape)
+            
+            dummy_filtered_sequences = np.concatenate([dummy_filtered_sequences,dummy_sub_sequence])
+            # print("Shape pre: ", dummy_filtered_sequences.shape)
+
+    return dummy_filtered_sequences  
+
+def relative_displacements(batch_size, fixed_sized_sequences, num_last_obs=19):
+    """
+    """
+
+    print("-----------------> Relative displacements")
+
+    num_agents_per_obs = 10 # including ego-vehicle
+    num_obs = 50
+    num_positions = num_obs * num_agents_per_obs
+
+    relative_sequences = np.array([]).reshape(0,4)
+    ego_vehicle_origin = np.array([]).reshape(0,2)
+
+    for i in range(batch_size):
+        if i < batch_size - 1:
+            sequence = fixed_sized_sequences[num_positions*i:num_positions*(i+1),:]
+        else:
+            sequence = fixed_sized_sequences[num_positions*i:,:]
+
+        origin_x = sequence[num_last_obs*num_agents_per_obs,2]
+        origin_y = sequence[num_last_obs*num_agents_per_obs,3]
+        origin = np.array([origin_x, origin_y]).reshape(1,2)
+        ego_vehicle_origin = np.concatenate([ego_vehicle_origin, origin])
+
+        for j in range(sequence.shape[0]):
+            if np.int64(sequence[j,1]) != -1:
+                sequence[j,2] -= origin_x
+                sequence[j,3] -= origin_y
+        relative_sequences = np.concatenate([relative_sequences,sequence])
+    return relative_sequences, ego_vehicle_origin
+
+def read_joined_obs_trajectories():
+    get_seq_separators = False
+    obs_trajectories_file = "data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
+    # seq_separators_file = "data/datasets/argoverse/motion-forecasting/train/seq_separators_only_indexes.npy"
+    seq_separators_file = "data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy"
+    # obs_trajectories_file = "shared_home/benchmarks/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
+    # seq_separators_file = "shared_home/benchmarks/argoverse/motion-forecasting/train/seq_separators_only_indexes.npy"
+    with open(obs_trajectories_file, 'rb') as obs_file:
+       joined_obs_trajectories =  np.load(obs_file)
+       print("joined_obs_trajectories Shape: ", joined_obs_trajectories.shape)
+
+    dist_threshold = 50
+
+    if get_seq_separators:
+        # A
+
+        # a_start = time.time()
+        # # seq_separators = np.zeros((joined_obs_trajectories.shape[0]))
+        # seq_separators = []
+        # for i,traj in enumerate(joined_obs_trajectories):
+        #     # if np.int64(traj[1]) == -1: seq_separators[i] = 1 
+        #     if np.int64(traj[1]) == -1: seq_separators.append(i)
+        # a_end = time.time()
+        # print(f"Time consumed by first approach: {a_end-a_start}")
+        # print(f"Time consumed by first approach (per iteration): {(a_end-a_start)/joined_obs_trajectories.shape[0]}\n")
+        # print("seq_separators: ", seq_separators[:10]) 
+
+        # # # B
+
+        # b_start = time.time()
+        # seq_separators = np.apply_along_axis(separate_in_sequences, 1, joined_obs_trajectories)
+        # b_end = time.time()
+        # print(f"Time consumed by second approach: {b_end-b_start}")
+        # print(f"Time consumed by second approach (per iteration): {(b_end-b_start)/joined_obs_trajectories.shape[0]}\n")
+        # print("seq_separators: ", seq_separators[:10]) 
+
+        # # # C
+
+        # c_start = time.time()
+        # ids = joined_obs_trajectories[:,1]
+        # vectorized_separate_sequences = np.vectorize(separate_in_sequences_v2)
+        # seq_separators = vectorized_separate_sequences(ids)
+        # c_end = time.time()
+        # print(f"Time consumed by third approach: {c_end-c_start}")
+        # print(f"Time consumed by third approach (per iteration): {(c_end-c_start)/joined_obs_trajectories.shape[0]}\n")
+        # print("seq_separators: ", seq_separators[:10]) 
+
+        # # D 
+
+        d_start = time.time()
+        ids = joined_obs_trajectories[:,1]
+        # seq_separators = np.zeros((joined_obs_trajectories.shape[0]))
+        seq_separators = []
+        for i,obj_id in enumerate(ids):
+            # if np.int64(obj_id) == -1: seq_separators[i] = 1
+            if np.int64(traj[1]) == -1: seq_separators.append(i)
+        d_end = time.time()
+        print(f"Time consumed by fourth approach: {d_end-d_start}")
+        print(f"Time consumed by fourth approach (per iteration): {(d_end-d_start)/joined_obs_trajectories.shape[0]}\n")
+
+        # E (Very efficient)
+
+        e_start = time.time()
+        ids = joined_obs_trajectories[:,1]
+        seq_separators = np.where(ids == -1)
+        # print("Shape: ", len(seq_separators), tuple(seq_separators))
+        # print("seq separators: ", seq_separators[:200])
+        seq_separators = np.array(seq_separators)
+        e_end = time.time()
+        print(f"Time consumed by fifth approach: {e_end-e_start}")
+        print(f"Time consumed by fifth approach (per iteration): {(e_end-e_start)/joined_obs_trajectories.shape[0]}")
+
+        print("seq_separators: ", seq_separators.shape)
+        with open(seq_separators_file, 'wb') as seq_file:
+            np.save(seq_file, seq_separators)
+    else:
+        with open(seq_separators_file, 'rb') as seq_file:
+            seq_separators = np.load(seq_separators_file).reshape(-1)
+        batch_size = 1
+        print("seq separators Shape: ", seq_separators.shape)
+        last_end = 0
+
+        print("seq separators: ", seq_separators[:50])
+
+        for cont in range(int(len(seq_separators)/batch_size+1)): # TODO: Check this
+            
+            start = seq_separators[cont*batch_size]
+            end = seq_separators[(cont+1)*batch_size]
+            last_start = start
+            batch_separators = seq_separators[cont*batch_size:(cont+1)*batch_size]
+
+            sequences = joined_obs_trajectories[start:end,:]
+
+            # print("cont: ", cont) 
+            # print("start, end: ", start, end)
+            # print("sequences: ", sequences.shape)
+            # print("batch separators: ", batch_separators)
+            relative_batch_separators = batch_separators - last_start
+            # print("relative batch separators: ", relative_batch_separators)
+            # print("last end: ", last_start)
+            # print("\n")
+
+            filtered_by_distance_sequences, new_seq_separators = distance_filter(sequences, relative_batch_separators, dist_threshold)
+            fixed_sized_sequences = dummies_filter(filtered_by_distance_sequences, new_seq_separators, agents_per_obs=9)
+            relative_sequences, ego_vehicle_origin = relative_displacements(batch_size, fixed_sized_sequences, num_last_obs=19)
+
+            print("Relative sequences: ", relative_sequences[:191,:], relative_sequences.shape)
+            print("Ego vehicle origin: ", ego_vehicle_origin, ego_vehicle_origin.shape)
+
+            relative_sequences_file = "data/datasets/argoverse/motion-forecasting/train/prueba_miguel/relative_sequences.npy"
+            with open(relative_sequences_file, 'wb') as file:
+                np.save(relative_sequences_file, relative_sequences)
+
+            ego_origin_file = "data/datasets/argoverse/motion-forecasting/train/prueba_miguel/ego_origin.npy"
+            with open(ego_origin_file, 'wb') as file:
+                np.save(ego_origin_file, ego_vehicle_origin)
+
+
+
+            assert 1 == 0
+
+def mod_seq_separators():
+    """
+    """
+    seq_separators_file = "data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy"
+    with open(seq_separators_file, 'rb') as seq_file:
+        seq_separators = np.load(seq_separators_file).reshape(-1)
+
+    # seq_separators = np.concatenate([np.zeros((1)),seq_separators]).astype(np.int64)
+    seq_separators = seq_separators[:-1]
+
+    with open(seq_separators_file, 'wb') as seq_file:
+        np.save(seq_file, seq_separators)
+
+
+def check_npy():
+    with open("data/datasets/argoverse/motion-forecasting/train/obs_trajectories/obs_trajectories_1_10275_csv.npy", 'rb') as partial_obs_file:
+        partial_obs_file = np.load(partial_obs_file)
+
+    print("partial_obs_file: ", partial_obs_file[:30,:])
+
+def load_csv_number():
+    folder = "data/datasets/argoverse/motion-forecasting/train/data/"
+
+    files, num_files = load_list_from_folder(folder)
+    file_id_list = []
+    for file_name in files:
+        file_id = int(os.path.normpath(file_name).split('/')[-1].split('.')[0])
+        file_id_list.append(file_id)
+    file_id_list.sort()
+
+    index_number = 198435
+    csv_number = file_id_list[index_number]
+    print("csv number: ", csv_number)
+
 if __name__ == "__main__":
     # test_read_file()
     # test_dataLoader()
@@ -624,7 +1344,14 @@ if __name__ == "__main__":
     # load_id_frame_ex()
     # evaluate_json()
     # test_autotree()
-    load_npy()
+    # load_npy()
+    # test_argoverse_csv()
+    # concat_npy_files()
+    # read_joined_obs_trajectories()
+    # mod_seq_separators()
+    # store_city()
+    # check_npy()
+    load_csv_number()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))
