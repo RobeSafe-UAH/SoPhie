@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 
 sys.path.append("/home/robesafe/libraries/SoPhie")
 
-from sophie.data_loader.argoverse.dataset_v2 import ArgoverseMotionForecastingDataset
+from sophie.data_loader.argoverse.dataset import ArgoverseMotionForecastingDataset
 # from sophie.data_loader.argoverse.dataset import read_file, seq_collate_image, ArgoverseDataset
 from sophie.models import SoPhieGenerator
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
