@@ -197,10 +197,12 @@ def evaluate(loader, generator, num_samples, pred_len, results_path, results_fil
             final_fde = -1        
 
 def main(args):
+    root_dir = "../data/datasets/argoverse/motion-forecasting/train"
     trajectory_file = "../data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
     sequence_separators_file = "../data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy"
-    data_test = ArgoverseMotionForecastingDataset(trajectory_file=trajectory_file,
-                                                    sequence_separators_file=sequence_separators_file)
+    data_test = ArgoverseMotionForecastingDataset(root_dir = root_dir,
+                                                  trajectory_file = trajectory_file,
+                                                  sequence_separators_file = sequence_separators_file)
 
 
     # Dataloader
