@@ -163,6 +163,8 @@ def viz_sequence(
         final_x = cor_x[-1]
         final_y = cor_y[-1]
 
+        # marker_type = "o"
+
         if object_type == "AGENT":
             marker_type = "o"
             marker_size = 7
@@ -236,8 +238,7 @@ def map_generator(
     x_max = xcenter + offset[1]
     y_min = ycenter + offset[2]
     y_max = ycenter + offset[3]
-    
-    
+
     if lane_centerlines is None:
 
         plt.xlim(x_min, x_max)
@@ -310,13 +311,13 @@ def map_generator(
         final_x = cor_x[-1]
         final_y = cor_y[-1]
 
-        if object_type == "AGENT": # Agent : 0
+        if object_type == "AGENT":
             marker_type = "o"
             marker_size = 7
-        elif object_type > "OTHERS": # "Others" : 2
+        elif object_type == "OTHERS":
             marker_type = "o"
             marker_size = 7
-        elif object_type == "AV": # AV : 1
+        elif object_type == "AV":
             marker_type = "o"
             marker_size = 7
 
