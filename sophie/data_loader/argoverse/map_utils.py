@@ -214,7 +214,7 @@ def translate_object_type(int_id):
         return "OTHERS"
 
 def map_generator(
-    seq: np.array,
+    seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200 x 2)
     ego_pos,
     offset,
     avm,
@@ -229,7 +229,7 @@ def map_generator(
         # Get API for Argo Dataset map
         seq_lane_props = avm.city_lane_centerlines_dict[city_name]
         
-    
+    print("seq: ", seq.shape)
     fig = plt.figure(0, figsize=(8, 7), facecolor="black")
 
     xcenter, ycenter = ego_pos[0][0], ego_pos[0][1]
@@ -287,8 +287,8 @@ def map_generator(
 
         object_type = translate_object_type(object_type)
 
-        cor_x = seq_id[:,2] + xcenter
-        cor_y = seq_id[:,3] + ycenter
+        cor_x = seq_id[:,0] + xcenter
+        cor_y = seq_id[:,1] + ycenter
 
         if smoothen:
             polyline = np.column_stack((cor_x, cor_y))

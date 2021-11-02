@@ -59,7 +59,7 @@ def model_trainer(config):
     #?> cargar dataset eth
     logger.info("Initializing train dataset") 
     #data_train = EthUcyDataset(train_path, videos_path=os.path.join(config.base_dir, config.dataset.video))
-    # data_train = AioDriveDataset(train_path, videos_path=os.path.join(config.base_dir, config.dataset.video))
+    data_train = AioDriveDataset(train_path, videos_path=os.path.join(config.base_dir, config.dataset.video))
     train_loader = DataLoader(
         data_train,
         batch_size=config.dataset.batch_size,
@@ -69,7 +69,7 @@ def model_trainer(config):
 
     logger.info("Initializing val dataset")
     # data_val = EthUcyDataset(val_path, videos_path=os.path.join(config.base_dir, config.dataset.video))
-    # data_val = AioDriveDataset(val_path, videos_path=os.path.join(config.base_dir, config.dataset.video))
+    data_val = AioDriveDataset(val_path, videos_path=os.path.join(config.base_dir, config.dataset.video))
 
     val_loader = DataLoader(
         data_val,

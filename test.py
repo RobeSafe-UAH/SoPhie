@@ -1297,15 +1297,16 @@ def mod_seq_separators():
     # seq_separators = np.concatenate([np.zeros((1)),seq_separators]).astype(np.int64)
     seq_separators = seq_separators[:-1]
 
-    with open(seq_separators_file, 'wb') as seq_file:
-        np.save(seq_file, seq_separators)
+    # with open(seq_separators_file, 'wb') as seq_file:
+    #     np.save(seq_file, seq_separators)
 
 
 def check_npy():
-    with open("data/datasets/argoverse/motion-forecasting/train/obs_trajectories/obs_trajectories_1_10275_csv.npy", 'rb') as partial_obs_file:
-        partial_obs_file = np.load(partial_obs_file)
+    with open("data/datasets/argoverse/motion-forecasting/train/after_dataset_processing/object_id_list.npy", 'rb') as aux_file:
+    # with open("data/datasets/argoverse/motion-forecasting/train/after_dataset_processing/loss_mask_list.npy", 'rb') as aux_file:
+        object_id_list = np.load(aux_file, allow_pickle=True)
 
-    print("partial_obs_file: ", partial_obs_file[:30,:])
+    print("object_id_list: ", object_id_list, object_id_list.shape)
 
 def load_csv_number():
     folder = "data/datasets/argoverse/motion-forecasting/train/data/"
@@ -1350,8 +1351,8 @@ if __name__ == "__main__":
     # read_joined_obs_trajectories()
     # mod_seq_separators()
     # store_city()
-    # check_npy()
-    load_csv_number()
+    check_npy()
+    # load_csv_number()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"
     # image_list = read_video(path_video, (600,600))
