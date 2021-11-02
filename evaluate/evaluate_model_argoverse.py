@@ -22,8 +22,7 @@ from torch.utils.data import DataLoader
 
 sys.path.append("/home/robesafe/libraries/SoPhie")
 
-from sophie.data_loader.argoverse.dataset import ArgoverseMotionForecastingDataset
-# from sophie.data_loader.argoverse.dataset import read_file, seq_collate_image, ArgoverseDataset
+from sophie.data_loader.argoverse.dataset import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.models import SoPhieGenerator
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.utils import relative_to_abs
@@ -148,6 +147,7 @@ def store_json(json_dict, predicted_trajectories_og, object_cls_og, seq_og,obj_i
 def evaluate(loader, generator, num_samples, pred_len, results_path, results_file, test_submission=False, skip=1):
     """
     """
+
     init_json = False
     json_dict = AutoTree()
     prediction_length = 10*skip # 10 (1 s), 20 (2 s), 50 (5 s)
@@ -200,10 +200,53 @@ def main(args):
     root_dir = "../data/datasets/argoverse/motion-forecasting/train"
     trajectory_file = "../data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
     sequence_separators_file = "../data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy"
+
+    batch_size = 2
+    shuffle = True
+    num_workers = 0
+
+
     data_test = ArgoverseMotionForecastingDataset(root_dir = root_dir,
                                                   trajectory_file = trajectory_file,
                                                   sequence_separators_file = sequence_separators_file)
 
+    train_loader = DataLoader(
+        data_test,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        collate_fn=seq_collate)
+
+    # with torch.no_grad(): # When testing, gradient calculation is not required
+    for batch_index, batch in enumerate(train_loader):
+        print("Evaluating batch: ", batch_index)
+        batch = [tensor.cuda() for tensor in batch]
+
+        (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt, non_linear_obj,
+         loss_mask, seq_start_end, frames, object_cls, obj_id) = batch
+
+        # print("obs traj: ", obs_traj, type(obs_traj))
+        # print(obs_traj.shape)
+        # print("pred_traj_gt: ", pred_traj_gt, type(pred_traj_gt), pred_traj_gt.shape)
+        # print(pred_traj_gt.shape)
+        # print("obs_traj_rel: ", obs_traj_rel, type(obs_traj_rel), obs_traj_rel.shape)
+        # print(obs_traj_rel.shape)
+        # print("pred_traj_rel_gt: ", pred_traj_rel_gt, type(pred_traj_rel_gt), pred_traj_rel_gt.shape)
+        # print(pred_traj_rel_gt.shape)
+        # print("non_linear_obj: ", non_linear_obj, type(non_linear_obj), non_linear_obj.shape)
+        # print(non_linear_obj.shape)
+        # print("loss_mask: ", loss_mask, type(loss_mask))
+        # print(loss_mask.shape)
+        # print("seq_start_end: ", seq_start_end, type(seq_start_end))
+        # print(seq_start_end.shape)
+        # print("frames: ", frames, type(frames))
+        # print(frames.shape)
+        # print("object_cls: ", object_cls, type(object_cls))
+        # print(object_cls.shape)
+        # print("obj_id: ", obj_id, type(obj_id))
+        # print(obj_id.shape)
+
+        # assert 1 == 0
 
     # Dataloader
 
