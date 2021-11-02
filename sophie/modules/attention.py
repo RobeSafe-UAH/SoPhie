@@ -74,6 +74,9 @@ class SATAttentionModule(nn.Module):
                 # print("alpha: ", alpha.shape)
                 flag = True
 
+            print("Alpha: ", alpha.shape)
+            print("linear_feature1_output: ", linear_feature1_output.shape)
+
             if i == 0:
                 list_context_vector = torch.matmul(alpha, linear_feature1_output)
             else:

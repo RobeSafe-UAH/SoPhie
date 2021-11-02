@@ -386,7 +386,6 @@ def seq_collate(data):
     return tuple(out)
 
 class ArgoverseMotionForecastingDataset(Dataset):
-
     def __init__(self, root_dir, trajectory_file, sequence_separators_file, obs_len=20, pred_len=30, skip=1, threshold=0.002,
                  min_objs=0, windows_frames=None, phase='train', delim='\t', num_agents_per_obs=10):
         """
@@ -413,7 +412,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         super(ArgoverseMotionForecastingDataset, self).__init__()
         self.root_dir = root_dir
         self.dataset_name = "argoverse_motion_forecasting_dataset"
-        self.objects_id_dict = {"Car": 0, "Cyc": 1, "Mot": 2, "Ped": 3} # TODO: Get this by argument
+        self.objects_id_dict = {"DUMMY": -1, "AV": 0, "AGENT": 1, "OTHERS": 2} # TODO: Get this by argument
         self.obs_len, self.pred_len = obs_len, pred_len
         self.seq_len = self.obs_len + self.pred_len
         self.skip, self.delim = skip, delim

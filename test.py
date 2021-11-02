@@ -670,62 +670,19 @@ def load_list_from_folder(folder_path, ext_filter=None, depth=1, recursive=False
 
     return full_list, num_elem
 
-def store_city():
-    """
-    """
-
-    folder = "data/datasets/argoverse/motion-forecasting/train/data/"
-    files, num_files = load_list_from_folder(folder)
-    file_id_list = []
-    for file_name in files:
-        file_id = int(os.path.normpath(file_name).split('/')[-1].split('.')[0])
-        file_id_list.append(file_id)
-    print("Num files: ", num_files)
-
-    file_id_list.sort()
-
-    # city_id_list = []
-    city_id_array = np.zeros((len(file_id_list)))
-
-    start = time.time()
-
-    for i,file_id in enumerate(file_id_list):
-        track_file = folder + str(file_id) + ".csv"
-        df = pd.read_csv(track_file)
-
-        city = np.array(df['CITY_NAME']).reshape(-1,1)
-        city = city[0,0]
-
-        print("city: ", city)
-
-        if city == "PIT":
-            city_id_array[i] = 0
-        else:
-            city_id_array[i] = 1
-
-        print("i: ", i)
-
-    city_id_file = "data/datasets/argoverse/motion-forecasting/train/city_id.npy"
-    with open(city_id_file, 'wb') as city_id_file:
-        np.save(city_id_file, city_id_array)
-
-    end = time.time()
-
-    print(f"Time consumed: {end-start}")
-
 def test_argoverse_csv():
     # Create a dict and store in JSON format to get the conversion between our object_id and Argoverse track_id
-    track_id_coded_flag = False
-    # pasar los datos de train a una única estructura numpy array (seq x timestamp x (frame_id | object_id | x | y))
-    data_structure_flag = True
+    track_id_coded_flag = True
+    # Data -> Numpy array (seq x timestamp x (frame_id | object_id | x | y))
+    data_structure_flag = False
     debug_time = False
     filter_by_distance = False
     load_checkpoint = False
 
-    folder = "data/datasets/argoverse/motion-forecasting/train/data/"
-    coding_folder = "data/datasets/argoverse/motion-forecasting/train/track_id_coded/"
-    # folder = "shared_home/benchmarks/argoverse/motion-forecasting/train/data/"
-    # coding_folder = "shared_home/benchmarks/argoverse/motion-forecasting/train/track_id_coded/"
+    split = "val" # train, val, test_obs
+    folder = "data/datasets/argoverse/motion-forecasting/" + split + "/data/"
+    coding_folder = "data/datasets/argoverse/motion-forecasting/" + split + "/track_id_coded/"
+
     parent_folder = '/'.join(os.path.normpath(folder).split('/')[:-1])
 
     files, num_files = load_list_from_folder(folder)
@@ -744,9 +701,7 @@ def test_argoverse_csv():
         seq_end = 0
         new_json = True
 
-        # for i,track_file in enumerate(files):
         for i,file_id in enumerate(file_id_list):
-            # print(f"Encoding sequence {i}")
             if new_json:
                 track_id_coded = dict()
                 start = time.time()
@@ -756,9 +711,6 @@ def test_argoverse_csv():
             df = pd.read_csv(track_file)
             col_track_id = np.array(df['TRACK_ID'])
             object_type = np.array(df['OBJECT_TYPE'])
-
-            # col_track_id = df['TRACK_ID']
-            # object_type = df['OBJECT_TYPE']
 
             # Get AV and AGENT ids in Argoverse format
 
@@ -994,6 +946,49 @@ def concat_npy_files():
     # obs_trajectories_file = "shared_home/benchmarks/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
     with open(obs_trajectories_file, 'wb') as obs_file:
         np.save(obs_file, joined_obs_trajectories)
+
+def store_city():
+    """
+    """
+
+    folder = "data/datasets/argoverse/motion-forecasting/train/data/"
+    files, num_files = load_list_from_folder(folder)
+    file_id_list = []
+    for file_name in files:
+        file_id = int(os.path.normpath(file_name).split('/')[-1].split('.')[0])
+        file_id_list.append(file_id)
+    print("Num files: ", num_files)
+
+    file_id_list.sort()
+
+    # city_id_list = []
+    city_id_array = np.zeros((len(file_id_list)))
+
+    start = time.time()
+
+    for i,file_id in enumerate(file_id_list):
+        track_file = folder + str(file_id) + ".csv"
+        df = pd.read_csv(track_file)
+
+        city = np.array(df['CITY_NAME']).reshape(-1,1)
+        city = city[0,0]
+
+        print("city: ", city)
+
+        if city == "PIT":
+            city_id_array[i] = 0
+        else:
+            city_id_array[i] = 1
+
+        print("i: ", i)
+
+    city_id_file = "data/datasets/argoverse/motion-forecasting/train/city_id.npy"
+    with open(city_id_file, 'wb') as city_id_file:
+        np.save(city_id_file, city_id_array)
+
+    end = time.time()
+
+    print(f"Time consumed: {end-start}")
 
 def separate_in_sequences(joined_obs_trajectories):
     if np.int64(joined_obs_trajectories[1]) == -1: return 1
@@ -1346,12 +1341,12 @@ if __name__ == "__main__":
     # evaluate_json()
     # test_autotree()
     # load_npy()
-    # test_argoverse_csv()
+    test_argoverse_csv()
     # concat_npy_files()
     # read_joined_obs_trajectories()
     # mod_seq_separators()
     # store_city()
-    check_npy()
+    # check_npy()
     # load_csv_number()
 
     # path_video = "./data/datasets/videos/seq_eth.avi"

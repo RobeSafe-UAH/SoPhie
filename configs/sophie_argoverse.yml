@@ -2,11 +2,15 @@
 # SoPhie model
 use_gpu: 1
 dataset_name: argoverse
-number_agents: 32
+number_agents: 10
 dataset:
+    # TODO: IMPROVE THIS, NOT CALCULATING THE DATA BEFOREHAND
+    joined_obs_trajectories: data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy
+    sequence_separators: data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy
+
     path: data/datasets/argoverse/motion-forecasting/train
-    test_submission: False
     video: data/datasets/argoverse/motion-forecasting/train
+    test_submission: False
     batch_size: 4 # 16 max
     shuffle: True
     num_workers: 0
@@ -27,7 +31,8 @@ sophie:
             config:
                 encoder:
                     num_layers: 1 # Numbers of agents
-                    hidden_dim: 32
+                    # hidden_dim: 32
+                    hidden_dim: "{{number_agents}}"
                     emb_dim: 16 # embedding input from mlp
                     mlp_config:
                         dim_list: [2, 16]
