@@ -2,7 +2,7 @@
 # SoPhie model
 use_gpu: 1
 dataset_name: argoverse
-number_agents: 10
+number_agents: &num_agents 10
 dataset:
     # TODO: IMPROVE THIS, NOT CALCULATING THE DATA BEFOREHAND
     joined_obs_trajectories: data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy
@@ -14,6 +14,8 @@ dataset:
     batch_size: 4 # 16 max
     shuffle: True
     num_workers: 0
+
+# todo: Update NNs dimensions based on hyperparameters (not hardcoded)
 sophie:
     generator: 
         # Visual Extractor (CNN)
@@ -30,9 +32,8 @@ sophie:
             type: "encoder_sort"
             config:
                 encoder:
-                    num_layers: 1 # Numbers of agents
-                    # hidden_dim: 32
-                    hidden_dim: "{{number_agents}}"
+                    num_layers: 1 
+                    hidden_dim: *num_agents
                     emb_dim: 16 # embedding input from mlp
                     mlp_config:
                         dim_list: [2, 16]
@@ -52,9 +53,9 @@ sophie:
         social_attention:
             linear_decoder:
                 in_features: 128
-                out_features: 256 # 8 (observations length) x 32 (number of agents)
+                out_features: "{{in_features * in_features}}" # 8 (observations length) x 10 (number of agents)
             linear_feature:
-                in_features: 32
+                in_features: *num_agents 
                 out_features: 2
             softmax:
                 dim: 0
@@ -65,14 +66,14 @@ sophie:
             dropout: 0
             seq_len: 12
             linear_1:
-                input_dim: 32 # 2
+                input_dim: *num_agents # 2
                 output_dim: 64
             linear_2:
                 input_dim: 128 #*h_dim
                 output_dim: 64
             linear_3:
                 input_dim: 64 #*h_dim 
-                output_dim: 32
+                output_dim: *num_agents
             mlp_config:
                 dim_list: [64, 128, 64, 2] 
                 activation: 'relu'
