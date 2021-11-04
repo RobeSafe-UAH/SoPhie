@@ -14,12 +14,14 @@ dataset:
     batch_size: 4 # 16 max
     shuffle: True
     num_workers: 0
-
-hyperparameters:
+optim_parameters:
     g_learning_rate: 5.0e-4
+    g_weight_decay: 1.0e-5
     d_learning_rate: 5.0e-4
+    d_weight_decay: 1.0e-5
+hyperparameters:
     num_iterations: 20000
-    num_epochs: 250
+    num_epochs: 100
     d_steps: 2
     g_steps: 1
     timing: 0 # ?> Waits for all kernels in all streams on a CUDA device to complete.

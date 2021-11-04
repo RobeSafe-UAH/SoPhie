@@ -88,6 +88,7 @@ def model_trainer(config):
     #     collate_fn=seq_collate)
 
     hyperparameters = config.hyperparameters
+    optim_parameters = config.optim_parameters
     iterations_per_epoch = len(data_train) / config.dataset.batch_size / hyperparameters.d_steps
     if hyperparameters.num_epochs:
         hyperparameters.num_iterations = int(iterations_per_epoch * hyperparameters.num_epochs)
@@ -99,7 +100,7 @@ def model_trainer(config):
     # config.sophie.generator.decoder.linear_3.input_dim = config.dataset.batch_size*2*config.sophie.generator.social_attention.linear_decoder.out_features
     # config.sophie.generator.decoder.linear_3.output_dim = config.dataset.batch_size*config.number_agents
     generator = SoPhieGenerator(config.sophie.generator)
-    generator.set_num_agents(config.hyperparameters.number_agents)
+    generator.set_num_agents(hyperparameters.number_agents)
     generator.build()
     generator.to(device)
     generator.apply(init_weights)
@@ -117,9 +118,9 @@ def model_trainer(config):
 
     g_loss_fn = gan_g_loss
     d_loss_fn = gan_d_loss
-    optimizer_g = optim.Adam(generator.parameters(), lr=hyperparameters.g_learning_rate)
+    optimizer_g = optim.Adam(generator.parameters(), lr=optim_parameters.g_learning_rate, weight_decay=optim_parameters.g_weight_decay)
     optimizer_d = optim.Adam(
-        discriminator.parameters(), lr=hyperparameters.d_learning_rate
+        discriminator.parameters(), lr=optim_parameters.d_learning_rate, weight_decay=optim_parameters.d_weight_decay
     )
     restore_path = None
     if hyperparameters.checkpoint_start_from is not None:

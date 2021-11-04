@@ -428,7 +428,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         object_class_id_list = []
         object_id_list = []
 
-        self.repo_folder = "/home/robesafe/libraries/SoPhie/"
+        self.repo_folder = "/home/robesafe/tesis/SoPhie/"
         self.parent_folder = "data/datasets/argoverse/motion-forecasting/train/"
 
         # Load files and prepare the trajectories

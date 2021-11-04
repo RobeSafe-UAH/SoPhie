@@ -66,7 +66,7 @@ import torch
 
 from torch.utils.data import Dataset
 
-sys.path.append("/home/robesafe/libraries/SoPhie/sophie/data_loader")
+sys.path.append("/home/robesafe/tesis/SoPhie/sophie/data_loader")
 import dl_aux_functions
 
 def seq_collate_image_aiodrive(data): # id_frame
