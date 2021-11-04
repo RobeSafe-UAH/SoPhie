@@ -15,7 +15,7 @@ dataset:
     shuffle: True
     num_workers: 0
 optim_parameters:
-    g_learning_rate: 5.0e-4
+    g_learning_rate: 5.0e-6
     g_weight_decay: 1.0e-5
     d_learning_rate: 5.0e-4
     d_weight_decay: 1.0e-5
@@ -36,8 +36,8 @@ hyperparameters:
     best_k: 1
     l2_loss_weight: 0
     num_samples_check: 5000
-    obs_len: 20
-    pred_len: 30
+    obs_len: &obs_len 20
+    pred_len: &pred_len 30
     number_agents: &num_agents 10
     hidden_dim_lstm_decoder: &hidden_dim_lstm_decoder 128
 
@@ -95,7 +95,7 @@ sophie:
             hidden_dim: *hidden_dim_lstm_decoder
             emb_dim: 64
             dropout: 0
-            seq_len: 12
+            pred_len: *pred_len
 
             linear_2:
                 input_dim: *hidden_dim_lstm_decoder

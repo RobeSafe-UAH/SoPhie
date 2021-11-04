@@ -428,7 +428,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         object_class_id_list = []
         object_id_list = []
 
-        self.repo_folder = "/home/robesafe/tesis/SoPhie/"
+        self.repo_folder = "/home/robesafe/libraries/SoPhie/"
         self.parent_folder = "data/datasets/argoverse/motion-forecasting/train/"
 
         # Load files and prepare the trajectories
@@ -583,7 +583,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
         # Main for -> Load whole dataset
 
-        for seq_index in range(seq_separators.shape[0]):
+        for seq_index in range(seq_separators.shape[0]): # seq_separators.shape[0]
             print(">>>>>>>>>>>> seq_index: ", seq_index)
             if seq_index < num_sequences - 1:
                 curr_seq_data = copy.deepcopy(relative_sequences[num_positions*seq_index:num_positions*(seq_index+1),:]) # Frame - ID - X - Y - Class
@@ -615,7 +615,13 @@ class ArgoverseMotionForecastingDataset(Dataset):
             _non_linear_obj = []
 
             objs_in_curr_seq = np.unique(curr_seq_data[:,1]) # Number of objects in the window
-            # print("Objs in curr seq: ", objs_in_curr_seq)
+
+            # Add dummy agents if unique agents < num_agents
+
+            if objs_in_curr_seq.shape[0] < self.num_agents_per_obs:
+                diff = self.num_agents_per_obs - objs_in_curr_seq.shape[0]
+                dummy_ids = -1 * np.ones((diff))
+                objs_in_curr_seq = np.hstack([dummy_ids,objs_in_curr_seq])
 
             # Loop through every object in this window
 
@@ -637,9 +643,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
                     continue
                 elif obj_index > self.num_agents_per_obs - 1:
                     continue
-
-                # if obj_id == -1 or num_objs_considered > self.num_agents_per_obs - 1:
-                #     continue
 
                 # print("Obj index, Obj id: ", obj_index, obj_id)
                 object_indexes = np.where(curr_seq_data[:,1]==obj_id)[0]

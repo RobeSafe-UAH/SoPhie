@@ -303,6 +303,7 @@ def discriminator_step(
     #print("generator_out: ", generator_out.shape)
 
     pred_traj_fake_rel = generator_out
+    # print(">>>>>>>> A Pred fake: ", pred_traj_fake_rel.shape)
     pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
 
     traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
@@ -351,6 +352,7 @@ def generator_step(
         generator_out = generator(frames, obs_traj)
 
         pred_traj_fake_rel = generator_out
+        # print(">>>>>>>> B Pred fake: ", pred_traj_fake_rel.shape)
         pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
 
         if hyperparameters.l2_loss_weight > 0:
@@ -421,6 +423,7 @@ def check_accuracy(
             pred_traj_fake_rel = generator(
                 frames, obs_traj
             )
+            # print(">>>>>>>> C Pred fake: ", pred_traj_fake_rel.shape)
             pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
 
             g_l2_loss_abs, g_l2_loss_rel = cal_l2_losses(

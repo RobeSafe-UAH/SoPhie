@@ -12,7 +12,7 @@ class Decoder(nn.Module):
         self.hidden_dim = config.hidden_dim
         self.emb_dim = config.emb_dim
         self.decoder_dropout = config.dropout
-        self.seq_len = config.seq_len
+        self.pred_len = config.pred_len
         self.predicted_trajectories_generator = MLP(**config.mlp_config) # nn.Linear(x, emb_dim_mlp)
 
         self.decoder = nn.LSTM(
@@ -65,7 +65,7 @@ class Decoder(nn.Module):
                 1, num_agents, self.emb_dim
             )
 
-            for _ in range(self.seq_len):
+            for _ in range(self.pred_len):
                 output, state = self.decoder(input_embedding, state_tuple)
                 embedding_input = self.hidden2pos(output.view(-1,self.hidden_dim))
                 aux = embedding_input.view(-1, self.emb_dim)
@@ -77,9 +77,9 @@ class Decoder(nn.Module):
             # pred_traj_fake_rel = self.agentscorrector(pred_traj_fake_rel.view(-1,pred_traj_fake_rel.shape[1])) ## required now??
 
             if i == 0:
-                list_pred_traj_fake_rel = pred_traj_fake_rel.view(self.seq_len,pred_traj_fake_rel.shape[1],-1)
+                list_pred_traj_fake_rel = pred_traj_fake_rel.view(self.pred_len,pred_traj_fake_rel.shape[1],-1)
             else:
-                pred_traj_fake_rel = pred_traj_fake_rel.view(self.seq_len,pred_traj_fake_rel.shape[1],-1)
+                pred_traj_fake_rel = pred_traj_fake_rel.view(self.pred_len,pred_traj_fake_rel.shape[1],-1)
                 list_pred_traj_fake_rel = torch.cat((list_pred_traj_fake_rel,pred_traj_fake_rel), 1)
         
         return list_pred_traj_fake_rel, state_tuple[0] ## state_tuple??
