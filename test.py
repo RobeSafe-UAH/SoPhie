@@ -36,7 +36,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 ## Configuration file
 
-with open(r'./configs/sophie_aiodrive.yml') as config_file:
+with open(r'./configs/sophie_argoverse.yml') as config_file:
     config_file = yaml.safe_load(config_file)
     config_file = Prodict.from_dict(config_file)
 
@@ -58,9 +58,9 @@ vgg_channels_height = 18
 
 ## Trajectories
 
-po = 8 # Past Observations
-fo = 12 # Future Observations
-na = 32 # Number of Agents 
+po = 20 # Past Observations
+fo = 30 # Future Observations
+na = 10 # Number of Agents 
 tfd = 2 # Trajectory Features Dimension (x,y per point)
 
 ## Decoder features
@@ -310,14 +310,19 @@ def test_sophie_generator():
 
     trajectories_test = 10 * np.random.randn(po, na*batch_size, tfd)
     trajectories_test = torch.from_numpy(trajectories_test).to(device).float()
-    print("Previous trajectories: ", trajectories_test, trajectories_test.shape)
+    # print("Previous trajectories: ", trajectories_test, trajectories_test.shape)
 
     # config_file.sophie.generator.decoder.linear_3.input_dim = batch_size*2*config_file.sophie.generator.social_attention.linear_decoder.out_features
     # config_file.sophie.generator.decoder.linear_3.output_dim = batch_size*na
 
     # print("Linear 3 Decoder: ", config_file.sophie.generator.decoder.linear_3)
 
+    past_observations = config_file.hyperparameters.obs_len
+    num_agents = config_file.hyperparameters.number_agents
+    config_file.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents
+
     generator = SoPhieGenerator(config_file.sophie.generator)
+    generator.set_num_agents(config_file.hyperparameters.number_agents)
     generator.build()
     generator.to(device)
     pred_fake_trajectories = generator.forward(image_test,trajectories_test)
@@ -332,7 +337,7 @@ def test_sophie_discriminator():
     """
     """
 
-    trajectories = 10 * np.random.randn(po+fo, na*dlb, tfd) # 8, 32, 2
+    trajectories = 10 * np.random.randn(fo, na*batch_size, tfd) # 8, 32, 2
     trajectories = torch.from_numpy(trajectories).to(device).float()
 
     discriminator = SoPhieDiscriminator(config_file.sophie.discriminator)
@@ -1330,7 +1335,7 @@ if __name__ == "__main__":
     # test_encoder()
     # test_decoder()
     # test_sophie_generator()
-    # test_sophie_discriminator()
+    test_sophie_discriminator()
     # test_aiodrive_dataset()
     # test_aiodrive_frames()
     # load_id_frame()
@@ -1341,7 +1346,7 @@ if __name__ == "__main__":
     # evaluate_json()
     # test_autotree()
     # load_npy()
-    test_argoverse_csv()
+    # test_argoverse_csv()
     # concat_npy_files()
     # read_joined_obs_trajectories()
     # mod_seq_separators()

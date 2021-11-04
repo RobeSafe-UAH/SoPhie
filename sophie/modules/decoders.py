@@ -30,10 +30,10 @@ class Decoder(nn.Module):
             config.linear_2.input_dim,
             config.linear_2.output_dim
         )
-        self.agentscorrector = nn.Linear(  
-            config.linear_3.input_dim,
-            config.linear_3.output_dim
-        )
+        # self.agentscorrector = nn.Linear(  
+        #     config.linear_3.input_dim,
+        #     config.linear_3.output_dim
+        # )
 
     # def init_hidden(self, batch):
     #     return (

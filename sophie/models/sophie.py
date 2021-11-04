@@ -18,6 +18,9 @@ class SoPhieGenerator(nn.Module):
         super(SoPhieGenerator, self).__init__()
         self.config = config
 
+    def set_num_agents(self, num_agents):
+        self.num_agents = num_agents
+
     def build(self):
         self._build_feature_extractor_modules()
         self._build_Attention_modules()
@@ -53,14 +56,14 @@ class SoPhieGenerator(nn.Module):
         """
         We only care the second element of the tuple (physical features = physical context vector)
         """
-        _, physical_features = self.physical_attention(visual_feature, decoder_state)
+        _, physical_features = self.physical_attention(visual_feature, decoder_state, self.num_agents)
         return physical_features
 
     def process_social_attention(self, joint_feature, decoder_state):
         """
         We only care the second element of the tuple (social features = social context vector)
         """
-        _, social_features = self.social_attention(joint_feature, decoder_state)
+        _, social_features = self.social_attention(joint_feature, decoder_state, self.num_agents)
         return social_features
 
     def create_white_noise(self, noise_type, dims):
@@ -77,7 +80,7 @@ class SoPhieGenerator(nn.Module):
         return feature_noise 
 
     def process_decoder(self, features):
-        trajectories, final_state = self.generator_decoder(features)
+        trajectories, final_state = self.generator_decoder(features, self.num_agents)
         return trajectories, final_state
 
     def forward(self, image, trajectories, num_agents=32):

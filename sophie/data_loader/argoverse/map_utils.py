@@ -228,8 +228,7 @@ def map_generator(
     if lane_centerlines is None:
         # Get API for Argo Dataset map
         seq_lane_props = avm.city_lane_centerlines_dict[city_name]
-        
-    print("seq: ", seq.shape)
+
     fig = plt.figure(0, figsize=(8, 7), facecolor="black")
 
     xcenter, ycenter = ego_pos[0][0], ego_pos[0][1]

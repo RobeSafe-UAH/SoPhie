@@ -2,7 +2,7 @@
 # SoPhie model
 use_gpu: 1
 dataset_name: argoverse
-number_agents: &num_agents 10
+
 dataset:
     # TODO: IMPROVE THIS, NOT CALCULATING THE DATA BEFOREHAND
     joined_obs_trajectories: data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy
@@ -14,100 +14,6 @@ dataset:
     batch_size: 4 # 16 max
     shuffle: True
     num_workers: 0
-
-# todo: Update NNs dimensions based on hyperparameters (not hardcoded)
-sophie:
-    generator: 
-        # Visual Extractor (CNN)
-        visual_extractor:
-            type: "vgg19"
-            vgg:
-                vgg_type: 19
-                batch_norm: False
-                pretrained: True
-                features: True
-
-        # Joint Extractor
-        joint_extractor:
-            type: "encoder_sort"
-            config:
-                encoder:
-                    num_layers: 1 
-                    hidden_dim: *num_agents
-                    emb_dim: 16 # embedding input from mlp
-                    mlp_config:
-                        dim_list: [2, 16]
-                        activation: 'relu'
-                        batch_norm: False
-                        dropout: 0
-                    dropout: 0
-        physical_attention:
-            linear_decoder:
-                in_features: 128
-                out_features: 512
-            linear_feature:
-                in_features: 324 # From 600x600 images to 18x18 (= 324) activation maps
-                out_features: 2
-            softmax:
-                dim: 0
-        social_attention:
-            linear_decoder:
-                in_features: 128
-                out_features: "{{in_features * in_features}}" # 8 (observations length) x 10 (number of agents)
-            linear_feature:
-                in_features: *num_agents 
-                out_features: 2
-            softmax:
-                dim: 0
-        decoder:
-            num_layers: 1
-            hidden_dim: 128 #&h_dim
-            emb_dim: 64
-            dropout: 0
-            seq_len: 12
-            linear_1:
-                input_dim: *num_agents # 2
-                output_dim: 64
-            linear_2:
-                input_dim: 128 #*h_dim
-                output_dim: 64
-            linear_3:
-                input_dim: 64 #*h_dim 
-                output_dim: *num_agents
-            mlp_config:
-                dim_list: [64, 128, 64, 2] 
-                activation: 'relu'
-                batch_norm: False
-                dropout: 0
-            # linear_3:
-            #     input_dim: 128 #*h_dim
-            #     output_dim: 64
-            # linear_4:
-            #     input_dim: 64 #*h_dim
-            #     output_dim: 2
-        noise:
-            noise_type: "gauss" # gauss or uniform
-
-    discriminator:
-        # Encoder
-        encoder:
-            num_layers: 1
-            hidden_dim: 64
-            emb_dim: 16 # Bidimensional points (xy)
-            mlp_config:
-                dim_list: [2, 16] 
-                activation: 'relu'
-                batch_norm: False
-                dropout: 0
-            dropout: 0
-
-        # Classifier
-        classifier:
-            mlp_config:
-                dim_list: [64, 1024, 1] 
-                activation: 'relu'
-                batch_norm: False
-                dropout: 0
 
 hyperparameters:
     g_learning_rate: 5.0e-4
@@ -130,3 +36,97 @@ hyperparameters:
     num_samples_check: 5000
     obs_len: 20
     pred_len: 30
+    number_agents: &num_agents 10
+    hidden_dim_lstm_decoder: &hidden_dim_lstm_decoder 128
+
+sophie:
+    generator: 
+        # Visual Extractor (CNN)
+        visual_extractor:
+            type: "vgg19"
+            vgg:
+                vgg_type: 19
+                batch_norm: False
+                pretrained: True
+                features: True
+
+        # Joint Extractor
+        joint_extractor:
+            type: "encoder_sort"
+            config:
+                encoder:
+                    num_layers: 1 
+                    hidden_dim: *num_agents
+                    emb_dim: 16 # embedding input from mlp
+                    mlp_config:
+                        dim_list: [2, 16] # From 2 (x,y) to 16 (original embedding of the paper)
+                        activation: 'relu'
+                        batch_norm: False
+                        dropout: 0
+                    dropout: 0
+        physical_attention:
+            linear_decoder:
+                in_features: *hidden_dim_lstm_decoder # Original paper
+                out_features: 512 # Original paper
+            linear_feature:
+                in_features: 324 # # Original paper. From 600 x 600 images to 18 x 18 ( = 324) activation maps
+                out_features: 2
+            softmax:
+                dim: 0
+        social_attention:
+            linear_decoder:
+                in_features: *hidden_dim_lstm_decoder # Original paper
+                out_features: # Past Observations x Number of agents. Fill in the code
+            linear_feature:
+                in_features: *num_agents 
+                out_features: 2
+            softmax:
+                dim: 0
+        decoder:
+            linear_1:
+                input_dim: *num_agents
+                output_dim: 64 # Original paper
+
+            # LSTM
+
+            num_layers: 1
+            hidden_dim: *hidden_dim_lstm_decoder
+            emb_dim: 64
+            dropout: 0
+            seq_len: 12
+
+            linear_2:
+                input_dim: *hidden_dim_lstm_decoder
+                output_dim: 64 # Original paper
+            mlp_config:
+                dim_list: [64, 128, 64, 2] 
+                activation: 'relu'
+                batch_norm: False
+                dropout: 0
+            linear_3: # Not used at this moment (agentscorrector in decoder module)
+                input_dim:  
+                output_dim: 
+
+        noise:
+            noise_type: "gauss" # gauss or uniform
+
+    discriminator:
+        # Encoder
+        encoder:
+            num_layers: 1
+            hidden_dim: 64
+            emb_dim: 16 # embedding input from mlp
+            mlp_config:
+                dim_list: [2, 16] # From 2 (x,y) to 16 (original embedding of the paper)
+                activation: 'relu'
+                batch_norm: False
+                dropout: 0
+            dropout: 0
+
+        # Classifier
+        classifier:
+            mlp_config:
+                dim_list: [64, 1024, 1] 
+                activation: 'relu'
+                batch_norm: False
+                dropout: 0

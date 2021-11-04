@@ -583,8 +583,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
         # Main for -> Load whole dataset
 
-        # for seq_index in range(seq_separators.shape[0]):
-        for seq_index in range(8):
+        for seq_index in range(seq_separators.shape[0]):
             print(">>>>>>>>>>>> seq_index: ", seq_index)
             if seq_index < num_sequences - 1:
                 curr_seq_data = copy.deepcopy(relative_sequences[num_positions*seq_index:num_positions*(seq_index+1),:]) # Frame - ID - X - Y - Class

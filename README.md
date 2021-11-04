@@ -34,3 +34,8 @@ Coming soon ...
 ## Qualitative results
 Coming soon ...
 
+  - TO DOs:
+
+	- [ ] Study Adaptive Average Pool 2D to apply in the LSTM based encoder (at this moment we are taking final_h =    states[0], so the last one, instead of average, max pool, etc.) and the linear feature of the physical_attention in order to receive different width x height images and get a fixed-size output 
+    - [ ] Study the attention module, different approaches, specially the Social Attention module
+

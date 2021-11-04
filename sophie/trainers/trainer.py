@@ -96,9 +96,10 @@ def model_trainer(config):
         'There are {} iterations per epoch'.format(iterations_per_epoch)
     )
 
-    config.sophie.generator.decoder.linear_3.input_dim = config.dataset.batch_size*2*config.sophie.generator.social_attention.linear_decoder.out_features
-    config.sophie.generator.decoder.linear_3.output_dim = config.dataset.batch_size*config.number_agents
+    # config.sophie.generator.decoder.linear_3.input_dim = config.dataset.batch_size*2*config.sophie.generator.social_attention.linear_decoder.out_features
+    # config.sophie.generator.decoder.linear_3.output_dim = config.dataset.batch_size*config.number_agents
     generator = SoPhieGenerator(config.sophie.generator)
+    generator.set_num_agents(config.hyperparameters.number_agents)
     generator.build()
     generator.to(device)
     generator.apply(init_weights)
@@ -289,7 +290,7 @@ def discriminator_step(
     # (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
     #  loss_mask, seq_start_end, _, frames) = batch
     
-    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt, non_linear_obj,
+    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
      loss_mask, seq_start_end, frames, object_cls, obj_id) = batch
 
     losses = {}

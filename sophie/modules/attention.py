@@ -38,44 +38,28 @@ class SATAttentionModule(nn.Module):
         batch = feature_decoder.size(1) # num_agents x batch_size
         batch_size = int(batch/num_agents)
 
-        flag = True
-
         for i in range(batch_size):
             feature_decoder_ind = feature_decoder[:,num_agents*i:num_agents*(i+1),:] 
             feature_decoder_ind = feature_decoder_ind.contiguous().view(-1,feature_decoder.size(2))
             if (len(feature_1.size()) == 4):
                 # Visual Extractor
-                if not flag:
-                    a=1
-                    #print("Feature 1 physical: ", feature_1.shape)
+
                 feature_1_ind = torch.unsqueeze(feature_1[i, :, :, :],0)
                 feature_1_ind = feature_1_ind.contiguous().view(-1,feature_1_ind.size(2)*feature_1_ind.size(3)) # 4D -> 2D
             elif (len(feature_1.size()) == 3):
                 # Joint Extractor
-                if not flag:
-                    #print("Feature 1 social: ", feature_1.shape)
-                    a=1
+
+
                 feature_1_ind = feature_1[:,num_agents*i:num_agents*(i+1),:]
                 feature_1_ind = feature_1_ind.contiguous().view(-1, num_agents) # 3D -> 2D
                 # feature_1_ind = feature_1_ind.contiguous().view(batch, -1) # 3D -> 2D
-
-            # print("feature_1_ind: ", feature_1_ind.shape)
-            # print("Linear feature: ", self.linear_feature)
+            
             linear_feature1_output = self.linear_feature(feature_1_ind)
             
             # Feature decoder processing
             linear_decoder_output = self.linear_decoder(feature_decoder_ind)
         
             alpha = self.softmax(linear_decoder_output) # 32 x 512
-
-            if not flag:
-                # print("feature 1 ind: ", feature_1_ind.shape)
-                # print("linear_feature1_output: ", linear_feature1_output.shape)
-                # print("alpha: ", alpha.shape)
-                flag = True
-
-            print("Alpha: ", alpha.shape)
-            print("linear_feature1_output: ", linear_feature1_output.shape)
 
             if i == 0:
                 list_context_vector = torch.matmul(alpha, linear_feature1_output)
