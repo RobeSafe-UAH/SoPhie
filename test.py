@@ -1334,7 +1334,7 @@ if __name__ == "__main__":
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    # test_sophie_generator()
+    test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
     # test_aiodrive_frames()

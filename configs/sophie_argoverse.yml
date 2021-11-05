@@ -11,7 +11,8 @@ dataset:
     path: data/datasets/argoverse/motion-forecasting/train
     video: data/datasets/argoverse/motion-forecasting/train
     test_submission: False
-    batch_size: 4 # 16 max
+    batch_size: 16 # 16 max
+    training_split_percentage: 0.2
     shuffle: True
     num_workers: 0
 optim_parameters:
@@ -21,14 +22,14 @@ optim_parameters:
     d_weight_decay: 1.0e-5
 hyperparameters:
     num_iterations: 20000
-    num_epochs: 100
+    num_epochs: 1
     d_steps: 2
     g_steps: 1
     timing: 0 # ?> Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 100
     checkpoint_every: 500 # cambiar
     output_dir: "save"
-    checkpoint_name: "test"
+    checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 
     clipping_threshold_d: 0

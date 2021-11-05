@@ -257,27 +257,11 @@ def poly_fit(traj, traj_len, threshold):
     else:
         return 0.0
 
-# def load_images(video_path, frames, extension="png", new_shape=(600,600)):
-    # frames_list = []
-    # cont = 0
-    # for frame in frames:
-    #     folder_name = get_folder_name(video_path[0], frame[0].item())
-    #     cont += 1
-    #     image_id = str(int(frame[1].item()))
-    #     image_url = os.path.join(folder_name, "{}.{}".format(image_id.zfill(6), extension))
-    #     #print("image_url: ", image_url)
-    #     frame = cv2.imread(image_url)
-    #     frame = cv2.resize(frame, new_shape)
-    #     frames_list.append(np.expand_dims(frame, axis=0))
-    # frames_arr = np.concatenate(frames_list, axis=0)
-    # return frames_arr
-
 def load_images(obs_seq_data, city_id, ego_origin, dist_rasterized_map, num_agents_per_obs):
     # Get the corresponding rasterized map
 
     batch_size = int(obs_seq_data.shape[1]/num_agents_per_obs)
     frames_list = []
-    # print("batch size: ", batch_size)
 
     # rasterized_start = time.time()
 
@@ -321,7 +305,7 @@ def seq_collate(data):
     This functions takes as input the dataset output (see __getitem__ function) and transforms to
     a particular format to feed the Pytorch standard dataloader
 
-    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt,
+    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
     non_linear_obj, loss_mask, seq_id_list, object_class_id_list, 
     object_id_list, city_id, ego_origin, dist_rasterized_map)
 
@@ -332,22 +316,10 @@ def seq_collate(data):
     non_linear_obj, loss_mask, id_frame, frames, "object_cls", 
     "seq", "obj_id") = batch
     """
-
-    # print("\n\n\n")
-
-    # print("len data: ", len(data))
-    # print("data 0: ", len(data[0]))
-
-    # print("data: ", data)
     
-
-    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt,
+    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
      non_linear_obj, loss_mask, seq_id_list, object_class_id_list, 
      object_id_list, city_id, ego_origin) = zip(*data) # data
-
-    # print("data: ", data[0], len(data[0]))
-
-    # print("1st element: ", obs_traj[0], len(obs_traj[0]), obs_traj[0][0].shape)
 
     num_agents_per_obs = 10
 
@@ -358,18 +330,14 @@ def seq_collate(data):
     # Data format: batch, input_size, seq_len
     # LSTM input format: seq_len, batch, input_size
 
-    # print("")
-
     obs_traj = torch.cat(obs_traj, dim=0).permute(2, 0, 1) # Past Observations x Num_agents · batch_size x 2
     pred_traj_gt = torch.cat(pred_traj_gt, dim=0).permute(2, 0, 1)
     obs_traj_rel = torch.cat(obs_traj_rel, dim=0).permute(2, 0, 1)
-    pred_traj_rel_gt = torch.cat(pred_traj_rel_gt, dim=0).permute(2, 0, 1)
+    pred_traj_gt_rel = torch.cat(pred_traj_gt_rel, dim=0).permute(2, 0, 1)
     non_linear_obj = torch.cat(non_linear_obj)
     loss_mask = torch.cat(loss_mask, dim=0)
     seq_start_end = torch.LongTensor(seq_start_end)
     id_frame = torch.cat(seq_id_list, dim=0).permute(2, 0, 1) # seq_len - peds_in_curr_seq - 3
-
-    # print("city id: ", city_id)
 
     frames = load_images(obs_traj_rel, city_id, ego_origin, dist_rasterized_map, num_agents_per_obs)
     frames = torch.from_numpy(frames).type(torch.float32)
@@ -379,7 +347,7 @@ def seq_collate(data):
     obj_id = torch.stack(object_id_list)
 
     out = [
-            obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt, non_linear_obj,
+            obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
             loss_mask, seq_start_end, frames, object_cls, obj_id
           ] 
 
@@ -387,7 +355,7 @@ def seq_collate(data):
 
 class ArgoverseMotionForecastingDataset(Dataset):
     def __init__(self, root_dir, trajectory_file, sequence_separators_file, obs_len=20, pred_len=30, skip=1, threshold=0.002,
-                 min_objs=0, windows_frames=None, phase='train', delim='\t', num_agents_per_obs=10):
+                 min_objs=0, windows_frames=None, phase='train', delim='\t', num_agents_per_obs=10, training_split_percentage=0.1):
         """
         - root_dir: Directory containing the main files 
         - trajectory_file: File (.npy) with all sequences vertically concatenated in the format <frame_id> <object_id> <x> <y>
@@ -405,6 +373,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         - num_agents: Number of agents to be considered in a single forward (including the ego-vehicle). If there are less than num_agents,
           dummy variables are used to predict. If there are more, agents are filtered by its distance to the ego-vehicle
           forwards but using the same physical information and frame index
+        - training_split_percentage: Percentage of the training split to train the model [0.0 to 1.0] 
         """
 
         # Initialize variables
@@ -417,6 +386,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.seq_len = self.obs_len + self.pred_len
         self.skip, self.delim = skip, delim
         self.num_agents_per_obs = num_agents_per_obs
+        self.training_split_percentage = training_split_percentage
 
         num_objs_in_seq = []
         seq_list = []
@@ -570,9 +540,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
         # print("Relative sequences: ", relative_sequences[:100,:], relative_sequences.shape)
 
         num_positions = self.num_agents_per_obs * self.seq_len
-        num_sequences = seq_separators.shape[0] 
-        print("Num positions: ", num_positions)
-        print("Num sequences: ", num_sequences)
 
         start = time.time()
 
@@ -583,12 +550,19 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
         # Main for -> Load whole dataset
 
-        for seq_index in range(seq_separators.shape[0]): # seq_separators.shape[0]
+        num_sequences_percentage = int(seq_separators.shape[0] * self.training_split_percentage)
+
+        for seq_index in range(num_sequences_percentage): # seq_separators.shape[0]
             print(">>>>>>>>>>>> seq_index: ", seq_index)
-            if seq_index < num_sequences - 1:
+            if seq_index < seq_separators.shape[0] - 1:
                 curr_seq_data = copy.deepcopy(relative_sequences[num_positions*seq_index:num_positions*(seq_index+1),:]) # Frame - ID - X - Y - Class
             else:
                 curr_seq_data = copy.deepcopy(relative_sequences[num_positions*(seq_index):]) # Frame - ID - X - Y - Class
+
+
+
+
+            print("curr_seq_data: ", curr_seq_data.shape)
 
             curr_seq_timestamps = curr_seq_data[:,0]
             curr_seq_timestamps = curr_seq_timestamps[::self.num_agents_per_obs] # Take the timestamp per obs (each obs has self.num_agents_per_obs)
@@ -781,7 +755,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.obs_traj = torch.from_numpy(seq_list[:, :, :self.obs_len]).type(torch.float)
         self.pred_traj_gt = torch.from_numpy(seq_list[:, :, self.obs_len:]).type(torch.float)
         self.obs_traj_rel = torch.from_numpy(seq_list_rel[:, :, :self.obs_len]).type(torch.float)
-        self.pred_traj_rel_gt = torch.from_numpy(seq_list_rel[:, :, self.obs_len:]).type(torch.float)
+        self.pred_traj_gt_rel = torch.from_numpy(seq_list_rel[:, :, self.obs_len:]).type(torch.float)
         self.loss_mask = torch.from_numpy(loss_mask_list).type(torch.float)
         self.non_linear_obj = torch.from_numpy(non_linear_obj).type(torch.float)
         cum_start_idx = [0] + np.cumsum(num_objs_in_seq).tolist()
@@ -800,7 +774,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         # torch.save(self.obs_traj, processing_folder+"/obs_traj.pt")
         # torch.save(self.pred_traj_gt, processing_folder+"/pred_traj_gt.pt")
         # torch.save(self.obs_traj_rel, processing_folder+"/obs_traj_rel.pt")
-        # torch.save(self.pred_traj_rel_gt, processing_folder+"/pred_traj_rel_gt.pt")
+        # torch.save(self.pred_traj_gt_rel, processing_folder+"/pred_traj_gt_rel.pt")
         # torch.save(self.loss_mask, processing_folder+"/loss_mask.pt")
         # torch.save(self.non_linear_obj, processing_folder+"/non_linear_obj.pt")
         # torch.save(self.seq_start_end, processing_folder+"/seq_start_end.pt")
@@ -816,7 +790,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         start, end = self.seq_start_end[index]
         # out = [
         #         self.obs_traj[start:end, :], self.pred_traj_gt[start:end, :],
-        #         self.obs_traj_rel[start:end, :], self.pred_traj_rel_gt[start:end, :],
+        #         self.obs_traj_rel[start:end, :], self.pred_traj_gt_rel[start:end, :],
         #         self.non_linear_obj[start:end], self.loss_mask[start:end, :],
         #         self.seq_id_list[start:end, :], self.object_class_id_list[index], 
         #         self.object_id_list[index], self.city_id[index], self.ego_origin[index]
@@ -824,7 +798,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
         out = [
                 self.obs_traj[start:end, :, :], self.pred_traj_gt[start:end, :, :],
-                self.obs_traj_rel[start:end, :, :], self.pred_traj_rel_gt[start:end, :, :],
+                self.obs_traj_rel[start:end, :, :], self.pred_traj_gt_rel[start:end, :, :],
                 self.non_linear_obj[start:end], self.loss_mask[start:end, :],
                 self.seq_id_list[start:end, :], self.object_class_id_list[index], 
                 self.object_id_list[index], self.city_id[index], self.ego_origin[index]

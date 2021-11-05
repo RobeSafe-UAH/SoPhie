@@ -184,13 +184,4 @@ class ArgoverseForecastingLoader:
         self.current_seq = self.seq_list[self.counter]
         return self
 
-# What our module needs:
-# format: obs_traj, pred_traj, obs_traj_rel, pred_traj_real, 
-#         non_linear_ped, loss_mask, seq_id_list, videos_path, video_extension, 
-#         frames_list, object_class_id_list, object_id_list
-
-# Dudas:
-
-# 1. 
-
 

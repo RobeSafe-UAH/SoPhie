@@ -11,8 +11,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-# from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate_image
-# from sophie.data_loader.aiodrive.dataset import AioDriveDataset, seq_collate_image_aiodrive
 from sophie.data_loader.argoverse.dataset import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.models import SoPhieGenerator
 from sophie.models import SoPhieDiscriminator
@@ -63,9 +61,12 @@ def model_trainer(config):
     trajectory_file = os.path.join(config.base_dir,config.dataset.joined_obs_trajectories)
     sequence_separators_file = os.path.join(config.base_dir,config.dataset.sequence_separators)
 
+    training_split_percentage = config.dataset.training_split_percentage
+
     data_train = ArgoverseMotionForecastingDataset(root_dir = root_dir,
                                                    trajectory_file = trajectory_file,
-                                                   sequence_separators_file = sequence_separators_file)
+                                                   sequence_separators_file = sequence_separators_file,
+                                                   training_split_percentage = training_split_percentage)
 
     train_loader = DataLoader(
         data_train,
@@ -254,7 +255,7 @@ def model_trainer(config):
                 checkpoint.config_cp["d_state"] = discriminator.state_dict()
                 checkpoint.config_cp["d_optim_state"] = optimizer_d.state_dict()
                 checkpoint_path = os.path.join(
-                    config.base_dir, config.dataset_name, hyperparameters.output_dir, '%s_with_model.pt' % hyperparameters.checkpoint_name
+                    config.base_dir, hyperparameters.output_dir, "{}_{}_with_model.pt".format(config.dataset_name, hyperparameters.checkpoint_name)
                 )
                 logger.info('Saving checkpoint to {}'.format(checkpoint_path))
                 torch.save(checkpoint, checkpoint_path)
@@ -263,7 +264,8 @@ def model_trainer(config):
                 # Save a checkpoint with no model weights by making a shallow
                 # copy of the checkpoint excluding some items
                 checkpoint_path = os.path.join(
-                    config.base_dir, config.dataset_name, hyperparameters.output_dir, '%s_no_model.pt' % hyperparameters.checkpoint_name)
+                    config.base_dir, hyperparameters.output_dir, "{}_{}_no_model.pt".format(config.dataset_name, hyperparameters.checkpoint_name)
+                )
                 logger.info('Saving checkpoint to {}'.format(checkpoint_path))
                 key_blacklist = [
                     'g_state', 'd_state', 'g_best_state', 'g_best_nl_state',
@@ -412,7 +414,7 @@ def check_accuracy(
             batch = [tensor.cuda() for tensor in batch]
             # (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
             #  non_linear_obj, loss_mask, seq_start_end, _, frames) = batch
-            (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt, non_linear_obj,
+            (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
              loss_mask, seq_start_end, frames, object_cls, obj_id) = batch
             linear_obj = 1 - non_linear_obj
             loss_mask = loss_mask[:, hyperparameters.obs_len:]
