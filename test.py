@@ -677,9 +677,9 @@ def load_list_from_folder(folder_path, ext_filter=None, depth=1, recursive=False
 
 def test_argoverse_csv():
     # Create a dict and store in JSON format to get the conversion between our object_id and Argoverse track_id
-    track_id_coded_flag = True
+    track_id_coded_flag = False
     # Data -> Numpy array (seq x timestamp x (frame_id | object_id | x | y))
-    data_structure_flag = False
+    data_structure_flag = True
     debug_time = False
     filter_by_distance = False
     load_checkpoint = False
@@ -698,6 +698,10 @@ def test_argoverse_csv():
     print("Num files: ", num_files)
 
     file_id_list.sort()
+
+    print("file id list: ", file_id_list)
+
+    assert 1 == 0
 
     if track_id_coded_flag:
         limit = 10000
@@ -787,8 +791,7 @@ def test_argoverse_csv():
 
         if load_checkpoint:
             try:
-                obs_trajectories_file = "data/datasets/argoverse/motion-forecasting/train/obs_trajectories.npy"
-                # obs_trajectories_file = "shared_home/benchmarks/argoverse/motion-forecasting/train/obs_trajectories.npy"
+                obs_trajectories_file = "data/datasets/argoverse/motion-forecasting/" + split + "/obs_trajectories.npy"
                 with open(obs_trajectories_file, 'rb') as obs_file:
                     obs_trajectories = np.load(obs_file)
                     for i in range(obs_trajectories.shape[0]-1,0,-1):
@@ -835,9 +838,6 @@ def test_argoverse_csv():
                 a_start = time.time()
                 df = pd.read_csv(track_file)
 
-
-                folder = "data/datasets/argoverse/motion-forecasting/train/data/"
-                # folder = "shared_home/benchmarks/argoverse/motion-forecasting/train/data/"
                 track_file = folder + str(file_id) + ".csv"
                 
                 dict1 = data[track_file] # Standard IDs (Keys) to Argoverse values (Values)
@@ -856,8 +856,8 @@ def test_argoverse_csv():
 
                 coded_track_ids = np.vectorize(dict2.get)(track_ids).astype(np.int64)
 
-                print("Coded: ", coded_track_ids)
-                assert 1 == 0
+                # print("Coded: ", coded_track_ids)
+                # assert 1 == 0
                 
                 seq_sophie_format = (timestamps,coded_track_ids,x_pos,y_pos,object_class)
                 seq_sophie_format = np.concatenate(seq_sophie_format, axis=1)
@@ -898,9 +898,7 @@ def test_argoverse_csv():
                     if not os.path.isdir(parent_folder + "/obs_trajectories"):
                         os.mkdir(parent_folder + "/obs_trajectories")
 
-                    obs_trajectories_file_root = "data/datasets/argoverse/motion-forecasting/train/obs_trajectories/obs_trajectories_"
-                    # obs_trajectories_file_root = "data/datasets/argoverse/motion-forecasting/train/obs_trajectories/obs_trajectories_"
-                    # obs_trajectories_file_root = "shared_home/benchmarks/argoverse/motion-forecasting/train/obs_trajectories/obs_trajectories_"
+                    obs_trajectories_file_root = "data/datasets/argoverse/motion-forecasting/" + split + "/obs_trajectories/obs_trajectories_"
                     obs_trajectories_file = obs_trajectories_file_root + str(csv_start) + "_" + str(csv_end) + "_csv" + ".npy"
                     with open(obs_trajectories_file, 'wb') as obs_file:
                         # np.save(obs_file, obs_trajectories)
@@ -920,8 +918,9 @@ def test_argoverse_csv():
 
 def concat_npy_files():
     # folder = "data/datasets/argoverse/motion-forecasting/train/obs_trajectories_without_separators"
-    folder = "data/datasets/argoverse/motion-forecasting/train/obs_trajectories"
-    # folder = "shared_home/benchmarks/argoverse/motion-forecasting/train/obs_trajectories"
+    split = "val" # train, val, test
+    folder = "data/datasets/argoverse/motion-forecasting/" + split + "/obs_trajectories"
+
     files, num_files = load_list_from_folder(folder)
 
     starts = []
@@ -947,8 +946,7 @@ def concat_npy_files():
     print("\nNumber of rows: ", rows)
     joined_obs_trajectories = np.concatenate(obs_trajectories_list, axis=0)
 
-    obs_trajectories_file = "data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
-    # obs_trajectories_file = "shared_home/benchmarks/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
+    obs_trajectories_file = "data/datasets/argoverse/motion-forecasting/" + split + "/joined_obs_trajectories.npy"
     with open(obs_trajectories_file, 'wb') as obs_file:
         np.save(obs_file, joined_obs_trajectories)
 
@@ -956,7 +954,9 @@ def store_city():
     """
     """
 
-    folder = "data/datasets/argoverse/motion-forecasting/train/data/"
+    split = "val" # train, val, test
+    folder = "data/datasets/argoverse/motion-forecasting/" + split + "/data/"
+
     files, num_files = load_list_from_folder(folder)
     file_id_list = []
     for file_name in files:
@@ -1167,15 +1167,18 @@ def relative_displacements(batch_size, fixed_sized_sequences, num_last_obs=19):
     return relative_sequences, ego_vehicle_origin
 
 def read_joined_obs_trajectories():
-    get_seq_separators = False
-    obs_trajectories_file = "data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
-    # seq_separators_file = "data/datasets/argoverse/motion-forecasting/train/seq_separators_only_indexes.npy"
-    seq_separators_file = "data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy"
-    # obs_trajectories_file = "shared_home/benchmarks/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
-    # seq_separators_file = "shared_home/benchmarks/argoverse/motion-forecasting/train/seq_separators_only_indexes.npy"
+    get_seq_separators = True
+    split = "train" # train, val, test
+    obs_trajectories_file = "data/datasets/argoverse/motion-forecasting/" + split + "/joined_obs_trajectories.npy"
+    seq_separators_file = "data/datasets/argoverse/motion-forecasting/" + split + "/sequence_separators.npy"
+    
     with open(obs_trajectories_file, 'rb') as obs_file:
        joined_obs_trajectories =  np.load(obs_file)
        print("joined_obs_trajectories Shape: ", joined_obs_trajectories.shape)
+
+    # print("Joined obs: ", joined_obs_trajectories[320:350,:])
+
+    # assert 1 == 0
 
     dist_threshold = 50
 
@@ -1213,32 +1216,35 @@ def read_joined_obs_trajectories():
         # print(f"Time consumed by third approach (per iteration): {(c_end-c_start)/joined_obs_trajectories.shape[0]}\n")
         # print("seq_separators: ", seq_separators[:10]) 
 
-        # # D 
+        # # # D 
 
-        d_start = time.time()
-        ids = joined_obs_trajectories[:,1]
-        # seq_separators = np.zeros((joined_obs_trajectories.shape[0]))
-        seq_separators = []
-        for i,obj_id in enumerate(ids):
-            # if np.int64(obj_id) == -1: seq_separators[i] = 1
-            if np.int64(traj[1]) == -1: seq_separators.append(i)
-        d_end = time.time()
-        print(f"Time consumed by fourth approach: {d_end-d_start}")
-        print(f"Time consumed by fourth approach (per iteration): {(d_end-d_start)/joined_obs_trajectories.shape[0]}\n")
+        # d_start = time.time()
+        # ids = joined_obs_trajectories[:,1]
+        # # seq_separators = np.zeros((joined_obs_trajectories.shape[0]))
+        # seq_separators = []
+        # for i,obj_id in enumerate(ids):
+        #     # if np.int64(obj_id) == -1: seq_separators[i] = 1
+        #     if np.int64(traj[1]) == -1: seq_separators.append(i)
+        # d_end = time.time()
+        # print(f"Time consumed by fourth approach: {d_end-d_start}")
+        # print(f"Time consumed by fourth approach (per iteration): {(d_end-d_start)/joined_obs_trajectories.shape[0]}\n")
 
         # E (Very efficient)
 
         e_start = time.time()
         ids = joined_obs_trajectories[:,1]
         seq_separators = np.where(ids == -1)
-        # print("Shape: ", len(seq_separators), tuple(seq_separators))
-        # print("seq separators: ", seq_separators[:200])
         seq_separators = np.array(seq_separators)
         e_end = time.time()
         print(f"Time consumed by fifth approach: {e_end-e_start}")
         print(f"Time consumed by fifth approach (per iteration): {(e_end-e_start)/joined_obs_trajectories.shape[0]}")
 
+        
+
         print("seq_separators: ", seq_separators.shape)
+
+        assert 1 == 0
+        
         with open(seq_separators_file, 'wb') as seq_file:
             np.save(seq_file, seq_separators)
     else:
@@ -1290,7 +1296,8 @@ def read_joined_obs_trajectories():
 def mod_seq_separators():
     """
     """
-    seq_separators_file = "data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy"
+    split = "val" # train, val, test
+    seq_separators_file = "data/datasets/argoverse/motion-forecasting/" + split + "/sequence_separators.npy"
     with open(seq_separators_file, 'rb') as seq_file:
         seq_separators = np.load(seq_separators_file).reshape(-1)
 
@@ -1302,14 +1309,17 @@ def mod_seq_separators():
 
 
 def check_npy():
-    with open("data/datasets/argoverse/motion-forecasting/train/after_dataset_processing/object_id_list.npy", 'rb') as aux_file:
+    split = "val" # train, val, test
+    with open("data/datasets/argoverse/motion-forecasting/" + split + "/after_dataset_processing/object_id_list.npy", 'rb') as aux_file:
     # with open("data/datasets/argoverse/motion-forecasting/train/after_dataset_processing/loss_mask_list.npy", 'rb') as aux_file:
         object_id_list = np.load(aux_file, allow_pickle=True)
 
     print("object_id_list: ", object_id_list, object_id_list.shape)
 
 def load_csv_number():
-    folder = "data/datasets/argoverse/motion-forecasting/train/data/"
+    
+    split = "val" # train, val, test
+    folder = "data/datasets/argoverse/motion-forecasting/" + split + "/data/"
 
     files, num_files = load_list_from_folder(folder)
     file_id_list = []
@@ -1334,7 +1344,7 @@ if __name__ == "__main__":
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    test_sophie_generator()
+    # test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
     # test_aiodrive_frames()
@@ -1346,9 +1356,10 @@ if __name__ == "__main__":
     # evaluate_json()
     # test_autotree()
     # load_npy()
-    # test_argoverse_csv()
-    # concat_npy_files()
-    # read_joined_obs_trajectories()
+
+    # test_argoverse_csv() # First
+    # concat_npy_files() # Second
+    read_joined_obs_trajectories() # Third
     # mod_seq_separators()
     # store_city()
     # check_npy()

@@ -75,16 +75,13 @@ def load_list_from_folder(folder_path, ext_filter=None, depth=1, recursive=False
         for index in range(depth-1): wildcard_prefix = os.path.join(wildcard_prefix, '*')
         if ext_filter is not None:
             for ext_tmp in ext_filter:
-                # wildcard = wildcard_prefix + string2ext_filter(ext_tmp)
                 wildcard = wildcard_prefix + ext_tmp
                 curlist = glob.glob(os.path.join(folder_path, wildcard))
                 if sort: curlist = sorted(curlist)
                 full_list += curlist
-            # zxc
         else:
             wildcard = wildcard_prefix
             curlist = glob.glob(os.path.join(folder_path, wildcard))
-            # print(curlist)
             if sort: curlist = sorted(curlist)
             full_list += curlist
         if recursive and depth > 1:
@@ -416,7 +413,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
           print("Separators shape: ", seq_separators.shape)
 
         # Load trajectory_file and sequence_separators
-        
+        """
         with open(trajectory_file, 'rb') as obs_file:
           joined_obs_trajectories =  np.load(obs_file)
           print("Trajectories shape: ", joined_obs_trajectories.shape)
@@ -462,7 +459,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         print("Max: ", distances.max())
         over_100 = np.where(distances[:,0]>50)[0].shape
         print("over 50: ", over_100)
-        """
+        
         # Apply distance filter based on maximum distance between agent and ego-vehicle
           
         print("-----------------> Distance filter")

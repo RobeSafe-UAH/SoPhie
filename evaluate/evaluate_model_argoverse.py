@@ -197,9 +197,9 @@ def evaluate(loader, generator, num_samples, pred_len, results_path, results_fil
             final_fde = -1        
 
 def main(args):
-    root_dir = "../data/datasets/argoverse/motion-forecasting/train"
-    trajectory_file = "../data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
-    sequence_separators_file = "../data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy"
+    root_dir = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train"
+    trajectory_file = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
+    sequence_separators_file = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy"
 
     batch_size = 2
     shuffle = True
