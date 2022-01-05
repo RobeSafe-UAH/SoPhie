@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from sophie.data_loader.argoverse.dataset import ArgoverseMotionForecastingDataset, seq_collate
+from sophie.data_loader.argoverse.dataset_unified import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.models import SoPhieGenerator
 from sophie.models import SoPhieDiscriminator
 from sophie.modules.losses import gan_g_loss, gan_d_loss, l2_loss
@@ -25,12 +25,10 @@ FORMAT = '[%(levelname)s: %(filename)s: %(lineno)4d]: %(message)s'
 logging.basicConfig(filename="experiment_log.log", level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
 
-
 def init_weights(m):
     classname = m.__class__.__name__
     if classname.find('Linear') != -1:
         nn.init.kaiming_normal_(m.weight)
-
 
 def get_dtypes(use_gpu):
     long_dtype = torch.LongTensor
@@ -40,15 +38,12 @@ def get_dtypes(use_gpu):
         float_dtype = torch.cuda.FloatTensor
     return long_dtype, float_dtype
 
-
 def model_trainer(config):
-    ##
-    #os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_num
+    """
+    """
+    # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_num
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    train_path = os.path.join(config.base_dir, config.dataset.path, "train")
-    # val_path = os.path.join(config.base_dir, config.dataset.path, "val")
 
     long_dtype, float_dtype = get_dtypes(config.use_gpu)
 
@@ -56,37 +51,32 @@ def model_trainer(config):
     logger.info(config)
 
     logger.info("Initializing train dataset") 
-
-    root_dir = os.path.join(config.base_dir,config.dataset.path)
-    trajectory_file = os.path.join(config.base_dir,config.dataset.joined_obs_trajectories)
-    sequence_separators_file = os.path.join(config.base_dir,config.dataset.sequence_separators)
-
-    training_split_percentage = config.dataset.training_split_percentage
-
-    data_train = ArgoverseMotionForecastingDataset(root_dir = root_dir,
-                                                   trajectory_file = trajectory_file,
-                                                   sequence_separators_file = sequence_separators_file,
-                                                   training_split_percentage = training_split_percentage)
-
-    train_loader = DataLoader(
-        data_train,
-        batch_size=config.dataset.batch_size,
-        shuffle=config.dataset.shuffle,
-        num_workers=config.dataset.num_workers,
-        collate_fn=seq_collate)
+    data_train = ArgoverseMotionForecastingDataset(root_folder=config.dataset.path,
+                                                   obs_len=config.hyperparameters.obs_len,
+                                                   pred_len=config.hyperparameters.pred_len,
+                                                   distance_threshold=config.hyperparameters.distance_threshold,
+                                                   split="train",
+                                                   num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
+                                                   training_split_percentage=config.dataset.training_split_percentage)
+    train_loader = DataLoader(data_train,
+                              batch_size=config.dataset.batch_size,
+                              shuffle=config.dataset.shuffle,
+                              num_workers=config.dataset.num_workers,
+                              collate_fn=seq_collate)
 
     logger.info("Initializing val dataset")
-    
-    # data_val = ArgoverseMotionForecastingDataset(root_dir = root_dir,
-    #                                               trajectory_file = trajectory_file,
-    #                                               sequence_separators_file = sequence_separators_file)
-
-    # val_loader = DataLoader(
-    #     data_val,
-    #     batch_size=config.dataset.batch_size,
-    #     shuffle=config.dataset.shuffle,
-    #     num_workers=config.dataset.num_workers,
-    #     collate_fn=seq_collate)
+    data_val = ArgoverseMotionForecastingDataset(root_folder=config.dataset.path,
+                                                 obs_len=config.hyperparameters.obs_len,
+                                                 pred_len=config.hyperparameters.pred_len,
+                                                 distance_threshold=config.hyperparameters.distance_threshold,
+                                                 split="val",
+                                                 num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
+                                                 training_split_percentage=config.dataset.training_split_percentage)
+    val_loader = DataLoader(data_val,
+                              batch_size=config.dataset.batch_size,
+                              shuffle=config.dataset.shuffle,
+                              num_workers=config.dataset.num_workers,
+                              collate_fn=seq_collate)
 
     hyperparameters = config.hyperparameters
     optim_parameters = config.optim_parameters
@@ -99,9 +89,9 @@ def model_trainer(config):
     )
 
     # config.sophie.generator.decoder.linear_3.input_dim = config.dataset.batch_size*2*config.sophie.generator.social_attention.linear_decoder.out_features
-    # config.sophie.generator.decoder.linear_3.output_dim = config.dataset.batch_size*config.number_agents
+    # config.sophie.generator.decoder.linear_3.output_dim = config.dataset.batch_size*config.hyperparameters.num_agents_per_obs
     generator = SoPhieGenerator(config.sophie.generator)
-    generator.set_num_agents(hyperparameters.number_agents)
+    generator.set_num_agents(hyperparameters.num_agents_per_obs)
     generator.build()
     generator.to(device)
     generator.apply(init_weights)
@@ -212,41 +202,41 @@ def model_trainer(config):
                 checkpoint.config_cp["sample_ts"].append(t)
 
                 # Check stats on the validation set
-                # logger.info('Checking stats on val ...')
-                # metrics_val = check_accuracy(
-                #     hyperparameters, val_loader, generator, discriminator, d_loss_fn
-                # )
+                logger.info('Checking stats on val ...')
+                metrics_val = check_accuracy(
+                    hyperparameters, val_loader, generator, discriminator, d_loss_fn
+                )
                 logger.info('Checking stats on train ...')
                 metrics_train = check_accuracy(
                     hyperparameters, train_loader, generator, discriminator,
                     d_loss_fn, limit=True
                 )
 
-                # for k, v in sorted(metrics_val.items()):
-                #     logger.info('  [val] {}: {:.3f}'.format(k, v))
-                #     if k not in checkpoint.config_cp["metrics_val"].keys():
-                #         checkpoint.config_cp["metrics_val"][k] = []
-                #     checkpoint.config_cp["metrics_val"][k].append(v)
+                for k, v in sorted(metrics_val.items()):
+                    logger.info('  [val] {}: {:.3f}'.format(k, v))
+                    if k not in checkpoint.config_cp["metrics_val"].keys():
+                        checkpoint.config_cp["metrics_val"][k] = []
+                    checkpoint.config_cp["metrics_val"][k].append(v)
                 for k, v in sorted(metrics_train.items()):
                     logger.info('  [train] {}: {:.3f}'.format(k, v))
                     if k not in  checkpoint.config_cp["metrics_train"].keys():
                         checkpoint.config_cp["metrics_train"][k] = []    
                     checkpoint.config_cp["metrics_train"][k].append(v)
 
-                # min_ade = min(checkpoint.config_cp["metrics_val"]['ade'])
-                # min_ade_nl = min(checkpoint.config_cp["metrics_val"]['ade_nl'])
+                min_ade = min(checkpoint.config_cp["metrics_val"]['ade'])
+                min_ade_nl = min(checkpoint.config_cp["metrics_val"]['ade_nl'])
 
-                # if metrics_val['ade'] == min_ade:
-                #     logger.info('New low for avg_disp_error')
-                #     checkpoint.config_cp["best_t"] = t
-                #     checkpoint.config_cp["g_best_state"] = generator.state_dict()
-                #     checkpoint.config_cp["d_best_state"] = discriminator.state_dict()
+                if metrics_val['ade'] == min_ade:
+                    logger.info('New low for avg_disp_error')
+                    checkpoint.config_cp["best_t"] = t
+                    checkpoint.config_cp["g_best_state"] = generator.state_dict()
+                    checkpoint.config_cp["d_best_state"] = discriminator.state_dict()
 
-                # if metrics_val['ade_nl'] == min_ade_nl:
-                #     logger.info('New low for avg_disp_error_nl')
-                #     checkpoint.config_cp["best_t_nl"] = t
-                #     checkpoint.config_cp["g_best_nl_state"] = generator.state_dict()
-                #     checkpoint.config_cp["d_best_nl_state"] = discriminator.state_dict()
+                if metrics_val['ade_nl'] == min_ade_nl:
+                    logger.info('New low for avg_disp_error_nl')
+                    checkpoint.config_cp["best_t_nl"] = t
+                    checkpoint.config_cp["g_best_nl_state"] = generator.state_dict()
+                    checkpoint.config_cp["d_best_nl_state"] = discriminator.state_dict()
 
                 # Save another checkpoint with model weights and
                 # optimizer state
@@ -285,27 +275,20 @@ def model_trainer(config):
             if t >= hyperparameters.num_iterations:
                 break
 
-
 def discriminator_step(
     hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d
 ):
     batch = [tensor.cuda() for tensor in batch]
-    # (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-    #  loss_mask, seq_start_end, _, frames) = batch
-    
+
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
      loss_mask, seq_start_end, frames, object_cls, obj_id) = batch
 
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
 
-    #generator_out = generator(obs_traj, obs_traj_rel, seq_start_end)
     generator_out = generator(frames, obs_traj)
-    #print("obs_traj: ", obs_traj.shape)
-    #print("generator_out: ", generator_out.shape)
 
     pred_traj_fake_rel = generator_out
-    # print(">>>>>>>> A Pred fake: ", pred_traj_fake_rel.shape)
     pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
 
     traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
@@ -333,7 +316,6 @@ def discriminator_step(
 
     return losses
 
-
 def generator_step(
     hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g
 ):
@@ -350,11 +332,9 @@ def generator_step(
     loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
     for _ in range(hyperparameters.best_k):
-        #generator_out = generator(obs_traj, obs_traj_rel, seq_start_end)
         generator_out = generator(frames, obs_traj)
 
         pred_traj_fake_rel = generator_out
-        # print(">>>>>>>> B Pred fake: ", pred_traj_fake_rel.shape)
         pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
 
         if hyperparameters.l2_loss_weight > 0:
@@ -397,7 +377,6 @@ def generator_step(
 
     return losses
 
-
 def check_accuracy(
     hyperparameters, loader, generator, discriminator, d_loss_fn, limit=False
 ):
@@ -425,7 +404,6 @@ def check_accuracy(
             pred_traj_fake_rel = generator(
                 frames, obs_traj
             )
-            # print(">>>>>>>> C Pred fake: ", pred_traj_fake_rel.shape)
             pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
 
             g_l2_loss_abs, g_l2_loss_rel = cal_l2_losses(
@@ -493,7 +471,6 @@ def check_accuracy(
     generator.train()
     return metrics
 
-
 def cal_l2_losses(
     pred_traj_gt, pred_traj_gt_rel, pred_traj_fake, pred_traj_fake_rel,
     loss_mask
@@ -506,13 +483,11 @@ def cal_l2_losses(
     )
     return g_l2_loss_abs, g_l2_loss_rel
 
-
 def cal_ade(pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj):
     ade = displacement_error(pred_traj_fake, pred_traj_gt)
     ade_l = displacement_error(pred_traj_fake, pred_traj_gt, linear_obj)
     ade_nl = displacement_error(pred_traj_fake, pred_traj_gt, non_linear_obj)
     return ade, ade_l, ade_nl
-
 
 def cal_fde(
     pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj

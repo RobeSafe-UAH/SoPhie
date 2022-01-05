@@ -1,18 +1,15 @@
 # SoPhie configuration file
-# SoPhie model
+
+# Model hyperparameters
+
 use_gpu: 1
 dataset_name: argoverse
-
 dataset:
-    # TODO: IMPROVE THIS, NOT CALCULATING THE DATA BEFOREHAND
-    joined_obs_trajectories: data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy
-    sequence_separators: data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy
-
-    path: data/datasets/argoverse/motion-forecasting/train
-    video: data/datasets/argoverse/motion-forecasting/train
+    path: data/datasets/argoverse/motion-forecasting/
+    # video: data/datasets/argoverse/motion-forecasting/
     test_submission: False
     batch_size: 16 # 16 max
-    training_split_percentage: 0.2
+    training_split_percentage: 1.0
     shuffle: True
     num_workers: 0
 optim_parameters:
@@ -28,7 +25,7 @@ hyperparameters:
     timing: 0 # ?> Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 100
     checkpoint_every: 500 # cambiar
-    output_dir: "save"
+    output_dir: "save/argoverse"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 
@@ -39,8 +36,13 @@ hyperparameters:
     num_samples_check: 5000
     obs_len: &obs_len 20
     pred_len: &pred_len 30
-    number_agents: &num_agents 10
+    num_agents_per_obs: &num_agents_per_obs 10
+    distance_threshold: 30 # It depends on a statistical study (see get_sequences_as_array function), 
+                           # where we determine the mean distance of the AGENT w.r.t the ego-vehicle
+                           # in the obs_len-th frame
     hidden_dim_lstm_decoder: &hidden_dim_lstm_decoder 128
+
+# SoPhie model
 
 sophie:
     generator: 
@@ -59,7 +61,7 @@ sophie:
             config:
                 encoder:
                     num_layers: 1 
-                    hidden_dim: *num_agents
+                    hidden_dim: *num_agents_per_obs
                     emb_dim: 16 # embedding input from mlp
                     mlp_config:
                         dim_list: [2, 16] # From 2 (x,y) to 16 (original embedding of the paper)
@@ -72,7 +74,7 @@ sophie:
                 in_features: *hidden_dim_lstm_decoder # Original paper
                 out_features: 512 # Original paper
             linear_feature:
-                in_features: 324 # # Original paper. From 600 x 600 images to 18 x 18 ( = 324) activation maps
+                in_features: 324 # Original paper. From 600 x 600 images to 18 x 18 ( = 324) activation maps
                 out_features: 2
             softmax:
                 dim: 0
@@ -81,13 +83,13 @@ sophie:
                 in_features: *hidden_dim_lstm_decoder # Original paper
                 out_features: # Past Observations x Number of agents. Fill in the code
             linear_feature:
-                in_features: *num_agents 
+                in_features: *num_agents_per_obs 
                 out_features: 2
             softmax:
                 dim: 0
         decoder:
             linear_1:
-                input_dim: *num_agents
+                input_dim: *num_agents_per_obs
                 output_dim: 64 # Original paper
 
             # LSTM

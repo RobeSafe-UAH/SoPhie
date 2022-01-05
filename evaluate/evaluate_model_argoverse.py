@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 
 sys.path.append("/home/robesafe/libraries/SoPhie")
 
-from sophie.data_loader.argoverse.dataset import ArgoverseMotionForecastingDataset, seq_collate
+from sophie.data_loader.argoverse.dataset_unified import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.models import SoPhieGenerator
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.utils import relative_to_abs
@@ -197,18 +197,28 @@ def evaluate(loader, generator, num_samples, pred_len, results_path, results_fil
             final_fde = -1        
 
 def main(args):
-    root_dir = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train"
-    trajectory_file = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train/joined_obs_trajectories.npy"
-    sequence_separators_file = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train/sequence_separators.npy"
+    """
+    """
+
+    root_folder = "data/datasets/argoverse/motion-forecasting/"
+    split = "val"
+    obs_len = 20
+    pred_len = 30
+    distance_threshold = 35
+    num_agents_per_obs = 10
+    training_split_percentage = 0.1
+
+    data_test = ArgoverseMotionForecastingDataset(root_folder=root_folder,
+                                                  obs_len=obs_len,
+                                                  pred_len=pred_len,
+                                                  distance_threshold=distance_threshold,
+                                                  split=split,
+                                                  num_agents_per_obs=num_agents_per_obs,
+                                                  training_split_percentage=training_split_percentage)
 
     batch_size = 2
     shuffle = True
     num_workers = 0
-
-
-    data_test = ArgoverseMotionForecastingDataset(root_dir = root_dir,
-                                                  trajectory_file = trajectory_file,
-                                                  sequence_separators_file = sequence_separators_file)
 
     train_loader = DataLoader(
         data_test,
