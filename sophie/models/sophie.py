@@ -32,6 +32,9 @@ class SoPhieGenerator(nn.Module):
             self.config.visual_extractor.vgg
         )
 
+        for param in self.visual_feature_extractor.parameters():
+            param.requires_grad = False
+
         self.joint_feature_extractor = JointExtractor(
             self.config.joint_extractor.type,
             self.config.joint_extractor.config
