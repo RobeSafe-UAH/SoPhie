@@ -2,10 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-
 Created on Thu Sep 09 13:04:56 2021
-@author: Carlos Gómez-Huélamo
-
+@author: Miguel Eduardo Ortiz Huamaní and Carlos Gómez-Huélamo
 """
 
 import argparse
@@ -20,6 +18,8 @@ from pathlib import Path
 from prodict import Prodict
 from torch.utils.data import DataLoader
 
+from argoverse.evaluation.competition_util import generate_forecasting_h5
+
 sys.path.append("/home/robesafe/libraries/SoPhie")
 
 from sophie.data_loader.argoverse.dataset_unified import ArgoverseMotionForecastingDataset, seq_collate
@@ -30,11 +30,14 @@ from sophie.utils.utils import relative_to_abs
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_path', type=str)
 parser.add_argument('--dataset_path', default='data/datasets/argoverse/', type=str)
-parser.add_argument('--num_samples', default=20, type=int)
+parser.add_argument('--num_samples', default=2, type=int)
 parser.add_argument('--dset_type', default='test', type=str)
-parser.add_argument('--results_path', default='results/aiodrive', type=str)
-parser.add_argument('--results_file', default='test_json', type=str)
-parser.add_argument('--skip', default=1, type=int)
+parser.add_argument('--results_path', default='results/argoverse/exp1', type=str)
+parser.add_argument('--results_file', default='test_predictions', type=str)
+
+# Global variables
+
+seqs_without_agent = 0
 
 # Auxiliar functions
 
@@ -66,91 +69,50 @@ def evaluate_helper(error, seq_start_end):
         sum_ += _error
     return sum_
 
-# Ad-hoc generator for each dataset
-
-def get_generator(checkpoint, config):
-    """
-    """
-    config.sophie.generator.decoder.linear_3.input_dim = config.dataset.batch_size*2*config.sophie.generator.social_attention.linear_decoder.out_features
-    config.sophie.generator.decoder.linear_3.output_dim = config.dataset.batch_size*config.number_agents
-    generator = SoPhieGenerator(config.sophie.generator)
-    generator.build()
-    generator.load_state_dict(checkpoint['g_state'])
-    generator.cuda()
-    generator.train()
-    return generator
-
 # Evaluate model functions
 
-def store_json(json_dict, predicted_trajectories_og, object_cls_og, seq_og,obj_id_og, prediction_length):
+def store_json(json_dict, predicted_trajectories, object_cls, obj_id, num_seq):
     """
     """
     # TODO: Get multimodal prediction, not only the best one (At this moment, it is the same both for '0' and '1')
-    # TODO: Store pred_fake_trajectories in Argoverse format
-    trajectory_samples = ['0','1']
-    prob = 1.0 # Does not make sense, if multimodal, each prediction should have a certain probability
-    na = 32 # Number of agents
-    batch_size = int(predicted_trajectories_og.shape[1]/na)
 
-    # print("keys 1: ", json_dict['10'].keys())
+    global seqs_without_agent
 
-    for element in range(batch_size):
-        object_cls = object_cls_og[element].reshape(1,-1).cpu().data.numpy() # batch_size x 32 -> 1 x 32
-        seq = seq_og[element].reshape(1,-1).cpu().data.numpy() # batch_size x 2 -> 1 x 2
-        obj_id = obj_id_og[element].reshape(1,-1).cpu().data.numpy() # batch_size x 32 -> 1 x 32 
-        pred_fake_trajectories = predicted_trajectories_og[:,na*element:na*(element+1),:] # 12 x batch_size*na (8x32) x 2 -> 12 x 32 x 2
-        
-        object_indexes = []
+    # print("Pred Traj: ", predicted_trajectories, predicted_trajectories.shape)
+    # print("Obj cls: ", object_cls, object_cls.shape)
+    # print("Obj id: ", obj_id, obj_id.shape)
+    # print("Num seq: ", num_seq, num_seq.shape)
 
-        # AIODRIVE format
-        # xx = str(int(seq[0,0]/1000))
-        # yyyy = str(int(seq[0,0]%1000))
+    batch_size = int(object_cls.shape[0])
+    num_agents_per_obs = int(predicted_trajectories.shape[1] / batch_size)
 
-        # seq_name = ""
+    for i in range(batch_size):
+        curr_obj_id = obj_id[i].cpu().data.numpy() # (num_agents_per_obs,)
+        curr_num_seq = int(num_seq[i].cpu().data.numpy())
+        agent_index = np.where(curr_obj_id == 1.0)[0] # AGENT ID
 
-        # if xx == '10':
-        #     seq_name = "Town"+xx.zfill(2)+"HD"+"_seq"+yyyy.zfill(4)
-        # else:
-        #     seq_name = "Town"+xx.zfill(2)+"_seq"+yyyy.zfill(4)
+        if agent_index.size > 0:
+            agent_pred_trajectory = predicted_trajectories[:,i*num_agents_per_obs+agent_index,:].reshape(30,2).cpu().data.numpy()
+        else: # TODO: Fix this -> What should we do if the agent is further than distance_threshold in the obs_len-th frame?
+            seqs_without_agent += 1
+            agent_pred_trajectory = np.random.randn(predicted_trajectories.shape[0],2)
 
-        # seq_frame = str(int(seq[0,1]))
+        # TODO: THIS IS NOT CORRECT: Provisional multimodal prediction (at this moment we do not provide different predictions)
 
-        # for key,value in classes.items():
-        #     if value == -1: # Dummy class
-        #         continue
-        #     indexes = np.where(np.array([condition(xi,value) for xi in object_cls]))[1]
+        multimodal_agent_pred_trajectory = np.array([agent_pred_trajectory,agent_pred_trajectory]) # N (different predictions) x 30 x 2
+        multimodal_agent_pred_trajectory = multimodal_agent_pred_trajectory.tolist()
+        json_dict[curr_num_seq] = multimodal_agent_pred_trajectory
+        # print("agent_pred_trajectory: ", agent_pred_trajectory, agent_pred_trajectory.shape)
 
-        #     agent_dict = {}
-        #     # print("Indexes: ", indexes)
-        #     for i in range(pred_fake_trajectories.shape[1]): 
-        #         if i in indexes:
-        #             ground_pos = []
-        #             for j in range(pred_fake_trajectories.shape[0]): 
-        #                 if j<10:
-        #                     ground_pos.append(pred_fake_trajectories[j,i,:].tolist()) # x,y
-        #             aux_dict = {}
-        #             aux_dict['state'] = ground_pos
-        #             aux_dict['prob'] = prob
-        #             agent_dict[str(int(obj_id[0,i]))] = aux_dict
-
-        #     keys = json_dict[str(prediction_length)].keys()
-        #     if key in keys:
-        #         if json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_samples[0]]: # Not empty
-        #             previous_agent_dict = json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_samples[0]]
-        #             previous_agent_dict.update(agent_dict)
-        #             agent_dict = previous_agent_dict
-        #     if agent_dict: # Not empty
-        #         for trajectory_sample in trajectory_samples:
-        #             json_dict[str(prediction_length)][key][seq_name][seq_frame][trajectory_sample] = agent_dict
     return json_dict
 
-def evaluate(loader, generator, num_samples, pred_len, results_path, results_file, test_submission=False, skip=1):
+def evaluate(loader, generator, num_samples, results_path, results_file, encoding_dict, pred_len, split):
     """
     """
 
-    init_json = False
+    final_results = os.path.join(results_path, results_file + '.json')
+
     json_dict = AutoTree()
-    prediction_length = 10*skip # 10 (1 s), 20 (2 s), 50 (5 s)
 
     final_ade, final_fde = 0,0
     ade_outer, fde_outer = [], []
@@ -158,23 +120,30 @@ def evaluate(loader, generator, num_samples, pred_len, results_path, results_fil
 
     with torch.no_grad(): # When testing, gradient calculation is not required
         for batch_index, batch in enumerate(loader):
-            print("Evaluating batch: ", batch_index)
-            batch = [tensor.cuda() for tensor in batch]
+            print(f"Evaluating batch {batch_index+1}/{len(loader)}")
 
-            (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
-             non_linear_obj, loss_mask, frames, object_class, 
-             seq_frame, object_id) = batch
+            batch = [tensor.cuda() for tensor in batch] # Use GPU
+            # batch = [tensor for tensor in batch] # Use CPU
+
+            (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
+             loss_mask, seq_start_end, frames, object_cls, obj_id, ego_vehicle_origin, num_seq) = batch
 
             ade, fde = [], []
             total_traj += pred_traj_gt.size(1)
 
             for _ in range(num_samples):
+                # Get predictions
+
                 pred_traj_fake_rel = generator(frames, obs_traj)
-                pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1]) # Absolute coordinates
 
-                json_dict = store_json(json_dict, pred_traj_fake, object_class, seq_frame, object_id, prediction_length)
+                # Get predictions in absolute coordinates
 
-                if not test_submission: # We cannot compute ADE and FDE metrics if we do not have the gt data for those frames
+                ego_vehicle_origin = ego_vehicle_origin.reshape(ego_vehicle_origin.shape[0],-1) # batch_size x 1 x 2 -> batch_size x 2
+                pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_vehicle_origin) # Absolute coordinates
+
+                json_dict = store_json(json_dict, pred_traj_fake, object_cls, obj_id, num_seq)
+
+                if split != "test": # We cannot compute ADE and FDE metrics if we do not have the gt data for those frames
                     ade.append(displacement_error(
                         pred_traj_fake, pred_traj_gt, mode='raw'
                     ))
@@ -182,100 +151,112 @@ def evaluate(loader, generator, num_samples, pred_len, results_path, results_fil
                         pred_traj_fake[-1], pred_traj_gt[-1], mode='raw'
                     ))
 
-            if not test_submission:
+            if split != "test":
                 ade_sum = evaluate_helper(ade, seq_start_end)
                 fde_sum = evaluate_helper(fde, seq_start_end)
 
                 ade_outer.append(ade_sum)
                 fde_outer.append(fde_sum)
 
-        if not test_submission:
+        if split != "test":
             final_ade = sum(ade_outer) / (total_traj * pred_len)
             final_fde = sum(fde_outer) / (total_traj)
         else:
             final_ade = -1
-            final_fde = -1        
+            final_fde = -1  
+
+        # Store JSON
+
+        # print(("JSON dict: ", json_dict, type(json_dict)))
+        with open(final_results, 'w') as output_file:
+            json.dump(json_dict, output_file)
+
+        # Generate H5 file for Argoverse Motion-Forecasting competition
+        
+        generate_forecasting_h5(json_dict, results_path)
+
+    return final_ade, final_fde
+
+# Ad-hoc generator for each dataset
+
+def get_generator(checkpoint, config):
+    """
+    """
+
+    generator = SoPhieGenerator(config.sophie.generator)
+    generator.set_num_agents(config.hyperparameters.num_agents_per_obs)
+    generator.build()
+    generator.load_state_dict(checkpoint['g_state'])
+    generator.cuda() # Use GPU
+    generator.train()
+    return generator      
 
 def main(args):
     """
     """
 
-    root_folder = "data/datasets/argoverse/motion-forecasting/"
-    split = "val"
-    obs_len = 20
-    pred_len = 30
-    distance_threshold = 35
-    num_agents_per_obs = 10
-    training_split_percentage = 0.1
+    # Load config file
 
-    data_test = ArgoverseMotionForecastingDataset(root_folder=root_folder,
-                                                  obs_len=obs_len,
-                                                  pred_len=pred_len,
-                                                  distance_threshold=distance_threshold,
-                                                  split=split,
-                                                  num_agents_per_obs=num_agents_per_obs,
-                                                  training_split_percentage=training_split_percentage)
+    BASE_DIR = Path(__file__).resolve().parent
 
-    batch_size = 2
-    shuffle = True
-    num_workers = 0
+    print("BASE_DIR: ", BASE_DIR)
 
-    train_loader = DataLoader(
-        data_test,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        collate_fn=seq_collate)
+    with open(r'./configs/sophie_argoverse.yml') as config_file:
+        config_file = yaml.safe_load(config_file)
+        print(yaml.dump(config_file, default_flow_style=False))
+        config_file = Prodict.from_dict(config_file)
+        config_file.base_dir = BASE_DIR
 
-    # with torch.no_grad(): # When testing, gradient calculation is not required
-    for batch_index, batch in enumerate(train_loader):
-        print("Evaluating batch: ", batch_index)
-        batch = [tensor.cuda() for tensor in batch]
+    ## Fill some additional dimensions
 
-        (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt, non_linear_obj,
-         loss_mask, seq_start_end, frames, object_cls, obj_id) = batch
-
-        # print("obs traj: ", obs_traj, type(obs_traj))
-        # print(obs_traj.shape)
-        # print("pred_traj_gt: ", pred_traj_gt, type(pred_traj_gt), pred_traj_gt.shape)
-        # print(pred_traj_gt.shape)
-        # print("obs_traj_rel: ", obs_traj_rel, type(obs_traj_rel), obs_traj_rel.shape)
-        # print(obs_traj_rel.shape)
-        # print("pred_traj_rel_gt: ", pred_traj_rel_gt, type(pred_traj_rel_gt), pred_traj_rel_gt.shape)
-        # print(pred_traj_rel_gt.shape)
-        # print("non_linear_obj: ", non_linear_obj, type(non_linear_obj), non_linear_obj.shape)
-        # print(non_linear_obj.shape)
-        # print("loss_mask: ", loss_mask, type(loss_mask))
-        # print(loss_mask.shape)
-        # print("seq_start_end: ", seq_start_end, type(seq_start_end))
-        # print(seq_start_end.shape)
-        # print("frames: ", frames, type(frames))
-        # print(frames.shape)
-        # print("object_cls: ", object_cls, type(object_cls))
-        # print(object_cls.shape)
-        # print("obj_id: ", obj_id, type(obj_id))
-        # print(obj_id.shape)
-
-        # assert 1 == 0
+    past_observations = config_file.hyperparameters.obs_len
+    num_agents_per_obs = config_file.hyperparameters.num_agents_per_obs
+    config_file.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
     # Dataloader
 
-    # test_loader = DataLoader(data_test, 
-    #                          batch_size=config_file.dataset.batch_size,
-    #                          shuffle=config_file.dataset.shuffle,
-    #                          num_workers=config_file.dataset.num_workers,
-    #                          collate_fn=seq_collate_image
-    #                          )
+    data_test = ArgoverseMotionForecastingDataset(dataset_name=config_file.dataset_name,
+                                                  root_folder=config_file.dataset.path,
+                                                  obs_len=config_file.hyperparameters.obs_len,
+                                                  pred_len=config_file.hyperparameters.pred_len,
+                                                  distance_threshold=config_file.hyperparameters.distance_threshold,
+                                                  split=config_file.dataset.split,
+                                                  num_agents_per_obs=config_file.hyperparameters.num_agents_per_obs,
+                                                  split_percentage=config_file.dataset.split_percentage)
 
-    # # Evaluate, store results in .json file and get metrics
+    test_loader = DataLoader(data_test,
+                              batch_size=config_file.dataset.batch_size,
+                              shuffle=config_file.dataset.shuffle,
+                              num_workers=config_file.dataset.num_workers,
+                              collate_fn=seq_collate)
 
-    # ade, fde = evaluate(checkpoint.config_cp, test_loader,
-    #                     generator, args.num_samples, pred_len,
-    #                     args.results_path, args.results_file,
-    #                     test_submission)
+    # Get generator
 
-    # print('Dataset: {}, Pred Len: {}, ADE: {:.2f}, FDE: {:.2f}'.format(
-    #        args.dataset_path, pred_len, ade, fde))
+    checkpoint = torch.load(args.model_path)
+    generator = get_generator(checkpoint.config_cp, config_file)
+
+    # Load encoding ids dict
+
+    encoding_ids_file = os.path.join(config_file.dataset.path,config_file.dataset.split,"ids_file.json")
+    print("encoding_ids_file: ", encoding_ids_file)
+    with open(encoding_ids_file) as input_file:
+        encoding_dict = json.load(input_file)
+
+    # Evaluate, store results in .json file and get metrics
+
+    ## Create results folder if does not exist
+
+    if not os.path.exists(args.results_path):
+        print("Create results path folder: ", args.results_path)
+        os.mkdir(args.results_path)
+
+    ade, fde = evaluate(test_loader, generator, args.num_samples, args.results_path, 
+                        args.results_file, encoding_dict, config_file.hyperparameters.pred_len, 
+                        config_file.dataset.split)
+
+    print('\n\nDataset: {}, Pred Len: {:.2f} s, ADE: {:.2f}, FDE: {:.2f}'.format(args.dataset_path, 
+                                                                             config_file.hyperparameters.pred_len/10, 
+                                                                             ade, fde))
 
 if __name__ == '__main__':
     args = parser.parse_args()

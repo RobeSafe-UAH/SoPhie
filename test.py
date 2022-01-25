@@ -302,34 +302,37 @@ def test_decoder():
 
 def test_sophie_generator():
 
+    start = time.time()
+    
     # Image
-
+    
     image_test = torch.rand(batch_size, im_channels, im_height, im_width).to(device) # batch, channel, H, W
 
     # Trajectories
 
     trajectories_test = 10 * np.random.randn(po, na*batch_size, tfd)
     trajectories_test = torch.from_numpy(trajectories_test).to(device).float()
-    # print("Previous trajectories: ", trajectories_test, trajectories_test.shape)
-
-    # config_file.sophie.generator.decoder.linear_3.input_dim = batch_size*2*config_file.sophie.generator.social_attention.linear_decoder.out_features
-    # config_file.sophie.generator.decoder.linear_3.output_dim = batch_size*na
-
-    # print("Linear 3 Decoder: ", config_file.sophie.generator.decoder.linear_3)
+    
+    end = time.time()
+    print(f"Time consumed to preprocess data: {end-start}\n")
 
     past_observations = config_file.hyperparameters.obs_len
-    num_agents = config_file.hyperparameters.number_agents
+    num_agents = config_file.hyperparameters.num_agents_per_obs
     config_file.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents
 
     generator = SoPhieGenerator(config_file.sophie.generator)
-    generator.set_num_agents(config_file.hyperparameters.number_agents)
+    generator.set_num_agents(config_file.hyperparameters.num_agents_per_obs)
     generator.build()
     generator.to(device)
+
+    start = time.time()
     pred_fake_trajectories = generator.forward(image_test,trajectories_test)
+    end = time.time()
+    print(f"Time consumed in the forward: {end-start}\n")
 
-    print("pred_fake_trajectories: ", pred_fake_trajectories, pred_fake_trajectories.shape)
+    print("pred_fake_trajectories: ", pred_fake_trajectories.shape)
 
-    return pred_fake_trajectories
+    # return pred_fake_trajectories
 
 ## GAN discriminator
 
@@ -1344,7 +1347,7 @@ if __name__ == "__main__":
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    # test_sophie_generator()
+    test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
     # test_aiodrive_frames()
@@ -1359,7 +1362,7 @@ if __name__ == "__main__":
 
     # test_argoverse_csv() # First
     # concat_npy_files() # Second
-    read_joined_obs_trajectories() # Third
+    # read_joined_obs_trajectories() # Third
     # mod_seq_separators()
     # store_city()
     # check_npy()

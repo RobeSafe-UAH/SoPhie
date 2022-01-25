@@ -24,11 +24,10 @@ plot_lane_tangent_arrows = True
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-
 def grab_image_map(ax, argoverse_data, am, idx, domv, city_name, log_id, city_to_egovehicle_se3, offset=[-80,80,-80,80]):
     xcenter,ycenter,_ = argoverse_data.get_pose(idx).translation
         
-    xmin = xcenter + offset[0]  # 150
+    xmin = xcenter + offset[0] # 150
     xmax = xcenter + offset[1] # 150
     ymin = ycenter + offset[2] # 150
     ymax = ycenter + offset[3] # 150
@@ -56,11 +55,11 @@ def renderize_image(fig_plot, new_shape=(600,600)):
     fig_plot.canvas.draw()
     img_cv2 = cv2.cvtColor(np.asarray(fig_plot.canvas.buffer_rgba()), cv2.COLOR_RGBA2RGB)
     img_rsz = cv2.resize(img_cv2, new_shape)
+    img_rsz = img_rsz / 255.0 # Normalize from 0 to 1. It is important to have the same 
+                              # range for which the visual extractor was trained
     return img_rsz
 
-
 _ZORDER = {"AGENT": 15, "AV": 10, "OTHERS": 5}
-
 
 def interpolate_polyline(polyline: np.ndarray, num_points: int) -> np.ndarray:
     duplicates = []
@@ -74,7 +73,6 @@ def interpolate_polyline(polyline: np.ndarray, num_points: int) -> np.ndarray:
     tck, u = interp.splprep(polyline.T, s=0)
     u = np.linspace(0.0, 1.0, num_points)
     return np.column_stack(interp.splev(u, tck))
-
 
 def viz_sequence(
     df: pd.DataFrame,
@@ -204,7 +202,6 @@ def viz_sequence(
     if show:
         plt.show()
 
-
 def translate_object_type(int_id):
     if int_id == 0:
         return "AV"
@@ -224,6 +221,9 @@ def map_generator(
     smoothen: bool = False,
 ) -> None:
 
+    print("Map generator: ")
+    print("seq: ", seq)
+
     # Seq data
     if lane_centerlines is None:
         # Get API for Argo Dataset map
@@ -232,6 +232,8 @@ def map_generator(
     fig = plt.figure(0, figsize=(8, 7), facecolor="black")
 
     xcenter, ycenter = ego_pos[0][0], ego_pos[0][1]
+
+    print("xcenter, ycenter: ", xcenter, ycenter)
         
     x_min = xcenter + offset[0]
     x_max = xcenter + offset[1]
@@ -270,16 +272,19 @@ def map_generator(
 
     t0 = time.time()
 
-    color_dict = {"AGENT": "#1c2be6", "OTHERS": "#59dd4c", "AV": "#007672"}
+    # color_dict = {"AGENT": "#1c2be6", "OTHERS": "#59dd4c", "AV": "#007672"}
+    color_dict = {"AGENT": (0.0,0.0,1.0,1.0), "OTHERS": (1.0,1.0,1.0,1.0), "AV": (1.0,0.0,0.0,1.0)}
     object_type_tracker: Dict[int, int] = defaultdict(int)
 
     obs_seq = seq[:200, :]
     tid = np.unique(obs_seq[:,1])
+    print("tid: ", tid)
     obs_seq_list = []
     for i in range(tid.shape[0]):
         if tid[i] != -1:
             obs_seq_list.append(obs_seq[tid[i]==obs_seq[:,1], :])
 
+    print("obs obs_seq_list: ", obs_seq_list)
     # Plot all the tracks up till current frame
     for seq_id in obs_seq_list:
         object_type = seq_id[0][1]

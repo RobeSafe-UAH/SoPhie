@@ -30,22 +30,18 @@ class Decoder(nn.Module):
             config.linear_2.input_dim,
             config.linear_2.output_dim
         )
-        # self.agentscorrector = nn.Linear(  
-        #     config.linear_3.input_dim,
-        #     config.linear_3.output_dim
-        # )
-
-    # def init_hidden(self, batch):
-    #     return (
-    #         torch.zeros(self.num_layers, batch, self.hidden_dim).cuda(),
-    #         torch.zeros(self.num_layers, batch, self.hidden_dim).cuda()
-    #     )
 
     def init_hidden(self, num_agents=32):
-        return (
-            torch.zeros(self.num_layers, num_agents, self.hidden_dim).cuda(),
-            torch.zeros(self.num_layers, num_agents, self.hidden_dim).cuda()
-        )
+        if torch.cuda.is_available():
+            return (
+                torch.zeros(self.num_layers, num_agents, self.hidden_dim).cuda(),
+                torch.zeros(self.num_layers, num_agents, self.hidden_dim).cuda()
+            )
+
+            # return (
+            #     torch.zeros(self.num_layers, num_agents, self.hidden_dim),
+            #     torch.zeros(self.num_layers, num_agents, self.hidden_dim)
+            # )
 
     def forward(self, input_data, num_agents=32):
         """
@@ -74,7 +70,6 @@ class Decoder(nn.Module):
                 predicted_trajectories.append(rel_pos.view(num_agents, -1))
 
             pred_traj_fake_rel = torch.stack(predicted_trajectories, dim=0)
-            # pred_traj_fake_rel = self.agentscorrector(pred_traj_fake_rel.view(-1,pred_traj_fake_rel.shape[1])) ## required now??
 
             if i == 0:
                 list_pred_traj_fake_rel = pred_traj_fake_rel.view(self.pred_len,pred_traj_fake_rel.shape[1],-1)
@@ -82,34 +77,4 @@ class Decoder(nn.Module):
                 pred_traj_fake_rel = pred_traj_fake_rel.view(self.pred_len,pred_traj_fake_rel.shape[1],-1)
                 list_pred_traj_fake_rel = torch.cat((list_pred_traj_fake_rel,pred_traj_fake_rel), 1)
         
-        return list_pred_traj_fake_rel, state_tuple[0] ## state_tuple??
-
-
-
-
-
-
-
-
-        # input_embedding = self.spatial_embedding(input_data) # 2 -> 64
-        # input_embedding = input_embedding.view(
-        #     1, batch_size, self.emb_dim
-        # )
-
-        # print("Input embedding: ", input_embedding.shape)
-
-        # state_tuple = self.init_hidden(batch)
-
-        # for _ in range(self.seq_len):
-        #     output, state = self.decoder(input_embedding, state_tuple)
-        #     embedding_input = self.hidden2pos(output.view(-1, self.hidden_dim))
-        #     rel_pos = self.predicted_trajectories_generator(embedding_input.view(-1, self.emb_dim))
-        #     input_embedding = embedding_input.view(1, batch, self.emb_dim)
-        #     predicted_trajectories.append(rel_pos.view(batch, -1))
-     
-        # pred_traj_fake_rel = torch.stack(predicted_trajectories, dim=0)
-        # print("Pred Traj fake: ", pred_traj_fake_rel.shape)
-        # pred_traj_fake_rel = self.agentscorrector(pred_traj_fake_rel.view(-1,pred_traj_fake_rel.shape[1]))
-
-        # pred_traj_fake_rel = pred_traj_fake_rel.view(self.seq_len,pred_traj_fake_rel.shape[1],-1)
-        # return pred_traj_fake_rel, state_tuple[0]
+        return list_pred_traj_fake_rel, state_tuple[0] 

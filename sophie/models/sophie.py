@@ -72,8 +72,10 @@ class SoPhieGenerator(nn.Module):
     def create_white_noise(self, noise_type, dims):
         if noise_type == "gauss":
             return torch.randn((dims[0], dims[1])).cuda()
+            # return torch.randn((dims[0], dims[1]))
         elif noise_type == "uniform":
             rand_num = torch.rand((dims[0], dims[1])).cuda()
+            # rand_num = torch.rand((dims[0], dims[1]))
             return rand_num
         else:
             raise ValueError('Unrecognized noise type "%s"' % noise_type)

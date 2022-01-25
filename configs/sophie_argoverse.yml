@@ -3,14 +3,13 @@
 # Model hyperparameters
 
 use_gpu: 1
-dataset_name: argoverse
+dataset_name: argoverse_motion_forecasting_dataset
 dataset:
     path: data/datasets/argoverse/motion-forecasting/
-    # video: data/datasets/argoverse/motion-forecasting/
-    test_submission: False
+    split: "train"
     batch_size: 16 # 16 max
-    training_split_percentage: 1.0
-    shuffle: True
+    split_percentage: 0.0007
+    shuffle: False # False to check the input data, always set to True
     num_workers: 0
 optim_parameters:
     g_learning_rate: 5.0e-6
@@ -22,22 +21,23 @@ hyperparameters:
     num_epochs: 1
     d_steps: 2
     g_steps: 1
-    timing: 0 # ?> Waits for all kernels in all streams on a CUDA device to complete.
+    timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 100
-    checkpoint_every: 500 # cambiar
-    output_dir: "save/argoverse"
+    checkpoint_every: 500
+    output_dir: "save/argoverse/exp3"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 0
     best_k: 1
-    l2_loss_weight: 0
+    l2_loss_weight: 1 # If different from 0, L2 loss is considered when training
     num_samples_check: 5000
-    obs_len: &obs_len 20
-    pred_len: &pred_len 30
+    obs_len: &obs_len 20 
+    pred_len: &pred_len 30 # Must be 0 for the split test since we do not have the predictions of the agents
+                           # Only the observations (0 to obs_len-1 past observations)
     num_agents_per_obs: &num_agents_per_obs 10
-    distance_threshold: 30 # It depends on a statistical study (see get_sequences_as_array function), 
+    distance_threshold: 40 # It depends on a statistical study (see get_sequences_as_array function), 
                            # where we determine the mean distance of the AGENT w.r.t the ego-vehicle
                            # in the obs_len-th frame
     hidden_dim_lstm_decoder: &hidden_dim_lstm_decoder 128

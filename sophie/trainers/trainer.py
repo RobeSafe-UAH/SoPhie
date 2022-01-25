@@ -51,13 +51,14 @@ def model_trainer(config):
     logger.info(config)
 
     logger.info("Initializing train dataset") 
-    data_train = ArgoverseMotionForecastingDataset(root_folder=config.dataset.path,
+    data_train = ArgoverseMotionForecastingDataset(dataset_name=config_file.dataset_name,
+                                                   root_folder=config.dataset.path,
                                                    obs_len=config.hyperparameters.obs_len,
                                                    pred_len=config.hyperparameters.pred_len,
                                                    distance_threshold=config.hyperparameters.distance_threshold,
                                                    split="train",
                                                    num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
-                                                   training_split_percentage=config.dataset.training_split_percentage)
+                                                   split_percentage=config.dataset.split_percentage)
     train_loader = DataLoader(data_train,
                               batch_size=config.dataset.batch_size,
                               shuffle=config.dataset.shuffle,
@@ -65,18 +66,19 @@ def model_trainer(config):
                               collate_fn=seq_collate)
 
     logger.info("Initializing val dataset")
-    data_val = ArgoverseMotionForecastingDataset(root_folder=config.dataset.path,
+    data_val = ArgoverseMotionForecastingDataset(dataset_name=config_file.dataset_name,
+                                                 root_folder=config.dataset.path,
                                                  obs_len=config.hyperparameters.obs_len,
                                                  pred_len=config.hyperparameters.pred_len,
                                                  distance_threshold=config.hyperparameters.distance_threshold,
                                                  split="val",
                                                  num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
-                                                 training_split_percentage=config.dataset.training_split_percentage)
+                                                 split_percentage=config.dataset.split_percentage)
     val_loader = DataLoader(data_val,
-                              batch_size=config.dataset.batch_size,
-                              shuffle=config.dataset.shuffle,
-                              num_workers=config.dataset.num_workers,
-                              collate_fn=seq_collate)
+                            batch_size=config.dataset.batch_size,
+                            shuffle=config.dataset.shuffle,
+                            num_workers=config.dataset.num_workers,
+                            collate_fn=seq_collate)
 
     hyperparameters = config.hyperparameters
     optim_parameters = config.optim_parameters
@@ -88,8 +90,6 @@ def model_trainer(config):
         'There are {} iterations per epoch'.format(iterations_per_epoch)
     )
 
-    # config.sophie.generator.decoder.linear_3.input_dim = config.dataset.batch_size*2*config.sophie.generator.social_attention.linear_decoder.out_features
-    # config.sophie.generator.decoder.linear_3.output_dim = config.dataset.batch_size*config.hyperparameters.num_agents_per_obs
     generator = SoPhieGenerator(config.sophie.generator)
     generator.set_num_agents(hyperparameters.num_agents_per_obs)
     generator.build()
@@ -151,17 +151,27 @@ def model_trainer(config):
 
             if d_steps_left > 0:
                 step_type = 'discriminator'
+
+                start = time.time()
                 losses_d = discriminator_step(hyperparameters, batch, generator,
                                               discriminator, d_loss_fn,
                                               optimizer_d)
+                end = time.time()
+                # print(f"Time consumed by discriminator step: {end-start}\n")
+
                 checkpoint.config_cp["norm_d"].append(
                     get_total_norm(discriminator.parameters()))
                 d_steps_left -= 1
             elif g_steps_left > 0:
                 step_type = 'generator'
+
+                start = time.time()
                 losses_g = generator_step(hyperparameters, batch, generator,
                                           discriminator, g_loss_fn,
                                           optimizer_g)
+                end = time.time()
+                # print(f"Time consumed by generator step: {end-start}\n")
+
                 checkpoint.config_cp["norm_g"].append(
                     get_total_norm(generator.parameters())
                 )
@@ -206,22 +216,22 @@ def model_trainer(config):
                 metrics_val = check_accuracy(
                     hyperparameters, val_loader, generator, discriminator, d_loss_fn
                 )
-                logger.info('Checking stats on train ...')
-                metrics_train = check_accuracy(
-                    hyperparameters, train_loader, generator, discriminator,
-                    d_loss_fn, limit=True
-                )
+                # logger.info('Checking stats on train ...') # Checking stats on train should NOT be used
+                # metrics_train = check_accuracy(
+                #     hyperparameters, train_loader, generator, discriminator,
+                #     d_loss_fn, limit=True
+                # )
 
                 for k, v in sorted(metrics_val.items()):
                     logger.info('  [val] {}: {:.3f}'.format(k, v))
                     if k not in checkpoint.config_cp["metrics_val"].keys():
                         checkpoint.config_cp["metrics_val"][k] = []
                     checkpoint.config_cp["metrics_val"][k].append(v)
-                for k, v in sorted(metrics_train.items()):
-                    logger.info('  [train] {}: {:.3f}'.format(k, v))
-                    if k not in  checkpoint.config_cp["metrics_train"].keys():
-                        checkpoint.config_cp["metrics_train"][k] = []    
-                    checkpoint.config_cp["metrics_train"][k].append(v)
+                # for k, v in sorted(metrics_train.items()):
+                #     logger.info('  [train] {}: {:.3f}'.format(k, v))
+                #     if k not in  checkpoint.config_cp["metrics_train"].keys():
+                #         checkpoint.config_cp["metrics_train"][k] = []    
+                #     checkpoint.config_cp["metrics_train"][k].append(v)
 
                 min_ade = min(checkpoint.config_cp["metrics_val"]['ade'])
                 min_ade_nl = min(checkpoint.config_cp["metrics_val"]['ade_nl'])
@@ -281,7 +291,7 @@ def discriminator_step(
     batch = [tensor.cuda() for tensor in batch]
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-     loss_mask, seq_start_end, frames, object_cls, obj_id) = batch
+     loss_mask, seq_start_end, frames, object_cls, obj_id, _, _) = batch
 
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
@@ -320,10 +330,9 @@ def generator_step(
     hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g
 ):
     batch = [tensor.cuda() for tensor in batch]
-    # (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-    #  loss_mask, seq_start_end, _, frames) = batch
-    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt, non_linear_obj,
-     loss_mask, seq_start_end, frames, object_cls, obj_id) = batch
+
+    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
+     loss_mask, seq_start_end, frames, object_cls, obj_id, _, _) = batch
 
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
@@ -391,16 +400,13 @@ def check_accuracy(
     with torch.no_grad():
         for batch in loader:
             batch = [tensor.cuda() for tensor in batch]
-            # (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
-            #  non_linear_obj, loss_mask, seq_start_end, _, frames) = batch
+
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-             loss_mask, seq_start_end, frames, object_cls, obj_id) = batch
+             loss_mask, seq_start_end, frames, object_cls, obj_id, _, _) = batch
+             
             linear_obj = 1 - non_linear_obj
             loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
-            # pred_traj_fake_rel = generator(
-            #     obs_traj, obs_traj_rel, seq_start_end
-            # )
             pred_traj_fake_rel = generator(
                 frames, obs_traj
             )

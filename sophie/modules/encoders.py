@@ -27,6 +27,11 @@ class Encoder(nn.Module):
                 torch.zeros(self.num_layers, batch, self.hidden_dim).cuda()  # Cell state at time 0
             )
 
+            # return (
+            #     torch.zeros(self.num_layers, batch, self.hidden_dim), # Hidden state at time 0
+            #     torch.zeros(self.num_layers, batch, self.hidden_dim)  # Cell state at time 0
+            # )
+
     def forward(self,input_data):
         """
         Inputs:
