@@ -5,6 +5,7 @@ import copy
 import logging
 import sys
 import time
+import pdb
 
 from collections import defaultdict
 from typing import Dict, List, Optional
@@ -216,14 +217,13 @@ def map_generator(
     offset,
     avm,
     city_name,
+    info, # object list id + num_agents_per_obs
     lane_centerlines: Optional[List[np.ndarray]] = None,
     show: bool = True,
     smoothen: bool = False,
 ) -> None:
 
-    print("Map generator: ")
-    print("seq: ", seq)
-
+    object_id_list, obs = info
     # Seq data
     if lane_centerlines is None:
         # Get API for Argo Dataset map
@@ -232,8 +232,6 @@ def map_generator(
     fig = plt.figure(0, figsize=(8, 7), facecolor="black")
 
     xcenter, ycenter = ego_pos[0][0], ego_pos[0][1]
-
-    print("xcenter, ycenter: ", xcenter, ycenter)
         
     x_min = xcenter + offset[0]
     x_max = xcenter + offset[1]
@@ -276,23 +274,21 @@ def map_generator(
     color_dict = {"AGENT": (0.0,0.0,1.0,1.0), "OTHERS": (1.0,1.0,1.0,1.0), "AV": (1.0,0.0,0.0,1.0)}
     object_type_tracker: Dict[int, int] = defaultdict(int)
 
-    obs_seq = seq[:200, :]
-    tid = np.unique(obs_seq[:,1])
-    print("tid: ", tid)
+    obs_seq = seq[:200, :] # 200x2
     obs_seq_list = []
-    for i in range(tid.shape[0]):
-        if tid[i] != -1:
-            obs_seq_list.append(obs_seq[tid[i]==obs_seq[:,1], :])
+    for i in range(object_id_list.shape[0]):
+        if object_id_list[i] != -1:
+            obs_seq_list.append([obs_seq[np.arange(i,200,obs),:], object_id_list[i]]) # recover trajectories for each obs
 
-    print("obs obs_seq_list: ", obs_seq_list)
     # Plot all the tracks up till current frame
     for seq_id in obs_seq_list:
-        object_type = seq_id[0][1]
+        object_type = int(seq_id[1])
+        seq_rel = seq_id[0]
 
         object_type = translate_object_type(object_type)
 
-        cor_x = seq_id[:,0] + xcenter
-        cor_y = seq_id[:,1] + ycenter
+        cor_x = seq_rel[:,0] + xcenter
+        cor_y = seq_rel[:,1] + ycenter
 
         if smoothen:
             polyline = np.column_stack((cor_x, cor_y))
@@ -337,18 +333,6 @@ def map_generator(
         )
 
         object_type_tracker[object_type] += 1
-
-    red_star = mlines.Line2D([], [], color="red", marker="*", linestyle="None", markersize=7, label="Agent")
-    green_circle = mlines.Line2D(
-        [],
-        [],
-        color="green",
-        marker="o",
-        linestyle="None",
-        markersize=7,
-        label="Others",
-    )
-    black_triangle = mlines.Line2D([], [], color="black", marker="^", linestyle="None", markersize=7, label="AV")
 
     plt.axis("off")
     if show:

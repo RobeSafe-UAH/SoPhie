@@ -23,11 +23,15 @@ import torch
 import pandas as pd
 import time
 import gc # Garbage Collector
+from numba import jit
+import pdb
 
 from pathlib import Path
 from torch.utils.data import Dataset
 
-sys.path.append("/home/robesafe/libraries/SoPhie")
+lib_path = os.path.join("/home", "robesafe", "libraries")
+if os.path.exists(lib_path):
+    sys.path.append("/home/robesafe/libraries/SoPhie")
 from argoverse.map_representation.map_api import ArgoverseMap
 import sophie.data_loader.argoverse.map_utils as map_utils
 
@@ -121,7 +125,7 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
     print("Num files: ", num_files)
 
     end = time.time()
-    # print(f"Time consumed listing the files: {end-start}\n")
+    # print(f"Time consumed listing the files: {end-start}\n") # 1s
 
     # Flags
 
@@ -141,7 +145,6 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
             # Get AV and AGENT ids in Argoverse format
 
             data = csv.DictReader(open(track_file)) # Faster than using pandas.read_csv
-
             agents = dict()
             cont = 2
             for row in data:
@@ -236,11 +239,10 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
     num_sequences_percentage = int(num_files * split_percentage)
     filtered_sequences = []
     origin = [] # Agent's position in the last observation
-    city_ids = np.zeros((num_sequences_percentage))
+    city_ids = []
 
     for i,file_id in enumerate(file_id_list):
-        # if i == num_sequences_percentage:
-        if i == 1:
+        if i == num_sequences_percentage:
             break
 
         print(f"File {i+1}/{num_sequences_percentage}")
@@ -271,16 +273,14 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
         sequence = (timestamps,coded_track_ids,x_pos,y_pos,object_class) # Timestamp - ID - X - Y - Class
         sequence = np.concatenate(sequence,axis=1)
 
-        # print("sequence: ", sequence, sequence.shape)
-
         ## Get city
 
         city = data[0,5].astype('str').reshape(-1,1)
 
         if city == "PIT":
-            city_ids[i] = 0
+            city_ids.append(0)
         else:
-            city_ids[i] = 1
+            city_ids.append(1)
 
         # Distance filter
 
@@ -303,36 +303,24 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
         distances = np.array([math.sqrt(pow(x-origin_agent_x,2)+pow(y-origin_agent_y,2)) for _,_,x,y,_ in last_observation])
         distances[0] = -1 # We keep the AV data regardless it is further than distance_threshold. It is useful to know
                           # when each timestamp starts
-        print("distances: ", distances)
         distance_indexes = np.where(distances <= distance_threshold)[0]
-        print("distances_indexes: ", distance_indexes)
         relevant_obstacles_ids = last_observation[distance_indexes,1]
-        print("relevant obstacles ids: ", relevant_obstacles_ids)
         relevant_obstacles_indexes = np.where(np.in1d(sequence[:,1],relevant_obstacles_ids))
-        
         sequence = np.take(sequence, relevant_obstacles_indexes, axis=0).reshape(-1,sequence.shape[1])
-        print("distance filtered sequence: ", sequence, sequence.shape)
 
         av_indices = np.where(sequence[:,1] == 0)[0]
-        print("av indices: ", av_indices)
         if split == "test":
             last_observation = sequence[av_indices[obs_len - 1]:,:]
         else:
             last_observation = sequence[av_indices[obs_len - 1]:av_indices[obs_len],:]
 
-        print("22 last obs: ", last_observation, last_observation.shape)
-
         av_last_observation = av_indices[obs_len - 1]
         av_x, av_y = sequence[av_last_observation,2:4]
-        print("avx, avy: ", av_x, av_y)
 
         distances = np.array([math.sqrt(pow(x-av_x,2)+pow(y-av_y,2)) for _,_,x,y,_ in last_observation])
-        print("distances: ", distances)
         distance_indexes = np.where(distances <= distance_threshold)[0]
-        print("distances_indexes: ", distance_indexes)
         relevant_obstacles_ids = last_observation[distance_indexes,1]
-        print("relevant obstacles ids: ", relevant_obstacles_ids)
-
+        
 
 
         # Dummy filter (take the num_agents_per_obs-2 closest to the AGENT if there are more
@@ -345,7 +333,6 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
 
         dummy_filtered_sub_sequences = []
         av_indices = np.where(sequence[:,1] == 0)[0]
-        print("av indices: ", av_indices)
 
         for j in range(len(av_indices)):
             start_window_index = av_indices[j]
@@ -381,16 +368,13 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
                         dist = math.sqrt(pow(obj_x-agent_x,2)+pow(obj_y-agent_y,2))
                         agents_dist[k] = dist
 
-                print("agents_dist: ", agents_dist)
                 sorted_indeces = np.argsort(agents_dist)
                 to_delete_indeces = sorted_indeces[num_agents_per_obs:] # Only keep the closest num_agents_per_obs agents
-                print("to delete indeces: ", to_delete_indeces)
 
-                # assert 1 == 0
                 dummy_sub_sequence = np.delete(sub_sequence,to_delete_indeces,axis=0)
             dummy_filtered_sub_sequences.append(dummy_sub_sequence)
         sequence = np.concatenate(dummy_filtered_sub_sequences)
-        print("Dummy filtered sequences: ", sequence, sequence.shape)
+        # print("Dummy filtered sequences: ", sequence, sequence.shape)
 
         # av_indexes = np.where(sequence[:,1] == 1)
         # print("PRE GET SEQUENCES av indexes: ", av_indexes)
@@ -400,8 +384,6 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
         # dist = math.sqrt(pow(x1-x2,2)+pow(y1-y2,2))
         # print("Dist: ", dist)
 
-        # assert 1 == 0
-
         # Get relative displacements
 
         num_observations = obs_len + pred_len
@@ -410,35 +392,20 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
 
         # origin_x = sequence[(obs_len-1)*num_agents_per_obs,2] # Ego-vehcile's position in last observation
         # origin_y = sequence[(obs_len-1)*num_agents_per_obs,3]
-        origin_agent_x, origin_agent_y
         origin_aux = np.array([origin_agent_x, origin_agent_y]).reshape(1,2)
         origin.append(origin_aux)
 
         other_obstacles_indices = np.where(sequence[:,1] != -1)[0]
         sequence[other_obstacles_indices,2:4] -= origin_aux
 
-        print("SEQUENCE RAW: ", sequence, sequence.shape)
-
         av_indexes = np.where(sequence[:,1] == 1)
-        print("\n\nGET SEQUENCES av indexes: ", av_indexes)
+        # print("\n\nGET SEQUENCES av indexes: ", av_indexes)
         x1, y1 = sequence[av_indexes[0][0],2], sequence[av_indexes[0][0],3]
         x2, y2 = sequence[av_indexes[0][-1],2], sequence[av_indexes[0][-1],3]
-        print("x1, y1, x2, y2: ", x1, y1, x2, y2)
         dist = math.sqrt(pow(x1-x2,2)+pow(y1-y2,2))
-        print("Dist: ", dist)
-
-
-
-
 
         av_indeces = np.where(sequence[:,1] == 0)[0]
         agent_indeces = np.where(sequence[:,1] == 1)[0]
-        print("av indeces len: ", len(av_indeces))
-        print("agent_indeces indeces len: ", len(agent_indeces))
-
-        # print("Sequence with relative displacements: ", sequence, sequence.shape)
-
-        # assert 1 == 0
 
         # Append filtered sequences
 
@@ -446,10 +413,11 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
 
     sequences = np.dstack(filtered_sequences) # Get sequence_info = seq_len * num_agents_per_obs (e.g. obs_len+pred_len = 50 x num_agents_per_obs = 10) x info (= 5 -> Timestamp | ID | X | Y | Class) x Num_sequences (Files of the folder)
     origin = np.dstack(origin) # 1 x 2 (X | Y) x Num_sequences
+    city_ids = np.array(city_ids)
 
-    print("Num sequences (files): ", sequences.shape)
-    print("Origin: ", origin.shape)
-    print("City ids: ", city_ids.shape)
+    # print("Num sequences (files): ", sequences.shape)
+    # print("Origin: ", origin.shape)
+    # print("City ids: ", city_ids.shape)
 
     relative_sequences_file = "/home/robesafe/shared_home/test_map_argoverse/new_relative_sequences_3.npy"
     with open(relative_sequences_file, 'wb') as file:
@@ -459,11 +427,11 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
     with open(origin_file, 'wb') as file:
         np.save(origin_file, origin)
 
-    assert 1 == 0
+    # assert 1 == 0
 
     end = time.time()
-    # print(f"Time consumed filtering the sequences: {end-start}\n")
-    return sequences, ego_vehicle_origin, city_ids, file_id_list
+    print(f"Time consumed filtering the sequences: {end-start}\n")
+    return sequences, origin, city_ids, file_id_list
 
 def poly_fit(traj, traj_len, threshold):
     """
@@ -484,7 +452,7 @@ def poly_fit(traj, traj_len, threshold):
     else:
         return 0.0
 
-def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map, num_agents_per_obs, debug_images=False):
+def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map, num_agents_per_obs, objs_id_list,debug_images=False):
     """
     Get the corresponding rasterized map
     """
@@ -498,6 +466,7 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
 
     for i in range(batch_size):
         curr_num_seq = int(num_seq[i].cpu().data.numpy())
+        obj_id_list = objs_id_list[i].cpu().data.numpy()
 
         if i < batch_size - 1:
             curr_obs_seq_data = obs_seq_data[:,num_agents_per_obs*i:num_agents_per_obs*(i+1),:]
@@ -519,9 +488,10 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
         print("Curr obs seq data: ", curr_obs_seq_data, curr_obs_seq_data.shape)
         print("curr_ego_origin: ", curr_ego_origin, curr_ego_origin.shape)
 
-        # assert 1 == 0
-
-        fig = map_utils.map_generator(curr_obs_seq_data, curr_ego_origin, dist_rasterized_map, avm, city_name, show=False, smoothen=True)
+        fig = map_utils.map_generator(
+            curr_obs_seq_data, curr_ego_origin, dist_rasterized_map, avm, city_name,
+            (obj_id_list, num_agents_per_obs), show=False, smoothen=True
+        )
         end = time.time()
         # print(f"Time consumed by map generator: {end-start}")
         start = time.time()
@@ -592,7 +562,7 @@ def seq_collate(data):
     num_agents_per_obs = int(obs_traj.shape[1] / batch_size)
     print("PRE LOAD")
     frames = load_images(num_seq_list, obs_traj_rel, city_id, ego_vehicle_origin,    # Return batch_size x 600 x 600 x 3
-                         dist_rasterized_map, num_agents_per_obs, debug_images=True)
+                         dist_rasterized_map, num_agents_per_obs, object_id_list, debug_images=True)
     
     end = time.time()
     # print(f"Time consumed by load_images function: {end-start}\n")
@@ -649,7 +619,10 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.split = split
 
         global frames_path
-        frames_path = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/" + split + "/data_images/" 
+        if os.path.exists(lib_path):
+            frames_path = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/" + split + "/data_images/" 
+        else:
+            frames_path = "/home/robesafe/tesis/SoPhie/data/datasets/argoverse/motion-forecasting/" + split + "/data_images/" 
         if not os.path.exists(frames_path):
             print("Create frames folder: ", frames_path)
             os.mkdir(frames_path)
@@ -689,7 +662,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
         print("\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         print("2. Get the corresponding data to feed the GAN-LSTM network for Motion Prediction")
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n")
-
         start = time.time()
 
         for seq_index in range(sequences.shape[2]):
@@ -702,30 +674,19 @@ class ArgoverseMotionForecastingDataset(Dataset):
             else:
                 curr_seq_data = sequences[:,:,seq_index:] # Frame - ID - X - Y - Class
 
-            print("curr seq data: ", curr_seq_data, curr_seq_data.shape)
-
             rows, columns, depth = curr_seq_data.shape # (seq_len * num_agents_per_obs) x 5 x 1
             curr_seq_data = curr_seq_data.reshape(rows,columns) # From tensor (3D) to matrix (2D)
 
-            print("curr seq data: ", curr_seq_data, curr_seq_data.shape)
-
             av_indexes = np.where(curr_seq_data[:,1] == 0)
-
-            # print("LOADER av indexes: ", av_indexes)
-            # x1, y1 = curr_seq_data[av_indexes[0][0],2], curr_seq_data[av_indexes[0][0],3]
-            # x2, y2 = curr_seq_data[av_indexes[0][-1],2], curr_seq_data[av_indexes[0][-1],3]
-            # print("x1, y1, x2, y2: ", x1, y1, x2, y2)
-            # dist = math.sqrt(pow(x1-x2,2)+pow(y1-y2,2))
-            # print("Dist: ", dist)
-
-            # assert 1 == 0
 
             curr_seq_timestamps = curr_seq_data[:,0]
             curr_seq_timestamps = curr_seq_timestamps[::self.num_agents_per_obs] # Take the timestamp per obs (each obs has self.num_agents_per_obs)
+                                                                                 # salto de self.num_agents_per_obs
 
             # From relative to global coordinates
-
-            curr_seq_data[:,2:4] += self.ego_vehicle_origin[0,:,seq_index].reshape(1,2)
+            ego_origin_seq = self.ego_vehicle_origin[0,:,seq_index].reshape(1,2)
+            curr_seq_data[:,2:4] += ego_origin_seq
+            ego_origin_seq = ego_origin_seq.reshape(2,1)
 
             # curr_seq_data dimensions: Rows (= Num_agents_per_obs x Num_obs) x Columns (5)
 
@@ -759,9 +720,8 @@ class ArgoverseMotionForecastingDataset(Dataset):
                     _idx = num_objs_considered
                     x_dummy = np.random.rand(1,self.seq_len)
                     y_dummy = np.random.rand(1,self.seq_len)
-                    curr_obj_seq = np.vstack([x_dummy,y_dummy])
-                    rel_curr_obj_seq = np.zeros(curr_obj_seq.shape)
-                    rel_curr_obj_seq[:,1:] = curr_obj_seq[:,1:] - curr_obj_seq[:,:-1]
+                    curr_obj_seq = np.vstack([x_dummy,y_dummy]) # 2 x 50
+                    rel_curr_obj_seq = curr_obj_seq - ego_origin_seq
 
                     curr_seq[_idx, :, :] = curr_obj_seq
                     curr_seq_rel[_idx, :, :] = rel_curr_obj_seq
@@ -777,7 +737,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 object_class_id = curr_seq_data[object_id_index,4]
 
                 curr_obj_seq = curr_seq_data[curr_seq_data[:, 1] == obj_id, :] # Frame - ID - X - Y - Class  for one of the id of the window, same id
-                
+                                                                               # 50 x 5
                 # Only keep the state
 
                 cache_tmp = np.transpose(curr_obj_seq[:,:2]) # 2 x seq_len -> First row = [0,:] list of timestamps | Second row = [1,:] id
@@ -798,13 +758,10 @@ class ArgoverseMotionForecastingDataset(Dataset):
                                                                   
                 # Make coordinates relative
 
-                rel_curr_obj_seq = np.zeros(curr_obj_seq.shape)
-                rel_curr_obj_seq[:,1:] = curr_obj_seq[:,1:] - curr_obj_seq[:,:-1]
+                rel_curr_obj_seq = curr_obj_seq - ego_origin_seq
                 _idx = num_objs_considered
                 curr_seq[_idx, :, :] = curr_obj_seq
                 curr_seq_rel[_idx, :, :] = rel_curr_obj_seq
-
-                print("Curr seq rel: ", curr_seq_rel[_idx, :, :])
 
                 # Record seqname, frame and ID information 
 
@@ -827,7 +784,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 num_objs_considered += 1
 
             # assert 1 == 0
-
             if num_objs_considered > min_objs:
                 if len(_non_linear_obj) != num_objs_considered:
                     dummy = [-1 for i in range(num_objs_considered - len(_non_linear_obj))]
@@ -835,10 +791,10 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 non_linear_obj += _non_linear_obj
                 num_objs_in_seq.append(num_objs_considered)
                 loss_mask_list.append(curr_loss_mask[:num_objs_considered])
-                seq_list.append(curr_seq[:num_objs_considered])
-                seq_list_rel.append(curr_seq_rel[:num_objs_considered])
-                seq_id_list.append(id_frame_list[:num_objs_considered])
-                object_class_id_list.append(object_class_list)
+                seq_list.append(curr_seq[:num_objs_considered]) # (x,y)
+                seq_list_rel.append(curr_seq_rel[:num_objs_considered]) # (x_rel, y_rel)
+                seq_id_list.append(id_frame_list[:num_objs_considered]) # (timestamp, id, file_id)
+                object_class_id_list.append(object_class_list) # obj_class (-1 0 1 2 2 2 2 ...)
                 object_id_list.append(id_frame_list[:,1,0])
 
         end = time.time()
@@ -877,7 +833,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 self.obs_traj[start:end, :, :], self.pred_traj_gt[start:end, :, :],
                 self.obs_traj_rel[start:end, :, :], self.pred_traj_gt_rel[start:end, :, :],
                 self.non_linear_obj[start:end], self.loss_mask[start:end, :],
-                self.seq_id_list[start:end, :], self.object_class_id_list[index], 
+                self.seq_id_list[start:end, :, :], self.object_class_id_list[index], 
                 self.object_id_list[index], self.city_ids[index], self.ego_vehicle_origin[0,:,index].reshape(1,2),
                 self.num_seq_list[index]
               ] 

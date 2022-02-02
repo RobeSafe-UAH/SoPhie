@@ -5,6 +5,7 @@ import os
 import sys
 import time
 from prodict import Prodict
+import pdb
 
 import torch
 import torch.nn as nn
@@ -51,7 +52,7 @@ def model_trainer(config):
     logger.info(config)
 
     logger.info("Initializing train dataset") 
-    data_train = ArgoverseMotionForecastingDataset(dataset_name=config_file.dataset_name,
+    data_train = ArgoverseMotionForecastingDataset(dataset_name=config.dataset_name,
                                                    root_folder=config.dataset.path,
                                                    obs_len=config.hyperparameters.obs_len,
                                                    pred_len=config.hyperparameters.pred_len,
@@ -66,7 +67,7 @@ def model_trainer(config):
                               collate_fn=seq_collate)
 
     logger.info("Initializing val dataset")
-    data_val = ArgoverseMotionForecastingDataset(dataset_name=config_file.dataset_name,
+    data_val = ArgoverseMotionForecastingDataset(dataset_name=config.dataset_name,
                                                  root_folder=config.dataset.path,
                                                  obs_len=config.hyperparameters.obs_len,
                                                  pred_len=config.hyperparameters.pred_len,
@@ -85,9 +86,10 @@ def model_trainer(config):
     iterations_per_epoch = len(data_train) / config.dataset.batch_size / hyperparameters.d_steps
     if hyperparameters.num_epochs:
         hyperparameters.num_iterations = int(iterations_per_epoch * hyperparameters.num_epochs)
+        hyperparameters.num_iterations = hyperparameters.num_iterations if hyperparameters.num_iterations != 0 else 1
 
     logger.info(
-        'There are {} iterations per epoch'.format(iterations_per_epoch)
+        'There are {} iterations per epoch'.format(hyperparameters.num_iterations)
     )
 
     generator = SoPhieGenerator(config.sophie.generator)
@@ -137,6 +139,7 @@ def model_trainer(config):
         t, epoch = 0, 0
         checkpoint = Checkpoint()
     t0 = None
+
     while t < hyperparameters.num_iterations:
         gc.collect()
         d_steps_left = hyperparameters.d_steps
@@ -157,7 +160,6 @@ def model_trainer(config):
                                               discriminator, d_loss_fn,
                                               optimizer_d)
                 end = time.time()
-                # print(f"Time consumed by discriminator step: {end-start}\n")
 
                 checkpoint.config_cp["norm_d"].append(
                     get_total_norm(discriminator.parameters()))
@@ -170,7 +172,6 @@ def model_trainer(config):
                                           discriminator, g_loss_fn,
                                           optimizer_g)
                 end = time.time()
-                # print(f"Time consumed by generator step: {end-start}\n")
 
                 checkpoint.config_cp["norm_g"].append(
                     get_total_norm(generator.parameters())
