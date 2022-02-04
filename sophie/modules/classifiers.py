@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import pdb
 
 from sophie.modules.layers import MLP
 
@@ -9,7 +10,8 @@ class Classifier(nn.Module):
         super(Classifier, self).__init__()
 
         self.spatial_embedding = MLP(**mlp_config) 
-        self.softmax = nn.Softmax(dim=1) # Perform softmax operation accross hidden_dim axis
+        # self.softmax = nn.Softmax(dim=1) # Perform softmax operation accross hidden_dim axis
+        self.sigmoid = nn.Sigmoid()
     """
     # Sotfmax: https://medium.com/data-science-bootcamp/understand-the-softmax-function-in-minutes-f3a59641e86d
     def forward(self, trajectory_predicted, trajectory_groundtruth):
@@ -28,7 +30,9 @@ class Classifier(nn.Module):
         input_softmax = self.spatial_embedding(
             input_data
         )
+        # pdb.set_trace()
+        # print("input_softmax ", input_softmax)
 
-        scores = self.softmax(input_softmax)
+        scores = self.sigmoid(input_softmax)
 
         return scores

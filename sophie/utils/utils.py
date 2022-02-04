@@ -1,5 +1,6 @@
 import torch
 import copy
+import pdb
 
 def relative_to_abs(rel_traj, start_pos):
     """
@@ -13,7 +14,7 @@ def relative_to_abs(rel_traj, start_pos):
     # rel_traj = rel_traj.permute(1, 0, 2)
     # displacement = torch.cumsum(rel_traj, dim=1)
     # start_pos = torch.unsqueeze(start_pos, dim=1)
-
+    # pdb.set_trace()
     # abs_traj = displacement + start_pos
     # return abs_traj.permute(1, 0, 2)
 
@@ -24,13 +25,14 @@ def relative_to_abs(rel_traj, start_pos):
     num_agents_per_obs = int(rel_traj.shape[1] / batch_size)
     # print("batch_size, agents: ", batch_size, num_agents_per_obs)
 
-    abs_traj = copy.copy(rel_traj)
+    abs_traj = rel_traj.clone()
 
     for seq_index in range(batch_size):
-        if seq_index < batch_size - 1:
-            abs_traj[:,seq_index*num_agents_per_obs:(seq_index+1)*num_agents_per_obs,:] += start_pos[seq_index,:]
-        else:
-            abs_traj[:,seq_index*num_agents_per_obs:,:] += start_pos[seq_index,:]
+        with torch.no_grad():
+            if seq_index < batch_size - 1:
+                abs_traj[:,seq_index*num_agents_per_obs:(seq_index+1)*num_agents_per_obs,:] += start_pos[seq_index,:]
+            else:
+                abs_traj[:,seq_index*num_agents_per_obs:,:] += start_pos[seq_index,:]
 
     # print("Absolute trajectories: ", abs_traj, abs_traj.shape)
 
