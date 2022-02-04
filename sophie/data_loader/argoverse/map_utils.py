@@ -270,8 +270,9 @@ def map_generator(
 
     t0 = time.time()
 
-    # color_dict = {"AGENT": "#1c2be6", "OTHERS": "#59dd4c", "AV": "#007672"}
-    color_dict = {"AGENT": (0.0,0.0,1.0,1.0), "OTHERS": (1.0,1.0,1.0,1.0), "AV": (1.0,0.0,0.0,1.0)}
+    color_dict = {"AGENT": (0.0,0.0,1.0,1.0), # Blue (Red when represented in the image)
+                  "AV": (1.0,0.0,0.0,1.0), # Red (Blue when represented in the image)
+                  "OTHERS": (1.0,1.0,1.0,1.0)} # White
     object_type_tracker: Dict[int, int] = defaultdict(int)
 
     obs_seq = seq[:200, :] # 200x2
@@ -281,6 +282,7 @@ def map_generator(
             obs_seq_list.append([obs_seq[np.arange(i,200,obs),:], object_id_list[i]]) # recover trajectories for each obs
 
     # Plot all the tracks up till current frame
+
     for seq_id in obs_seq_list:
         object_type = int(seq_id[1])
         seq_rel = seq_id[0]
