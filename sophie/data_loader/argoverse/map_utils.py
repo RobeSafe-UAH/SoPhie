@@ -1,3 +1,4 @@
+from bdb import set_trace
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -238,6 +239,8 @@ def map_generator(
     y_min = ycenter + offset[2]
     y_max = ycenter + offset[3]
 
+    #pdb.set_trace()
+
     if lane_centerlines is None:
 
         plt.xlim(x_min, x_max)
@@ -256,7 +259,7 @@ def map_generator(
                 and np.max(lane_cl[:, 1]) > y_min
             ):
                 lane_centerlines.append(lane_cl)
-
+    #pdb.set_trace()
     for lane_cl in lane_centerlines:
         plt.plot(
             lane_cl[:, 0],
@@ -280,7 +283,7 @@ def map_generator(
     for i in range(object_id_list.shape[0]):
         if object_id_list[i] != -1:
             obs_seq_list.append([obs_seq[np.arange(i,200,obs),:], object_id_list[i]]) # recover trajectories for each obs
-
+    #pdb.set_trace()
     # Plot all the tracks up till current frame
 
     for seq_id in obs_seq_list:
@@ -298,6 +301,8 @@ def map_generator(
             smooth_polyline = interpolate_polyline(polyline, num_points)
             cor_x = smooth_polyline[:, 0]
             cor_y = smooth_polyline[:, 1]
+        
+        #pdb.set_trace()
 
         plt.plot(
             cor_x,
@@ -335,6 +340,7 @@ def map_generator(
         )
 
         object_type_tracker[object_type] += 1
+        #pdb.set_trace()
 
     plt.axis("off")
     if show:

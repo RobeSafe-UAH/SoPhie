@@ -6,6 +6,7 @@ import sys
 import time
 from prodict import Prodict
 import pdb
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -22,10 +23,6 @@ from sophie.utils.utils import relative_to_abs
 
 torch.backends.cudnn.benchmark = True
 
-FORMAT = '[%(levelname)s: %(filename)s: %(lineno)4d]: %(message)s'
-logging.basicConfig(filename="experiment_log.log", level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
 def init_weights(m):
     classname = m.__class__.__name__
     if classname.find('Linear') != -1:
@@ -39,7 +36,7 @@ def get_dtypes(use_gpu):
         float_dtype = torch.cuda.FloatTensor
     return long_dtype, float_dtype
 
-def model_trainer(config):
+def model_trainer(config, logger):
     """
     """
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_num
@@ -151,7 +148,7 @@ def model_trainer(config):
                 # ?> Waits for all kernels in all streams on a CUDA device to complete.
                 torch.cuda.synchronize()
                 t1 = time.time()
-
+            # pdb.set_trace()
             if d_steps_left > 0:
                 step_type = 'discriminator'
 
@@ -160,6 +157,7 @@ def model_trainer(config):
                                               discriminator, d_loss_fn,
                                               optimizer_d)
                 end = time.time()
+                print("Discriminator time: ", end-start)
 
                 checkpoint.config_cp["norm_d"].append(
                     get_total_norm(discriminator.parameters()))
@@ -172,7 +170,7 @@ def model_trainer(config):
                                           discriminator, g_loss_fn,
                                           optimizer_g)
                 end = time.time()
-
+                print("Generator time: ", end-start)
                 checkpoint.config_cp["norm_g"].append(
                     get_total_norm(generator.parameters())
                 )
@@ -286,21 +284,69 @@ def model_trainer(config):
             if t >= hyperparameters.num_iterations:
                 break
 
+    ###
+    logger.info("Training finished")
+
+    # Check stats on the validation set
+    t += 1
+    epoch += 1
+    checkpoint.config_cp["counters"]["t"] = t
+    checkpoint.config_cp["counters"]["epoch"] = epoch+1
+    checkpoint.config_cp["sample_ts"].append(t)
+    logger.info('Checking stats on val ...')
+    metrics_val = check_accuracy(
+        hyperparameters, val_loader, generator, discriminator, d_loss_fn
+    )
+
+    for k, v in sorted(metrics_val.items()):
+        logger.info('  [val] {}: {:.3f}'.format(k, v))
+        if k not in checkpoint.config_cp["metrics_val"].keys():
+            checkpoint.config_cp["metrics_val"][k] = []
+        checkpoint.config_cp["metrics_val"][k].append(v)
+
+    min_ade = min(checkpoint.config_cp["metrics_val"]['ade'])
+    min_ade_nl = min(checkpoint.config_cp["metrics_val"]['ade_nl'])
+
+    if metrics_val['ade'] == min_ade:
+        logger.info('New low for avg_disp_error')
+        checkpoint.config_cp["best_t"] = t
+        checkpoint.config_cp["g_best_state"] = generator.state_dict()
+        checkpoint.config_cp["d_best_state"] = discriminator.state_dict()
+
+    if metrics_val['ade_nl'] == min_ade_nl:
+        logger.info('New low for avg_disp_error_nl')
+        checkpoint.config_cp["best_t_nl"] = t
+        checkpoint.config_cp["g_best_nl_state"] = generator.state_dict()
+        checkpoint.config_cp["d_best_nl_state"] = discriminator.state_dict()
+
+    # Save another checkpoint with model weights and
+    # optimizer state
+    checkpoint.config_cp["g_state"] = generator.state_dict()
+    checkpoint.config_cp["g_optim_state"] = optimizer_g.state_dict()
+    checkpoint.config_cp["d_state"] = discriminator.state_dict()
+    checkpoint.config_cp["d_optim_state"] = optimizer_d.state_dict()
+    checkpoint_path = os.path.join(
+        config.base_dir, hyperparameters.output_dir, "{}_{}_with_model.pt".format(config.dataset_name, hyperparameters.checkpoint_name)
+    )
+
+
 def discriminator_step(
     hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d
 ):
     batch = [tensor.cuda() for tensor in batch]
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-     loss_mask, seq_start_end, frames, object_cls, obj_id, _, _) = batch
+     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
 
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
 
     generator_out = generator(frames, obs_traj)
+    # pdb.set_trace()
 
     pred_traj_fake_rel = generator_out
-    pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
+    # pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
+    pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin)
 
     traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
     traj_real_rel = torch.cat([obs_traj_rel, pred_traj_gt_rel], dim=0)
@@ -333,23 +379,24 @@ def generator_step(
     batch = [tensor.cuda() for tensor in batch]
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-     loss_mask, seq_start_end, frames, object_cls, obj_id, _, _) = batch
+     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
 
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
     g_l2_loss_rel = []
 
-    loss_mask = loss_mask[:, hyperparameters.obs_len:]
+    loss_mask = loss_mask[:, hyperparameters.obs_len:]  # 160x30 -> 0 o 1
+    # pdb.set_trace()
 
     for _ in range(hyperparameters.best_k):
         generator_out = generator(frames, obs_traj)
 
         pred_traj_fake_rel = generator_out
-        pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
+        pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin) # convierte en abs pred_traj_fake_rel !!!
 
         if hyperparameters.l2_loss_weight > 0:
             g_l2_loss_rel.append(hyperparameters.l2_loss_weight * l2_loss(
-                pred_traj_fake_rel,
+                pred_traj_fake_rel, # ya no son relativas !!!
                 pred_traj_gt_rel,
                 loss_mask,
                 mode='raw'))
@@ -366,11 +413,13 @@ def generator_step(
         losses['G_l2_loss_rel'] = g_l2_loss_sum_rel.item()
         loss += g_l2_loss_sum_rel
 
-    traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
+    traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0) # 50x160x2
     traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
     #scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
-    scores_fake = discriminator(traj_fake)
+    for param in discriminator.parameters():
+            param.requires_grad = False
+    scores_fake = discriminator(traj_fake) # 160x1
     discriminator_loss = g_loss_fn(scores_fake)
 
     loss += discriminator_loss
@@ -384,6 +433,9 @@ def generator_step(
             generator.parameters(), hyperparameters.clipping_threshold_g
         )
     optimizer_g.step()
+
+    for param in discriminator.parameters():
+            param.requires_grad = True
 
     return losses
 
@@ -403,7 +455,10 @@ def check_accuracy(
             batch = [tensor.cuda() for tensor in batch]
 
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-             loss_mask, seq_start_end, frames, object_cls, obj_id, _, _) = batch
+             loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
+
+            mask = np.where(obj_id.cpu() == -1, 0, 1)
+            mask = torch.tensor(mask, device=obj_id.device).reshape(-1)
              
             linear_obj = 1 - non_linear_obj
             loss_mask = loss_mask[:, hyperparameters.obs_len:]
@@ -411,18 +466,18 @@ def check_accuracy(
             pred_traj_fake_rel = generator(
                 frames, obs_traj
             )
-            pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
-
+            # pdb.set_trace()
+            pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin)
             g_l2_loss_abs, g_l2_loss_rel = cal_l2_losses(
                 pred_traj_gt, pred_traj_gt_rel, pred_traj_fake,
                 pred_traj_fake_rel, loss_mask
             )
             ade, ade_l, ade_nl = cal_ade(
-                pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj
+                pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, mask
             )
 
             fde, fde_l, fde_nl = cal_fde(
-                pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj
+                pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, mask
             )
 
             traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
@@ -438,6 +493,7 @@ def check_accuracy(
 
             d_loss = d_loss_fn(scores_real, scores_fake)
             d_losses.append(d_loss.item())
+            # pdb.set_trace()
 
             g_l2_losses_abs.append(g_l2_loss_abs.item())
             g_l2_losses_rel.append(g_l2_loss_rel.item())
@@ -490,16 +546,16 @@ def cal_l2_losses(
     )
     return g_l2_loss_abs, g_l2_loss_rel
 
-def cal_ade(pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj):
-    ade = displacement_error(pred_traj_fake, pred_traj_gt)
+def cal_ade(pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, consider_ped):
+    ade = displacement_error(pred_traj_fake, pred_traj_gt, consider_ped)
     ade_l = displacement_error(pred_traj_fake, pred_traj_gt, linear_obj)
     ade_nl = displacement_error(pred_traj_fake, pred_traj_gt, non_linear_obj)
     return ade, ade_l, ade_nl
 
 def cal_fde(
-    pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj
+    pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, consider_ped
 ):
-    fde = final_displacement_error(pred_traj_fake[-1], pred_traj_gt[-1])
+    fde = final_displacement_error(pred_traj_fake[-1], pred_traj_gt[-1], consider_ped)
     fde_l = final_displacement_error(
         pred_traj_fake[-1], pred_traj_gt[-1], linear_obj
     )

@@ -32,3 +32,6 @@ data/datasets.tar.gz
 save/*.pt
 
 experiments/
+
+
+save/argoverse/*

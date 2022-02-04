@@ -9,6 +9,7 @@ def displacement_error(pred_traj, pred_traj_gt, consider_ped=None, mode='sum'):
         loss = torch.sqrt(loss.sum(dim=2)).sum(dim=1) * consider_ped
     else:
         loss = torch.sqrt(loss.sum(dim=2)).sum(dim=1)
+    loss_d = loss.shape[0]
     if mode == 'sum':
         return torch.sum(loss)
     elif mode == 'raw':
@@ -24,6 +25,7 @@ def final_displacement_error(
         loss = torch.sqrt(loss.sum(dim=1)) * consider_ped
     else:
         loss = torch.sqrt(loss.sum(dim=1))
+    loss_d = loss.shape[0]
     if mode == 'raw':
         return loss
     else:
