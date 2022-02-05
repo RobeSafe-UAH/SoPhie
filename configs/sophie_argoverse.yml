@@ -17,7 +17,7 @@ optim_parameters:
     d_learning_rate: 1.0e-2
     d_weight_decay: 1.0e-5
 hyperparameters:
-    classic_trainer: True
+    classic_trainer: False
     tensorboard_active: True
     num_iterations: 1608 #20000
     num_epochs: 0
@@ -26,7 +26,7 @@ hyperparameters:
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 5
     checkpoint_every: 20
-    output_dir: "save/argoverse/exp5"
+    output_dir: "save/argoverse/exp6"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 

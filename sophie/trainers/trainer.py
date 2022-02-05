@@ -58,7 +58,8 @@ def model_trainer(config, logger):
                                                    distance_threshold=config.hyperparameters.distance_threshold,
                                                    split="train",
                                                    num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
-                                                   split_percentage=config.dataset.split_percentage)
+                                                   split_percentage=config.dataset.split_percentage,
+                                                   shuffle=config.dataset.shuffle)
     train_loader = DataLoader(data_train,
                               batch_size=config.dataset.batch_size,
                               shuffle=config.dataset.shuffle,
@@ -73,7 +74,8 @@ def model_trainer(config, logger):
                                                  distance_threshold=config.hyperparameters.distance_threshold,
                                                  split="val",
                                                  num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
-                                                 split_percentage=config.dataset.split_percentage)
+                                                 split_percentage=config.dataset.split_percentage,
+                                                 shuffle=config.dataset.shuffle)
     val_loader = DataLoader(data_val,
                             batch_size=config.dataset.batch_size,
                             shuffle=config.dataset.shuffle,
@@ -530,11 +532,11 @@ def check_accuracy(
             # scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
             # scores_real = discriminator(traj_real, traj_real_rel, seq_start_end)
 
-            scores_fake = discriminator(traj_fake)
-            scores_real = discriminator(traj_real)
+            # scores_fake = discriminator(traj_fake)
+            # scores_real = discriminator(traj_real)
 
-            d_loss = d_loss_fn(scores_real, scores_fake)
-            d_losses.append(d_loss.item())
+            # d_loss = d_loss_fn(scores_real, scores_fake)
+            # d_losses.append(d_loss.item())
             # pdb.set_trace()
 
             g_l2_losses_abs.append(g_l2_loss_abs.item())
@@ -553,7 +555,7 @@ def check_accuracy(
             if limit and total_traj >= hyperparameters.num_samples_check:
                 break
 
-    metrics['d_loss'] = sum(d_losses) / len(d_losses)
+    # metrics['d_loss'] = sum(d_losses) / len(d_losses)
     metrics['g_l2_loss_abs'] = sum(g_l2_losses_abs) / loss_mask_sum
     metrics['g_l2_loss_rel'] = sum(g_l2_losses_rel) / loss_mask_sum
 

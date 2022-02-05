@@ -25,6 +25,7 @@ import time
 import gc # Garbage Collector
 from numba import jit
 import pdb
+from numpy.random import default_rng
 
 from pathlib import Path
 from torch.utils.data import Dataset
@@ -105,7 +106,8 @@ def load_list_from_folder(folder_path, ext_filter=None, depth=1, recursive=False
     return full_list, num_elem
 
 def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasting/",split="train",
-                           obs_len=20,pred_len=30,distance_threshold=35,num_agents_per_obs=10,split_percentage=1.0):
+                           obs_len=20,pred_len=30,distance_threshold=35,num_agents_per_obs=10,split_percentage=1.0,
+                           shuffle=False):
     """
 	Input: Directory containing the main files (TIMESTAMP,TRACK_ID,OBJECT_TYPE,X,Y,CITY_NAME)
     Output: sequences ((A observations x B num_agents_per_obs) x 5 (features) x N (num_files)
@@ -245,18 +247,13 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
     origin = [] # Agent's position in the last observation
     city_ids = []
 
-    for i,file_id in enumerate(file_id_list):
-        # if i < 20:
-        #     continue
-        # if i == 21:
-        #     break
-        # if i == 120:
-        #     break
-        if i == num_sequences_percentage:
-            break
-        # if i == num_sequences_percentage:
-        #     break
-
+    reduced_file_id_list = file_id_list[:num_sequences_percentage]
+    if shuffle:
+        rng = default_rng()
+        indeces = rng.choice(num_files, size=num_sequences_percentage, replace=False)
+        reduced_file_id_list = np.take(file_id_list, indeces, axis=0)
+    
+    for i,file_id in enumerate(reduced_file_id_list):
         print(f"File {i+1}/{num_sequences_percentage}")
         track_file = folder + str(file_id) + ".csv" 
         dict1 = encoding_dict[track_file] # Standard IDs (Keys) to Argoverse values (Values)
@@ -410,7 +407,7 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
 
     end = time.time()
     print(f"Time consumed filtering the sequences: {end-start}\n")
-    return sequences, origin, city_ids, file_id_list
+    return sequences, origin, city_ids, reduced_file_id_list
 
 def poly_fit(traj, traj_len, threshold):
     """
@@ -563,7 +560,7 @@ def seq_collate(data):
 
 class ArgoverseMotionForecastingDataset(Dataset):
     def __init__(self, dataset_name, root_folder, obs_len=20, pred_len=30, skip=1, threshold=0.002, distance_threshold=30,
-                 min_objs=0, windows_frames=None, split='train', num_agents_per_obs=10, split_percentage=0.1):
+                 min_objs=0, windows_frames=None, split='train', num_agents_per_obs=10, split_percentage=0.1, shuffle=False):
         """
         - root_folder: Directory containing the main files 
         - obs_len: Number of observed frames in prior (input) trajectories
@@ -595,6 +592,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.min_objs = min_objs
         self.windows_frames = windows_frames
         self.split = split
+        self.shuffle = shuffle
 
         global frames_path
         if os.path.exists(lib_path):
@@ -635,7 +633,8 @@ class ArgoverseMotionForecastingDataset(Dataset):
                                                                                                  pred_len=self.pred_len,
                                                                                                  distance_threshold=self.distance_threshold,
                                                                                                  num_agents_per_obs=self.num_agents_per_obs,
-                                                                                                 split_percentage=self.split_percentage)
+                                                                                                 split_percentage=self.split_percentage,
+                                                                                                 shuffle=self.shuffle)
 
         print("\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         print("2. Get the corresponding data to feed the GAN-LSTM network for Motion Prediction")
