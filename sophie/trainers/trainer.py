@@ -21,6 +21,8 @@ from sophie.modules.evaluation_metrics import displacement_error, final_displace
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
 from sophie.utils.utils import relative_to_abs
 
+from torch.utils.tensorboard import SummaryWriter
+
 torch.backends.cudnn.benchmark = True
 
 def init_weights(m):
@@ -80,10 +82,17 @@ def model_trainer(config, logger):
 
     hyperparameters = config.hyperparameters
     optim_parameters = config.optim_parameters
-    iterations_per_epoch = len(data_train) / config.dataset.batch_size / hyperparameters.d_steps
-    if hyperparameters.num_epochs:
-        hyperparameters.num_iterations = int(iterations_per_epoch * hyperparameters.num_epochs)
-        hyperparameters.num_iterations = hyperparameters.num_iterations if hyperparameters.num_iterations != 0 else 1
+    if not hyperparameters.classic_trainer:
+        iterations_per_epoch = len(data_train) / config.dataset.batch_size / hyperparameters.d_steps
+        if hyperparameters.num_epochs:
+            hyperparameters.num_iterations = int(iterations_per_epoch * hyperparameters.num_epochs)
+            hyperparameters.num_iterations = hyperparameters.num_iterations if hyperparameters.num_iterations != 0 else 1
+    else:
+        iterations_per_epoch = len(data_train) / config.dataset.batch_size
+        # select stop condition: epoch or iterations
+        if (hyperparameters.num_iterations > hyperparameters.num_epochs* iterations_per_epoch) and (hyperparameters.num_epochs != 0):
+            hyperparameters.num_iterations = hyperparameters.num_epochs* iterations_per_epoch
+
 
     logger.info(
         'There are {} iterations per epoch'.format(hyperparameters.num_iterations)
@@ -137,6 +146,13 @@ def model_trainer(config, logger):
         checkpoint = Checkpoint()
     t0 = None
 
+    if hyperparameters.tensorboard_active:
+        exp_path = os.path.join(
+            config.base_dir, hyperparameters.output_dir, "tensorboard_logs"
+        )
+        os.makedirs(exp_path, exist_ok=True)
+        writer = SummaryWriter(exp_path)
+
     while t < hyperparameters.num_iterations:
         gc.collect()
         d_steps_left = hyperparameters.d_steps
@@ -144,47 +160,61 @@ def model_trainer(config, logger):
         epoch += 1
         logger.info('Starting epoch {}'.format(epoch))
         for batch in train_loader:
-            if t == 100:
-                pdb.set_trace()
             if hyperparameters.timing == 1:
                 # ?> Waits for all kernels in all streams on a CUDA device to complete.
                 torch.cuda.synchronize()
                 t1 = time.time()
             # pdb.set_trace()
-            if d_steps_left > 0:
-                step_type = 'discriminator'
+            if not hyperparameters.classic_trainer:
+                if d_steps_left > 0:
+                    step_type = 'discriminator'
 
-                start = time.time()
+                    start = time.time()
+                    losses_d = discriminator_step(hyperparameters, batch, generator,
+                                                discriminator, d_loss_fn,
+                                                optimizer_d)
+                    end = time.time()
+                    # print("Discriminator time: ", end-start)
+
+                    checkpoint.config_cp["norm_d"].append(
+                        get_total_norm(discriminator.parameters()))
+                    d_steps_left -= 1
+                elif g_steps_left > 0:
+                    step_type = 'generator'
+
+                    start = time.time()
+                    losses_g = generator_step(hyperparameters, batch, generator,
+                                            discriminator, g_loss_fn,
+                                            optimizer_g)
+                    end = time.time()
+                    # print("Generator time: ", end-start)
+                    checkpoint.config_cp["norm_g"].append(
+                        get_total_norm(generator.parameters())
+                    )
+                    g_steps_left -= 1
+
+                if hyperparameters.timing == 1:
+                    torch.cuda.synchronize()
+                    t2 = time.time()
+                    logger.info('Model: {} step took {}'.format(step_type, t2 - t1))
+
+                if d_steps_left > 0 or g_steps_left > 0:
+                    continue
+            else:
                 losses_d = discriminator_step(hyperparameters, batch, generator,
-                                              discriminator, d_loss_fn,
-                                              optimizer_d)
-                end = time.time()
-                # print("Discriminator time: ", end-start)
-
+                                                discriminator, d_loss_fn,
+                                                optimizer_d)
                 checkpoint.config_cp["norm_d"].append(
-                    get_total_norm(discriminator.parameters()))
-                d_steps_left -= 1
-            elif g_steps_left > 0:
-                step_type = 'generator'
-
-                start = time.time()
+                        get_total_norm(discriminator.parameters()))
+                
                 losses_g = generator_step(hyperparameters, batch, generator,
-                                          discriminator, g_loss_fn,
-                                          optimizer_g)
-                end = time.time()
+                                            discriminator, g_loss_fn,
+                                            optimizer_g)
+                    
                 # print("Generator time: ", end-start)
                 checkpoint.config_cp["norm_g"].append(
                     get_total_norm(generator.parameters())
                 )
-                g_steps_left -= 1
-
-            if hyperparameters.timing == 1:
-                torch.cuda.synchronize()
-                t2 = time.time()
-                logger.info('Model: {} step took {}'.format(step_type, t2 - t1))
-
-            if d_steps_left > 0 or g_steps_left > 0:
-                continue
 
             if hyperparameters.timing == 1:
                 if t0 is not None:
@@ -194,14 +224,19 @@ def model_trainer(config, logger):
                 t0 = time.time()
 
             if t % hyperparameters.print_every == 0:
+                # print logger
                 logger.info('t = {} / {}'.format(t + 1, hyperparameters.num_iterations))
                 for k, v in sorted(losses_d.items()):
                     logger.info('  [D] {}: {:.3f}'.format(k, v))
+                    if hyperparameters.tensorboard_active:
+                        writer.add_scalar(k, v, t+1)
                     if k not in checkpoint.config_cp["D_losses"].keys():
                         checkpoint.config_cp["D_losses"][k] = []
                     checkpoint.config_cp["D_losses"][k].append(v)
                 for k, v in sorted(losses_g.items()):
                     logger.info('  [G] {}: {:.3f}'.format(k, v))
+                    if hyperparameters.tensorboard_active:
+                        writer.add_scalar(k, v, t+1)
                     if k not in checkpoint.config_cp["G_losses"].keys():
                         checkpoint.config_cp["G_losses"][k] = [] 
                     checkpoint.config_cp["G_losses"][k].append(v)
@@ -225,6 +260,8 @@ def model_trainer(config, logger):
 
                 for k, v in sorted(metrics_val.items()):
                     logger.info('  [val] {}: {:.3f}'.format(k, v))
+                    if hyperparameters.tensorboard_active:
+                        writer.add_scalar(k, v, t+1)
                     if k not in checkpoint.config_cp["metrics_val"].keys():
                         checkpoint.config_cp["metrics_val"][k] = []
                     checkpoint.config_cp["metrics_val"][k].append(v)
@@ -302,6 +339,8 @@ def model_trainer(config, logger):
 
     for k, v in sorted(metrics_val.items()):
         logger.info('  [val] {}: {:.3f}'.format(k, v))
+        if hyperparameters.tensorboard_active:
+            writer.add_scalar(k, v, t+1)
         if k not in checkpoint.config_cp["metrics_val"].keys():
             checkpoint.config_cp["metrics_val"][k] = []
         checkpoint.config_cp["metrics_val"][k].append(v)
