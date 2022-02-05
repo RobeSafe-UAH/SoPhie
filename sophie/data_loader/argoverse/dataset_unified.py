@@ -248,6 +248,8 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
     for i,file_id in enumerate(file_id_list):
         # if i < 20:
         #     continue
+        # if i == 21:
+        #     break
         # if i == 120:
         #     break
         if i == num_sequences_percentage:
@@ -406,8 +408,6 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
     with open(city_id_file, 'wb') as file:
         np.save(city_id_file, city_ids)
 
-    # assert 1 == 0
-
     end = time.time()
     print(f"Time consumed filtering the sequences: {end-start}\n")
     return sequences, origin, city_ids, file_id_list
@@ -446,9 +446,7 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
     for i in range(batch_size):
         curr_num_seq = int(num_seq[i].cpu().data.numpy())
         obj_id_list = objs_id_list[i].cpu().data.numpy()
-        print("Obj id list: ", obj_id_list)
-
-        assert 1 == 0
+        # print("obj id list: ", obj_id_list)
 
         if i < batch_size - 1:
             curr_obs_seq_data = obs_seq_data[:,num_agents_per_obs*i:num_agents_per_obs*(i+1),:]
@@ -484,6 +482,8 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
             print("path: ", filename)
             img = img * 255.0
             cv2.imwrite(filename,img)
+
+            # assert 1 == 0
 
         plt.close("all")
         end = time.time()
@@ -681,6 +681,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
             _non_linear_obj = []
 
             objs_in_curr_seq = np.unique(curr_seq_data[:,1]) # Number of objects in the whole sequence
+            
             if objs_in_curr_seq[0] == -1:
                 objs_in_curr_seq = np.roll(objs_in_curr_seq, -1)
             # objs_in_curr_seq = np.unique(curr_seq_data[:,1])
@@ -691,24 +692,23 @@ class ArgoverseMotionForecastingDataset(Dataset):
             if objs_in_curr_seq.shape[0] < self.num_agents_per_obs:
                 diff = self.num_agents_per_obs - objs_in_curr_seq.shape[0]
                 dummy_ids = -1 * np.ones((diff))
-                objs_in_curr_seq = np.hstack([dummy_ids,objs_in_curr_seq])
-            # Loop through every object in this window
+                objs_in_curr_seq = np.hstack([objs_in_curr_seq,dummy_ids])
 
-            num_dummies = 0
+            # Loop through every object in this window
 
             for obj_index, obj_id in enumerate(objs_in_curr_seq):
                 if obj_index > self.num_agents_per_obs - 1:
                     continue
                 if obj_id == -1:
                     # pdb.set_trace()
-                    _idx = num_objs_considered
+   
                     x_dummy = np.random.rand(1,self.seq_len)
                     y_dummy = np.random.rand(1,self.seq_len)
                     curr_obj_seq = np.vstack([x_dummy,y_dummy]) # 2 x 50
                     rel_curr_obj_seq = curr_obj_seq - ego_origin_seq
 
-                    curr_seq[_idx, :, :] = curr_obj_seq
-                    curr_seq_rel[_idx, :, :] = rel_curr_obj_seq
+                    curr_seq[num_objs_considered, :, :] = curr_obj_seq
+                    curr_seq_rel[num_objs_considered, :, :] = rel_curr_obj_seq
                     num_objs_considered += 1
                     continue
                 # pdb.set_trace()
@@ -729,7 +729,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 
                 if num_obs_obj_id < self.seq_len:
                     object_indexes = np.array([])
-                    num_dummies += 1
                     id_dummy = -1 * np.ones((1,self.seq_len))
                     cache_tmp = np.vstack([curr_seq_timestamps,id_dummy])
 
@@ -742,14 +741,13 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 # Make coordinates relative
 
                 rel_curr_obj_seq = curr_obj_seq - ego_origin_seq
-                _idx = num_objs_considered
-                curr_seq[_idx, :, :] = curr_obj_seq
-                curr_seq_rel[_idx, :, :] = rel_curr_obj_seq
+                curr_seq[num_objs_considered, :, :] = curr_obj_seq
+                curr_seq_rel[num_objs_considered, :, :] = rel_curr_obj_seq
 
                 # Record seqname, frame and ID information 
 
-                id_frame_list[_idx, :2, :] = cache_tmp
-                id_frame_list[_idx,  2, :] = file_id_list[seq_index] 
+                id_frame_list[num_objs_considered, :2, :] = cache_tmp
+                id_frame_list[num_objs_considered,  2, :] = file_id_list[seq_index] 
 
                 # Linear vs Non-Linear Trajectory, only fit for the future part, not past part
 
@@ -759,26 +757,27 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 # Add mask onto padded dummy data
 
                 object_indexes_obs = (object_indexes / self.num_agents_per_obs).astype(np.int64)
-                curr_loss_mask[_idx, object_indexes_obs] = 1
+                curr_loss_mask[num_objs_considered, object_indexes_obs] = 1
 
                 # Object ID
 
                 object_class_list[num_objs_considered] = object_class_id
                 num_objs_considered += 1
 
-            # assert 1 == 0
-            if num_objs_considered > min_objs:
-                if len(_non_linear_obj) != num_objs_considered:
-                    dummy = [-1 for i in range(num_objs_considered - len(_non_linear_obj))]
-                    _non_linear_obj = _non_linear_obj + dummy
-                non_linear_obj += _non_linear_obj
-                num_objs_in_seq.append(num_objs_considered)
-                loss_mask_list.append(curr_loss_mask[:num_objs_considered])
-                seq_list.append(curr_seq[:num_objs_considered]) # (x,y)
-                seq_list_rel.append(curr_seq_rel[:num_objs_considered]) # (x_rel, y_rel)
-                seq_id_list.append(id_frame_list[:num_objs_considered]) # (timestamp, id, file_id)
-                object_class_id_list.append(object_class_list) # obj_class (-1 0 1 2 2 2 2 ...)
-                object_id_list.append(id_frame_list[:,1,0])
+            if len(_non_linear_obj) != num_objs_considered:
+                dummy = [-1 for i in range(num_objs_considered - len(_non_linear_obj))]
+                _non_linear_obj = _non_linear_obj + dummy
+
+            non_linear_obj += _non_linear_obj
+            num_objs_in_seq.append(num_objs_considered)
+            loss_mask_list.append(curr_loss_mask[:num_objs_considered])
+            seq_list.append(curr_seq[:num_objs_considered]) # (x,y) Global coordinates
+            seq_list_rel.append(curr_seq_rel[:num_objs_considered]) # (x_rel, y_rel) Local coordinates
+            seq_id_list.append(id_frame_list[:num_objs_considered]) # (timestamp, id, file_id)
+            object_class_id_list.append(object_class_list) # obj_class (-1 0 1 2 2 2 2 ...)
+            object_id_list.append(id_frame_list[:,1,0])
+
+            # pdb.set_trace()
 
         end = time.time()
 
@@ -811,6 +810,8 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
     def __getitem__(self, index):
         start, end = self.seq_start_end[index]
+
+        # print("OBJECT ID LIST: ", self.object_id_list[index])
 
         out = [
                 self.obs_traj[start:end, :, :], self.pred_traj_gt[start:end, :, :],

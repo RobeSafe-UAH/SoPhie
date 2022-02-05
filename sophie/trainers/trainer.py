@@ -144,6 +144,8 @@ def model_trainer(config, logger):
         epoch += 1
         logger.info('Starting epoch {}'.format(epoch))
         for batch in train_loader:
+            if t == 100:
+                pdb.set_trace()
             if hyperparameters.timing == 1:
                 # ?> Waits for all kernels in all streams on a CUDA device to complete.
                 torch.cuda.synchronize()
@@ -157,7 +159,7 @@ def model_trainer(config, logger):
                                               discriminator, d_loss_fn,
                                               optimizer_d)
                 end = time.time()
-                print("Discriminator time: ", end-start)
+                # print("Discriminator time: ", end-start)
 
                 checkpoint.config_cp["norm_d"].append(
                     get_total_norm(discriminator.parameters()))
@@ -170,7 +172,7 @@ def model_trainer(config, logger):
                                           discriminator, g_loss_fn,
                                           optimizer_g)
                 end = time.time()
-                print("Generator time: ", end-start)
+                # print("Generator time: ", end-start)
                 checkpoint.config_cp["norm_g"].append(
                     get_total_norm(generator.parameters())
                 )
@@ -340,12 +342,12 @@ def discriminator_step(
 
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
-
-    generator_out = generator(frames, obs_traj)
     # pdb.set_trace()
+    generator_out = generator(frames, obs_traj)
+    last_obs = obs_traj_rel[-1].unsqueeze(0).repeat(hyperparameters.pred_len, 1, 1)
+    generator_out += last_obs
 
     pred_traj_fake_rel = generator_out
-    # pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
     pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin)
 
     traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
@@ -353,9 +355,7 @@ def discriminator_step(
     traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
     traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
-    #scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
     scores_fake = discriminator(traj_fake)
-    #scores_real = discriminator(traj_real, traj_real_rel, seq_start_end)
     scores_real = discriminator(traj_real)
 
     # Compute loss with optional gradient penalty
@@ -386,10 +386,11 @@ def generator_step(
     g_l2_loss_rel = []
 
     loss_mask = loss_mask[:, hyperparameters.obs_len:]  # 160x30 -> 0 o 1
-    # pdb.set_trace()
 
     for _ in range(hyperparameters.best_k):
         generator_out = generator(frames, obs_traj)
+        last_obs = obs_traj_rel[-1].unsqueeze(0).repeat(hyperparameters.pred_len, 1, 1)
+        generator_out += last_obs
 
         pred_traj_fake_rel = generator_out
         pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin) # convierte en abs pred_traj_fake_rel !!!
@@ -466,6 +467,8 @@ def check_accuracy(
             pred_traj_fake_rel = generator(
                 frames, obs_traj
             )
+            last_obs = obs_traj_rel[-1].unsqueeze(0).repeat(hyperparameters.pred_len, 1, 1)
+            pred_traj_fake_rel += last_obs
             # pdb.set_trace()
             pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin)
             g_l2_loss_abs, g_l2_loss_rel = cal_l2_losses(
