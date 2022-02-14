@@ -284,6 +284,7 @@ class TrajectoryGenerator(nn.Module):
     def forward(self, obs_traj, obs_traj_rel, frames):
         # pdb.set_trace()
         batch = obs_traj_rel.size(1)
+
         # visual_features = self.visual_feature_extractor(frames) # batch x 512 x 18 x 18
         # visual_patch = self.calculate_patch(visual_features) # 8x9x(512*6*6)
         # visual_patch_enc = self.pos_encoding(visual_patch)
@@ -292,12 +293,12 @@ class TrajectoryGenerator(nn.Module):
         # )
         
         npeds = obs_traj_rel.size(1)
-        final_encoder_h = self.encoder(obs_traj_rel) # 80x32
+        final_encoder_h = self.encoder(obs_traj_rel) # batchx32
         # final_encoder_h = final_encoder_h.contiguous().view(batch, -1, self.h_dim) # 8x10x32
-        final_encoder_h = torch.unsqueeze(final_encoder_h, 0)
+        final_encoder_h = torch.unsqueeze(final_encoder_h, 0) #  1xbatchx32
 
         # queries -> indican la forma del tensor de salida (primer argumento)
-        attn_s = self.sattn(final_encoder_h, final_encoder_h, final_encoder_h, None) # 8x10x32
+        attn_s = self.sattn(final_encoder_h, final_encoder_h, final_encoder_h, None) # 8x10x32 # multi head self attention
         # attn_p = self.pattn(final_encoder_h, visual_patch_enc, visual_patch_enc, None) # 8x10x32
         mlp_decoder_context_input = torch.cat(
             [
