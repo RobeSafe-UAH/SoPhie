@@ -223,7 +223,6 @@ def map_generator(
     show: bool = True,
     smoothen: bool = False,
 ) -> None:
-
     object_id_list, obs = info
     # Seq data
     if lane_centerlines is None:
@@ -278,12 +277,16 @@ def map_generator(
                   "OTHERS": (1.0,1.0,1.0,1.0)} # White
     object_type_tracker: Dict[int, int] = defaultdict(int)
 
-    obs_seq = seq[:200, :] # 200x2
+    seq_end = int(len(object_id_list)*20) # TODO manage magic number
+    obs_seq = seq[:seq_end, :] # 200x2
     obs_seq_list = []
-    for i in range(object_id_list.shape[0]):
-        if object_id_list[i] != -1:
-            obs_seq_list.append([obs_seq[np.arange(i,200,obs),:], object_id_list[i]]) # recover trajectories for each obs
-    #pdb.set_trace()
+    try:
+        for i in range(object_id_list.shape[0]):
+            if object_id_list[i] != -1:
+                obs_seq_list.append([obs_seq[np.arange(i,seq_end,obs),:], object_id_list[i]]) # recover trajectories for each obs
+    except Exception as e:
+        print(e)
+        pdb.set_trace()
     # Plot all the tracks up till current frame
 
     for seq_id in obs_seq_list:

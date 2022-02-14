@@ -8,7 +8,9 @@ from datetime import datetime
 from prodict import Prodict
 from pathlib import Path
 
-from sophie.trainers.trainer import model_trainer
+# from sophie.trainers.trainer import model_trainer
+# from sophie.trainers.trainer_gan import model_trainer
+from sophie.trainers.trainer_sophie_adaptation import model_trainer
 
 def create_logger(file_path):
     FORMAT = '[%(levelname)s: %(lineno)4d]: %(message)s'

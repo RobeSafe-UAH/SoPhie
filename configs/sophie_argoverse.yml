@@ -7,8 +7,8 @@ dataset_name: argoverse_motion_forecasting_dataset
 dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
-    batch_size: 32 # 16 max
-    split_percentage: 0.5
+    batch_size: 32 # 32 max
+    split_percentage: 0.2
     shuffle: False # False to check the input data, always set to True
     num_workers: 0
 optim_parameters:
@@ -18,22 +18,22 @@ optim_parameters:
     d_weight_decay: 1.0e-5
 hyperparameters:
     classic_trainer: False
-    tensorboard_active: True
-    num_iterations: 1608 #20000
+    tensorboard_active: False
+    num_iterations: 20000 #1608 #20000
     num_epochs: 0
     d_steps: 2
     g_steps: 1
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
-    print_every: 5
-    checkpoint_every: 20
-    output_dir: "save/argoverse/exp6"
+    print_every: 2
+    checkpoint_every: 100
+    output_dir: "save/argoverse/exp3"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 0
     best_k: 1
-    l2_loss_weight: 0 # If different from 0, L2 loss is considered when training
+    l2_loss_weight: 1 # If different from 0, L2 loss is considered when training
     num_samples_check: 5000
     obs_len: &obs_len 20 
     pred_len: &pred_len 30 # Must be 0 for the split test since we do not have the predictions of the agents

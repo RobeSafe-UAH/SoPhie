@@ -626,7 +626,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
         print("\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         print(f"1. Load files and filter sequences of {self.split} split")
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n")
-
         sequences, self.ego_vehicle_origin, self.city_ids, file_id_list = get_sequences_as_array(root_folder=self.root_folder,
                                                                                                  split=self.split,
                                                                                                  obs_len=self.obs_len,
@@ -639,7 +638,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
         print("\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         print("2. Get the corresponding data to feed the GAN-LSTM network for Motion Prediction")
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n")
-        start = time.time()
 
         for seq_index in range(sequences.shape[2]):
             print(f"File {seq_index+1}/{sequences.shape[2]}")
@@ -701,10 +699,10 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 if obj_id == -1:
                     # pdb.set_trace()
    
-                    x_dummy = np.random.rand(1,self.seq_len)
-                    y_dummy = np.random.rand(1,self.seq_len)
+                    x_dummy = 0*np.random.rand(1,self.seq_len)
+                    y_dummy = 0*np.random.rand(1,self.seq_len)
                     curr_obj_seq = np.vstack([x_dummy,y_dummy]) # 2 x 50
-                    rel_curr_obj_seq = curr_obj_seq - ego_origin_seq
+                    rel_curr_obj_seq = curr_obj_seq# - ego_origin_seq
 
                     curr_seq[num_objs_considered, :, :] = curr_obj_seq
                     curr_seq_rel[num_objs_considered, :, :] = rel_curr_obj_seq
@@ -731,15 +729,18 @@ class ArgoverseMotionForecastingDataset(Dataset):
                     id_dummy = -1 * np.ones((1,self.seq_len))
                     cache_tmp = np.vstack([curr_seq_timestamps,id_dummy])
 
-                    x_dummy = np.random.rand(1,self.seq_len)
-                    y_dummy = np.random.rand(1,self.seq_len)
+                    x_dummy = 0*np.random.rand(1,self.seq_len)
+                    y_dummy = 0*np.random.rand(1,self.seq_len)
                     curr_obj_seq = np.vstack([x_dummy,y_dummy])
 
                     object_class_id = -1
+                    rel_curr_obj_seq = curr_obj_seq# - ego_origin_seq
+                else:
+                    rel_curr_obj_seq = curr_obj_seq - ego_origin_seq
                                                                   
                 # Make coordinates relative
 
-                rel_curr_obj_seq = curr_obj_seq - ego_origin_seq
+                # rel_curr_obj_seq = curr_obj_seq - ego_origin_seq
                 curr_seq[num_objs_considered, :, :] = curr_obj_seq
                 curr_seq_rel[num_objs_considered, :, :] = rel_curr_obj_seq
 
@@ -776,9 +777,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
             object_class_id_list.append(object_class_list) # obj_class (-1 0 1 2 2 2 2 ...)
             object_id_list.append(id_frame_list[:,1,0])
 
-            # pdb.set_trace()
-
-        end = time.time()
 
         self.num_seq = len(seq_list)
         seq_list = np.concatenate(seq_list, axis=0) # Objects x 2 x seq_len
@@ -809,8 +807,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
     def __getitem__(self, index):
         start, end = self.seq_start_end[index]
-
-        # print("OBJECT ID LIST: ", self.object_id_list[index])
 
         out = [
                 self.obs_traj[start:end, :, :], self.pred_traj_gt[start:end, :, :],
