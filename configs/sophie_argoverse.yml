@@ -26,7 +26,7 @@ hyperparameters:
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 5
     checkpoint_every: 20
-    output_dir: "save/argoverse/exp6"
+    output_dir: "save/argoverse/exp1"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 

@@ -248,12 +248,18 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
     city_ids = []
 
     reduced_file_id_list = file_id_list[:num_sequences_percentage]
+    shuffle = False
+
     if shuffle:
         rng = default_rng()
         indeces = rng.choice(num_files, size=num_sequences_percentage, replace=False)
         reduced_file_id_list = np.take(file_id_list, indeces, axis=0)
     
     for i,file_id in enumerate(reduced_file_id_list):
+        if i < 20:
+            continue
+        if i == 21:
+            break
         print(f"File {i+1}/{num_sequences_percentage}")
         track_file = folder + str(file_id) + ".csv" 
         dict1 = encoding_dict[track_file] # Standard IDs (Keys) to Argoverse values (Values)
@@ -293,7 +299,7 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
 
         # Distance filter
 
-        print(f"Filtering objects further than {distance_threshold} around the agent in the last observation")
+        # print(f"Filtering objects further than {distance_threshold} around the agent in the last observation")
 
         # TODO: Consider this distance filter only around the AGENT? Study this distance?
 
@@ -393,18 +399,6 @@ def get_sequences_as_array(root_folder="data/datasets/argoverse/motion-forecasti
     origin = np.dstack(origin) # 1 x 2 (X | Y) x Num_sequences
     city_ids = np.array(city_ids)
 
-    relative_sequences_file = "/home/robesafe/shared_home/test_map_argoverse/relative_sequences.npy"
-    with open(relative_sequences_file, 'wb') as file:
-        np.save(relative_sequences_file, sequences)
-
-    origin_file = "/home/robesafe/shared_home/test_map_argoverse/origin.npy"
-    with open(origin_file, 'wb') as file:
-        np.save(origin_file, origin)
-
-    city_id_file = "/home/robesafe/shared_home/test_map_argoverse/city_id_file.npy"
-    with open(city_id_file, 'wb') as file:
-        np.save(city_id_file, city_ids)
-
     end = time.time()
     print(f"Time consumed filtering the sequences: {end-start}\n")
     return sequences, origin, city_ids, reduced_file_id_list
@@ -432,6 +426,7 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
     """
     Get the corresponding rasterized map
     """
+    debug_files = False
 
     # print("LOAD IMAGES")
 
@@ -462,25 +457,48 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
         curr_obs_seq_data = curr_obs_seq_data.reshape(-1,2) # Past_Observations x Num_Agents x 2 -> (Past_Observations * Num_agents) x 2 
                                                             # (required by map_utils)
 
+        if debug_files:
+            folder = "/home/robesafe/libraries/SoPhie/sophie/data_loader/argoverse/test_map_argoverse/"
+            relative_sequences_file = folder + "/relative_sequences.npy"
+            with open(relative_sequences_file, 'wb') as file:
+                np.save(relative_sequences_file, curr_obs_seq_data)
+
+            origin_file = folder + "origin.npy"
+            with open(origin_file, 'wb') as file:
+                np.save(origin_file, curr_ego_origin)
+
+            city_id_file = folder + "city_id_file.npy"
+            with open(city_id_file, 'wb') as file:
+                np.save(city_id_file, city_name)
+
+            obj_id_list_file = folder + "obj_id_list_file.npy"
+            with open(obj_id_list_file, 'wb') as file:
+                np.save(obj_id_list_file, obj_id_list)
+
+            # assert 1 == 0
+
         fig = map_utils.map_generator(
             curr_obs_seq_data, curr_ego_origin, dist_rasterized_map, avm, city_name,
             (obj_id_list, num_agents_per_obs), show=False, smoothen=True
         )
+
         end = time.time()
         # print(f"Time consumed by map generator: {end-start}")
         start = time.time()
         img = map_utils.renderize_image(fig)
 
+        debug_images = True
         if debug_images:
-            # print("img: ", type(img), img.shape)
-            print("frames path: ", frames_path)
-            print("curr seq: ", str(curr_num_seq))
-            filename = frames_path + "seq_" + str(curr_num_seq) + ".png"
-            print("path: ", filename)
+            # curr_folder = os.getcwd()
+            # filename = curr_folder + "/test_image.png"
+            # filename = frames_path + "seq_" + str(curr_num_seq) + ".png"
+            filename = "/home/robesafe/libraries/SoPhie/sophie/data_loader/argoverse/test_map_argoverse/hdmap_images/test_image_2.png"
+            # print("path: ", filename)
             img = img * 255.0
+            print("Path: ", filename)
             cv2.imwrite(filename,img)
 
-            # assert 1 == 0
+            assert 1 == 0
 
         plt.close("all")
         end = time.time()
