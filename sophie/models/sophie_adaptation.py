@@ -1,5 +1,4 @@
 from os import path
-from turtle import forward
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -261,7 +260,8 @@ class TrajectoryGenerator(nn.Module):
         self.decoder = Decoder(h_dim=self.h_dim)
 
         # mlp_decoder_context_dims = [self.h_dim*3, self.mlp_dim, self.h_dim - self.noise_dim]
-        mlp_decoder_context_dims = [self.h_dim*2, self.mlp_dim, self.h_dim - self.noise_dim]
+        # mlp_decoder_context_dims = [self.h_dim*2, self.mlp_dim, self.h_dim - self.noise_dim]
+        mlp_decoder_context_dims = [self.h_dim, self.mlp_dim, self.h_dim - self.noise_dim]
         self.mlp_decoder_context = make_mlp(mlp_decoder_context_dims) # [96, 64, 44]
 
     def add_noise(self, _input):
@@ -298,12 +298,12 @@ class TrajectoryGenerator(nn.Module):
         final_encoder_h = torch.unsqueeze(final_encoder_h, 0) #  1xbatchx32
 
         # queries -> indican la forma del tensor de salida (primer argumento)
-        attn_s = self.sattn(final_encoder_h, final_encoder_h, final_encoder_h, None) # 8x10x32 # multi head self attention
+        # attn_s = self.sattn(final_encoder_h, final_encoder_h, final_encoder_h, None) # 8x10x32 # multi head self attention
         # attn_p = self.pattn(final_encoder_h, visual_patch_enc, visual_patch_enc, None) # 8x10x32
         mlp_decoder_context_input = torch.cat(
             [
                 final_encoder_h.contiguous().view(-1, 
-                self.h_dim), attn_s.contiguous().view(-1, self.h_dim), 
+                self.h_dim) # , attn_s.contiguous().view(-1, self.h_dim), 
                 # attn_p.contiguous().view(-1, self.h_dim)
             ],
             dim=1

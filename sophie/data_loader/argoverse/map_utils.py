@@ -46,12 +46,22 @@ logger = logging.getLogger(__name__)
 
 # Aux functions
 
-def renderize_image(fig_plot, new_shape=(600,600)):
+def renderize_image(fig_plot, new_shape=(600,600),normalize=True):
     fig_plot.canvas.draw()
+
     img_cv2 = cv2.cvtColor(np.asarray(fig_plot.canvas.buffer_rgba()), cv2.COLOR_RGBA2RGB)
-    img_rsz = cv2.resize(img_cv2, new_shape)#.astype(np.float32)
-    img_rsz = img_rsz / 255.0 # Normalize from 0 to 1. It is important to have the same 
-                              # range for which the visual extractor was trained
+    # img_rsz = cv2.resize(img_cv2, new_shape)#.astype(np.float32)
+
+    # gray = cv2.cvtColor(img_rsz.astype(np.float32), cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img_cv2.astype(np.float32), cv2.COLOR_BGR2GRAY)
+    rows,columns = np.where(gray != 0)
+    img_cv2 = img_cv2[rows.min():rows.max(),
+                      columns.min():columns.max(),
+                      :] # Remove padding
+    img_rsz = cv2.resize(img_cv2, new_shape)#.astype(np.float32)                  
+    
+    if normalize:
+        img_rsz = img_rsz / 255.0 # Normalize from 0 to 1
     return img_rsz
 
 _ZORDER = {"AGENT": 15, "AV": 10, "OTHERS": 5}
@@ -206,10 +216,10 @@ def translate_object_type(int_id):
         return "OTHERS"
 
 def draw_lane_polygons(
-    origin: np.array,
     ax: plt.Axes,
     lane_polygons: np.ndarray,
     color: Union[Tuple[float, float, float], str],
+    linewidth:float,
     fill: bool,
 ) -> None:
     """Draw a lane using polygons.
@@ -232,8 +242,8 @@ def draw_lane_polygons(
             ax.fill(polygon[:, 0], polygon[:, 1], "black", edgecolor='w', fill=True)
             # ax.plot(polygon[:, 0], polygon[:, 1], color=color, linewidth=1.0, alpha=1.0, zorder=1)
         else:
-            ax.plot(polygon[:, 0], polygon[:, 1], color=color, linewidth=1.0, alpha=1.0, zorder=1)
-        # ax.fill(polygon[:, 0], polygon[:, 1], edgecolor='b', fill=True)
+            ax.plot(polygon[:, 0], polygon[:, 1], color=color, linewidth=linewidth, alpha=1.0, zorder=1)
+            # ax.fill(polygon[:, 0], polygon[:, 1], edgecolor='b', fill=True)
         
 def optimized_draw_lane_polygons(
     img: np.array,
@@ -309,8 +319,63 @@ def render_bev_labels_mpl(
                     local_lane_polygon, city_to_egovehicle_se3.rotation, np.zeros(3)
                 )
 
-        # draw_lane_polygons(ax, local_lane_polygons, "tab:blue", True)
-        draw_lane_polygons(origin, ax, local_das, "tab:pink", True)
+        draw_lane_polygons(ax, local_lane_polygons, "tab:blue", fill=False)
+        draw_lane_polygons(ax, local_das, "tab:pink", fill=True)
+
+def fill_driveable_area(img_render):
+    """
+    """
+
+    img = img_render * 255.0
+
+    # Find limits of the driveable area
+
+    gray = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_BGR2GRAY)
+    rows,columns = np.where(gray != 0)
+    gray = gray[rows.min():rows.max(),
+                columns.min():columns.max()] # Remove padding
+    gray = cv2.resize(gray, (600,600))#.astype(np.float32)  
+
+    _,gray = cv2.threshold(gray, 0, 255, 
+                                cv2.THRESH_BINARY)
+    rows,columns = np.where(gray != 0)
+    thickness = 1
+    row_top_edge_points = np.where(rows == 0)[0]
+    min_,max_ = row_top_edge_points[0], row_top_edge_points[-1]
+    gray = cv2.line(gray,(columns[min_],0),(columns[max_],0),(255,255,255),thickness)
+
+    row_bottom_edge_points = np.where(rows == (gray.shape[0]-1))[0]
+    min_,max_ = row_bottom_edge_points[0], row_bottom_edge_points[-1]
+    gray = cv2.line(gray,(columns[min_],gray.shape[0]-1),(columns[max_],gray.shape[0]-1),(255,255,255),thickness)
+
+    column_left_edge_points = np.where(columns == 0)[0]
+    min_,max_ = column_left_edge_points[0], column_left_edge_points[-1]
+    gray = cv2.line(gray,(0,rows[min_]),(0,rows[max_]),(255,255,255),thickness)
+
+    column_right_edge_points = np.where(columns == (gray.shape[1]-1))[0]
+    min_, max_ = column_right_edge_points[0], column_right_edge_points[-1]
+    gray = cv2.line(gray,(gray.shape[1]-1,rows[min_]),(gray.shape[1]-1,rows[max_]),(255,255,255),thickness)
+
+    # Find contours
+
+    _,threshold = cv2.threshold(gray, 0, 255, 
+                                cv2.THRESH_BINARY)
+    threshold = threshold.astype(np.uint8)
+    contours,_= cv2.findContours(threshold, cv2.RETR_TREE,
+                                cv2.CHAIN_APPROX_SIMPLE)
+    # Fill driveable area
+
+    filled_img = np.zeros((*gray.shape,3))
+
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+    
+        # Shortlisting the regions based on there area.
+        if area > 400: 
+            approx = cv2.approxPolyDP(cnt, 0.009 * cv2.arcLength(cnt, True), True)
+        cv2.fillPoly(filled_img, pts=[cnt], color=(255, 255, 255))
+
+    return filled_img
 
 def optimized_render_bev_labels_mpl(
         origin_pos,
@@ -351,6 +416,12 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
                   show: bool = True,
                   smoothen: bool = False) -> None:
 
+    plot_local_lane_polygons = True
+    plot_local_das = True
+    plot_centerlines = True
+    plot_object_trajectories = True
+    plot_object_heads = True
+
     xcenter, ycenter = origin_pos[0][0], origin_pos[0][1]
     x_min = xcenter + offset[0]
     x_max = xcenter + offset[1]
@@ -371,6 +442,8 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
                                                         y_min, 
                                                         y_max], 
                                                         city_name)
+    if not plot_local_lane_polygons:
+        local_lane_polygons = []
 
     # Get driveable area from Argoverse Map-API 
     
@@ -379,6 +452,8 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
                                                 y_min, 
                                                 y_max], 
                                                 city_name)
+    if not plot_local_das:
+        local_das = []
 
     print("\nTime consumed by local das and polygons calculation: ", time.time()-t0)
 
@@ -393,42 +468,56 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
     ax = fig.add_subplot(111)
     # ax.set_facecolor((0.0, 0.0, 0.0)) # Black
 
-    render_bev_labels_mpl(
-        origin_pos,
-        city_name,
-        ax,
-        "city_axis",
-        copy.deepcopy(local_lane_polygons),
-        copy.deepcopy(local_das),
-        city_to_egovehicle_se3,
-        avm,
-    )
-    print("Time consumed by BEV rendering: ", time.time()-t0)
-    lane_centerlines = []
-    # Get lane centerlines which lie within the range of trajectories
-    t0 = time.time()
-    for lane_id, lane_props in seq_lane_props.items():
+    # render_bev_labels_mpl(
+    #     origin_pos,
+    #     city_name,
+    #     ax,
+    #     "city_axis",
+    #     copy.deepcopy(local_lane_polygons),
+    #     copy.deepcopy(local_das),
+    #     city_to_egovehicle_se3,
+    #     avm,
+    # )
+    draw_lane_polygons(ax, local_das, "tab:pink", linewidth=1.5, fill=True)
 
+    img_cv = renderize_image(fig,normalize=False)
+    filled_img = fill_driveable_area(img_cv)
+
+    fig2 = plt.figure(0, figsize=(6,6), facecolor="black")
+    plt.xlim(x_min, x_max)
+    plt.ylim(y_min, y_max)
+    ax = fig2.add_subplot(111)
+
+    draw_lane_polygons(ax, local_lane_polygons, "tab:red", linewidth=1.5, fill=False)
+
+    print("Time consumed by BEV rendering: ", time.time()-t0)
+
+    # Get lane centerlines which lie within the range of trajectories
+
+    t0 = time.time()
+    lane_centerlines = []
+    # print("xmax,ymax,xmin,ymin: ", x_max,y_max,x_min,y_min)
+    for lane_id, lane_props in seq_lane_props.items():
         lane_cl = lane_props.centerline
 
-        if (
-            np.min(lane_cl[:, 0]) < x_max
+        if (np.min(lane_cl[:, 0]) < x_max
             and np.min(lane_cl[:, 1]) < y_max
             and np.max(lane_cl[:, 0]) > x_min
-            and np.max(lane_cl[:, 1]) > y_min
-        ):
+            and np.max(lane_cl[:, 1]) > y_min):
             lane_centerlines.append(lane_cl)
 
-    for lane_cl in lane_centerlines:
-        plt.plot(
-            lane_cl[:, 0],
-            lane_cl[:, 1],
-            "-",
-            color="grey",
-            alpha=1,
-            linewidth=1,
-            zorder=0,
-        )
+    if plot_centerlines:
+        for lane_cl in lane_centerlines:
+
+            plt.plot(
+                lane_cl[:, 0],
+                lane_cl[:, 1],
+                "-",
+                color="grey",
+                alpha=1,
+                linewidth=1.5,
+                zorder=0,
+            )
 
     print("Time consumed by plot lane centerlines: ", time.time()-t0)
 
@@ -436,7 +525,7 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
 
     color_dict = {"AGENT": (0.0,0.0,1.0,1.0), # Blue (Red when represented in the image)
                   "AV": (1.0,0.0,0.0,1.0), # Red (Blue when represented in the image)
-                  "OTHERS": (1.0,1.0,1.0,1.0)} # White
+                  "OTHERS": (0.0,1.0,0.0,1.0)} 
     object_type_tracker: Dict[int, int] = defaultdict(int)
 
     obs_seq = seq[:200, :] # 200x2
@@ -465,49 +554,77 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
         
         #pdb.set_trace()
 
-        # plt.plot(
-        #     cor_x,
-        #     cor_y,
-        #     "-",
-        #     color=color_dict[object_type],
-        #     label=object_type if not object_type_tracker[object_type] else "",
-        #     alpha=1,
-        #     linewidth=1.0,
-        #     zorder=_ZORDER[object_type],
-        # )
+        if plot_object_trajectories:
+            plt.plot(
+                cor_x,
+                cor_y,
+                "-",
+                color=color_dict[object_type],
+                label=object_type if not object_type_tracker[object_type] else "",
+                alpha=1,
+                linewidth=3.0,
+                zorder=_ZORDER[object_type],
+            )
 
         final_x = cor_x[-1]
         final_y = cor_y[-1]
 
         if object_type == "AGENT":
             marker_type = "o"
-            marker_size = 7
+            marker_size = 10
         elif object_type == "OTHERS":
-            marker_type = "o"
-            marker_size = 7
+            marker_type = "*"
+            marker_size = 8
         elif object_type == "AV":
-            marker_type = "o"
-            marker_size = 7
+            marker_type = "*"
+            marker_size = 8
 
-        # plt.plot(
-        #     final_x,
-        #     final_y,
-        #     marker_type,
-        #     color=color_dict[object_type],
-        #     label=object_type if not object_type_tracker[object_type] else "",
-        #     alpha=1,
-        #     markersize=marker_size,
-        #     zorder=_ZORDER[object_type],
-        # )
+        if plot_object_heads:
+            plt.plot(
+                final_x,
+                final_y,
+                marker_type,
+                color=color_dict[object_type],
+                label=object_type if not object_type_tracker[object_type] else "",
+                alpha=1,
+                markersize=marker_size,
+                zorder=_ZORDER[object_type],
+            )
 
         object_type_tracker[object_type] += 1
     print("Time consumed by objects rendering: ", time.time()-t0)
     plt.axis("off")
+    # plt.show()
+
+    # Merge local driveable information and lanes information
+
+    ## Foreground
+
+    img_lanes = renderize_image(fig2,normalize=False)
+    img2gray = cv2.cvtColor(img_lanes,cv2.COLOR_BGR2GRAY)
+    ret,mask = cv2.threshold(img2gray,0,255,cv2.THRESH_BINARY)
+
+    img2_fg = cv2.bitwise_and(img_lanes,img_lanes,mask=mask)
+    cv2.imshow("foreground",img2_fg)
+
+    ## Background
+
+    filled_img = np.asarray(filled_img, np.uint8)
+    mask_inv = cv2.bitwise_not(mask)
+
+    img1_bg = cv2.bitwise_and(filled_img,filled_img,mask=mask_inv)
+    cv2.imshow("background",filled_img)
+
+    ## Merge
+
+    full_img = cv2.add(img1_bg,img2_fg)
+    
+    cv2.imshow("full_img",full_img)
+
     if show:
         plt.show()
-
-    return fig
-    
+    pdb.set_trace()
+    return fig, fig2, full_img
 
 def optimized_map_generator(
     seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200 x 2)
@@ -570,8 +687,6 @@ def optimized_map_generator(
     filename = curr_folder + "/hdmap_images/test_image_opencv_3.png"
     print("filename: ")
     cv2.imwrite(filename,img_aux)
-
-    cv2.imshow('lanes',img_aux)
 
     pdb.set_trace()
 
