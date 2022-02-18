@@ -495,29 +495,33 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
     # Get lane centerlines which lie within the range of trajectories
 
     t0 = time.time()
-    lane_centerlines = []
-    # print("xmax,ymax,xmin,ymin: ", x_max,y_max,x_min,y_min)
-    for lane_id, lane_props in seq_lane_props.items():
-        lane_cl = lane_props.centerline
-
-        if (np.min(lane_cl[:, 0]) < x_max
-            and np.min(lane_cl[:, 1]) < y_max
-            and np.max(lane_cl[:, 0]) > x_min
-            and np.max(lane_cl[:, 1]) > y_min):
-            lane_centerlines.append(lane_cl)
 
     if plot_centerlines:
-        for lane_cl in lane_centerlines:
+        lane_centerlines = []
+        # Get lane centerlines which lie within the range of trajectories
+        for lane_id, lane_props in seq_lane_props.items():
 
-            plt.plot(
-                lane_cl[:, 0],
-                lane_cl[:, 1],
-                "-",
-                color="grey",
-                alpha=1,
-                linewidth=1.5,
-                zorder=0,
-            )
+            lane_cl = lane_props.centerline
+            print("lane id: ", lane_id)
+            if (
+                np.min(lane_cl[:, 0]) < x_max
+                and np.min(lane_cl[:, 1]) < y_max
+                and np.max(lane_cl[:, 0]) > x_min
+                and np.max(lane_cl[:, 1]) > y_min
+            ):
+                lane_centerlines.append(lane_cl)
+
+            for lane_cl in lane_centerlines:
+
+                plt.plot(
+                    lane_cl[:, 0],
+                    lane_cl[:, 1],
+                    "-",
+                    color="grey",
+                    alpha=1,
+                    linewidth=1.5,
+                    zorder=0,
+                )
 
     print("Time consumed by plot lane centerlines: ", time.time()-t0)
 
