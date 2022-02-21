@@ -306,14 +306,14 @@ def model_trainer(config, logger):
 
                 min_ade = min(checkpoint.config_cp["metrics_val"]['ade'])
                 min_ade_nl = min(checkpoint.config_cp["metrics_val"]['ade_nl'])
-
-                if metrics_val['ade'] == min_ade:
+                pdb.set_trace()
+                if metrics_val['ade'] <= min_ade:
                     logger.info('New low for avg_disp_error')
                     checkpoint.config_cp["best_t"] = t
                     checkpoint.config_cp["g_best_state"] = generator.state_dict()
                     checkpoint.config_cp["d_best_state"] = discriminator.state_dict()
 
-                if metrics_val['ade_nl'] == min_ade_nl:
+                if metrics_val['ade_nl'] <= min_ade_nl:
                     logger.info('New low for avg_disp_error_nl')
                     checkpoint.config_cp["best_t_nl"] = t
                     checkpoint.config_cp["g_best_nl_state"] = generator.state_dict()
@@ -321,34 +321,35 @@ def model_trainer(config, logger):
 
                 # Save another checkpoint with model weights and
                 # optimizer state
-                checkpoint.config_cp["g_state"] = generator.state_dict()
-                checkpoint.config_cp["g_optim_state"] = optimizer_g.state_dict()
-                checkpoint.config_cp["d_state"] = discriminator.state_dict()
-                checkpoint.config_cp["d_optim_state"] = optimizer_d.state_dict()
-                checkpoint_path = os.path.join(
-                    config.base_dir, hyperparameters.output_dir, "{}_{}_with_model.pt".format(config.dataset_name, hyperparameters.checkpoint_name)
-                )
-                logger.info('Saving checkpoint to {}'.format(checkpoint_path))
-                torch.save(checkpoint, checkpoint_path)
-                logger.info('Done.')
+                if metrics_val['ade'] <= min_ade:
+                    checkpoint.config_cp["g_state"] = generator.state_dict()
+                    checkpoint.config_cp["g_optim_state"] = optimizer_g.state_dict()
+                    checkpoint.config_cp["d_state"] = discriminator.state_dict()
+                    checkpoint.config_cp["d_optim_state"] = optimizer_d.state_dict()
+                    checkpoint_path = os.path.join(
+                        config.base_dir, hyperparameters.output_dir, "{}_{}_with_model.pt".format(config.dataset_name, hyperparameters.checkpoint_name)
+                    )
+                    logger.info('Saving checkpoint to {}'.format(checkpoint_path))
+                    torch.save(checkpoint, checkpoint_path)
+                    logger.info('Done.')
 
-                # Save a checkpoint with no model weights by making a shallow
-                # copy of the checkpoint excluding some items
-                checkpoint_path = os.path.join(
-                    config.base_dir, hyperparameters.output_dir, "{}_{}_no_model.pt".format(config.dataset_name, hyperparameters.checkpoint_name)
-                )
-                logger.info('Saving checkpoint to {}'.format(checkpoint_path))
-                key_blacklist = [
-                    'g_state', 'd_state', 'g_best_state', 'g_best_nl_state',
-                    'g_optim_state', 'd_optim_state', 'd_best_state',
-                    'd_best_nl_state'
-                ]
-                small_checkpoint = {}
-                for k, v in checkpoint.config_cp.items():
-                    if k not in key_blacklist:
-                        small_checkpoint[k] = v
-                torch.save(small_checkpoint, checkpoint_path)
-                logger.info('Done.')
+                    # Save a checkpoint with no model weights by making a shallow
+                    # copy of the checkpoint excluding some items
+                    checkpoint_path = os.path.join(
+                        config.base_dir, hyperparameters.output_dir, "{}_{}_no_model.pt".format(config.dataset_name, hyperparameters.checkpoint_name)
+                    )
+                    logger.info('Saving checkpoint to {}'.format(checkpoint_path))
+                    key_blacklist = [
+                        'g_state', 'd_state', 'g_best_state', 'g_best_nl_state',
+                        'g_optim_state', 'd_optim_state', 'd_best_state',
+                        'd_best_nl_state'
+                    ]
+                    small_checkpoint = {}
+                    for k, v in checkpoint.config_cp.items():
+                        if k not in key_blacklist:
+                            small_checkpoint[k] = v
+                    torch.save(small_checkpoint, checkpoint_path)
+                    logger.info('Done.')
 
             t += 1
             d_steps_left = hyperparameters.d_steps
