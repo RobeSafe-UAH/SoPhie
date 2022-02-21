@@ -257,7 +257,7 @@ def poly_fit(traj, traj_len, threshold):
 
 # @jit(nopython=True)
 def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, \
-    threshold, file_id, i, skip=1):
+    threshold, file_id, split, skip=1):
     """
     frame_data array (n, 6):
         - timestamp (int)
@@ -319,8 +319,9 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, \
         curr_seq[_idx, :, pad_front:pad_end] = curr_ped_seq
         curr_seq_rel[_idx, :, pad_front:pad_end] = rel_curr_ped_seq
         # Linear vs Non-Linear Trajectory
-        _non_linear_obj.append(
-            poly_fit(curr_ped_seq, pred_len, threshold))
+        if split != 'test':
+            _non_linear_obj.append(
+                poly_fit(curr_ped_seq, pred_len, threshold))
         curr_loss_mask[_idx, pad_front:pad_end] = 1
 
         # add num_objs_considered
@@ -399,7 +400,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         t0 = time.time()
         for i, path in enumerate(files):
             file_id = int(path.split("/")[-1].split(".")[0])
-            print(f"File {i}/{len(files)}")
+            # print(f"File {i}/{len(files)}")
             num_seq_list.append(file_id)
             data = read_file(path) # 4946, 4 | biwi_hotel_train
             frames = np.unique(data[:, 0]).tolist() # 934
@@ -408,17 +409,15 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 frame_data.append(data[frame == data[:, 0], :]) # save info for each frame
             num_sequences = int( # 919
                 math.ceil((len(frames) - self.seq_len + 1) / skip)) # (934 - 16 + 1) / 1 
-
-            # for idx in range(0, num_sequences * self.skip + 1, skip):
             idx = 0
             num_objs_considered, _non_linear_obj, curr_loss_mask, curr_seq, \
                 curr_seq_rel, id_frame_list, object_class_list, city_id, ego_origin = \
                 process_window_sequence(idx, frame_data, frames, \
-                    self.seq_len, self.pred_len, threshold, file_id, i)
+                    self.seq_len, self.pred_len, threshold, file_id, self.split)
             
             # pdb.set_trace()
 
-            if num_objs_considered > self.min_ped:
+            if num_objs_considered >= self.min_ped:
                 non_linear_obj += _non_linear_obj
                 num_objs_in_seq.append(num_objs_considered)
                 loss_mask_list.append(curr_loss_mask[:num_objs_considered])

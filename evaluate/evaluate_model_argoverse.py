@@ -184,11 +184,10 @@ def get_generator(checkpoint, config):
     """
 
     generator = SoPhieGenerator(config.sophie.generator)
-    generator.set_num_agents(config.hyperparameters.num_agents_per_obs)
     generator.build()
     generator.load_state_dict(checkpoint['g_state'])
     generator.cuda() # Use GPU
-    generator.train()
+    generator.eval()
     return generator      
 
 def main(args):
@@ -220,14 +219,14 @@ def main(args):
                                                   obs_len=config_file.hyperparameters.obs_len,
                                                   pred_len=config_file.hyperparameters.pred_len,
                                                   distance_threshold=config_file.hyperparameters.distance_threshold,
-                                                  split=config_file.dataset.split,
+                                                  split="val",
                                                   num_agents_per_obs=config_file.hyperparameters.num_agents_per_obs,
                                                   split_percentage=config_file.dataset.split_percentage)
 
     test_loader = DataLoader(data_test,
-                              batch_size=config_file.dataset.batch_size,
-                              shuffle=config_file.dataset.shuffle,
-                              num_workers=config_file.dataset.num_workers,
+                              batch_size=1,
+                              shuffle=False,
+                              num_workers=0,
                               collate_fn=seq_collate)
 
     # Get generator
