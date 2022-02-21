@@ -40,6 +40,7 @@ fg_plt, bg_plt, img_cv = map_utils.map_generator(curr_obs_seq_data,
                               avm, 
                               city_name,
                               (obj_id_list, num_agents_per_obs), 
+                              lane_centerlines=None,
                               show=False, 
                               smoothen=True)
 

@@ -413,14 +413,15 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
                   avm,
                   city_name,
                   info, # object list id + num_agents_per_obs
+                  lane_centerlines: Optional[List[np.ndarray]] = None,
                   show: bool = True,
                   smoothen: bool = False) -> None:
 
     plot_local_lane_polygons = True
     plot_local_das = True
     plot_centerlines = True
-    plot_object_trajectories = True
-    plot_object_heads = True
+    plot_object_trajectories = False
+    plot_object_heads = False
 
     xcenter, ycenter = origin_pos[0][0], origin_pos[0][1]
     x_min = xcenter + offset[0]
@@ -496,13 +497,44 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
 
     t0 = time.time()
 
-    if plot_centerlines:
+    # if plot_centerlines:
+    #     lane_centerlines = []
+    #     # Get lane centerlines which lie within the range of trajectories
+    #     for lane_id, lane_props in seq_lane_props.items():
+
+    #         lane_cl = lane_props.centerline
+
+    #         if (
+    #             np.min(lane_cl[:, 0]) < x_max
+    #             and np.min(lane_cl[:, 1]) < y_max
+    #             and np.max(lane_cl[:, 0]) > x_min
+    #             and np.max(lane_cl[:, 1]) > y_min
+    #         ):
+    #             lane_centerlines.append(lane_cl)
+
+    #         for lane_cl in lane_centerlines:
+
+    #             plt.plot(
+    #                 lane_cl[:, 0],
+    #                 lane_cl[:, 1],
+    #                 "-",
+    #                 color="grey",
+    #                 alpha=1,
+    #                 linewidth=1.5,
+    #                 zorder=0,
+    #             )
+
+    if lane_centerlines is None:
+
+        plt.xlim(x_min, x_max)
+        plt.ylim(y_min, y_max)
+
         lane_centerlines = []
         # Get lane centerlines which lie within the range of trajectories
         for lane_id, lane_props in seq_lane_props.items():
 
             lane_cl = lane_props.centerline
-            print("lane id: ", lane_id)
+
             if (
                 np.min(lane_cl[:, 0]) < x_max
                 and np.min(lane_cl[:, 1]) < y_max
@@ -511,17 +543,20 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
             ):
                 lane_centerlines.append(lane_cl)
 
-            for lane_cl in lane_centerlines:
+    #pdb.set_trace()
+    for lane_cl in lane_centerlines:
+        plt.plot(
+            lane_cl[:, 0],
+            lane_cl[:, 1],
+            "-",
+            color="grey",
+            alpha=1,
+            linewidth=1,
+            zorder=0,
+        )
 
-                plt.plot(
-                    lane_cl[:, 0],
-                    lane_cl[:, 1],
-                    "-",
-                    color="grey",
-                    alpha=1,
-                    linewidth=1.5,
-                    zorder=0,
-                )
+    plt.show()
+    pdb.set_trace()
 
     print("Time consumed by plot lane centerlines: ", time.time()-t0)
 
@@ -625,183 +660,9 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
     
     cv2.imshow("full_img",full_img)
 
+    pdb.set_trace()
+
     if show:
         plt.show()
-    pdb.set_trace()
+    # pdb.set_trace()
     return fig, fig2, full_img
-
-def optimized_map_generator(
-    seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200 x 2)
-    origin_pos,
-    offset,
-    avm,
-    city_name,
-    info, # object list id + num_agents_per_obs
-    show: bool = True,
-    smoothen: bool = False,
-) -> None:
-
-    xcenter, ycenter = origin_pos[0][0], origin_pos[0][1]
-
-    x_min = xcenter + offset[0]
-    x_max = xcenter + offset[1]
-    y_min = ycenter + offset[2]
-    y_max = ycenter + offset[3]
-
-    object_id_list, obs = info
-
-    # Get centerlines from Argoverse Map-API 
-
-    seq_lane_props = avm.city_lane_centerlines_dict[city_name]
-
-    # Get local polygons
-
-    local_lane_polygons = avm.find_local_lane_polygons([x_min, 
-                                                        x_max, 
-                                                        y_min, 
-                                                        y_max], 
-                                                        city_name)
-    
-    # local_lane_polygons = []
-
-    # Get driveable area from Argoverse Map-API 
-    
-    local_das = avm.find_local_driveable_areas([x_min, 
-                                                x_max, 
-                                                y_min, 
-                                                y_max], 
-                                                city_name)
-    local_das = []
-
-    rotation = np.array([0,0,0,1]) # Quaternion with no roation
-    translation = np.array([0,0,0]) # zero translation
-    city_to_egovehicle_se3 = SE3(rotation=quat2rotmat(rotation), translation=translation) # Just as argument, it is not used!
-
-    height = abs(offset[0])
-    width = abs(offset[0])
-    img = np.zeros((height,width,3))#, np.uint8)
-
-    img_aux = optimized_render_bev_labels_mpl(origin_pos,
-                                              img,
-                                              copy.deepcopy(local_lane_polygons),
-                                              copy.deepcopy(local_das),
-                                              )
-
-    curr_folder = os.getcwd()
-    filename = curr_folder + "/hdmap_images/test_image_opencv_3.png"
-    print("filename: ")
-    cv2.imwrite(filename,img_aux)
-
-    pdb.set_trace()
-
-    lane_centerlines = []
-    # Get lane centerlines which lie within the range of trajectories
-    for lane_id, lane_props in seq_lane_props.items():
-
-        lane_cl = lane_props.centerline
-
-        if (
-            np.min(lane_cl[:, 0]) < x_max
-            and np.min(lane_cl[:, 1]) < y_max
-            and np.max(lane_cl[:, 0]) > x_min
-            and np.max(lane_cl[:, 1]) > y_min
-        ):
-            lane_centerlines.append(lane_cl)
-
-    for lane_cl in lane_centerlines:
-        plt.plot(
-            lane_cl[:, 0],
-            lane_cl[:, 1],
-            "-",
-            color="grey",
-            alpha=1,
-            linewidth=1,
-            zorder=0,
-        )
-
-    t0 = time.time()
-
-    color_dict = {"AGENT": (0.0,0.0,1.0,1.0), # Blue (Red when represented in the image)
-                  "AV": (1.0,0.0,0.0,1.0), # Red (Blue when represented in the image)
-                  "OTHERS": (1.0,1.0,1.0,1.0)} # White
-    object_type_tracker: Dict[int, int] = defaultdict(int)
-
-    seq_end = int(len(object_id_list)*20) # TODO manage magic number
-    obs_seq = seq[:seq_end, :] # 200x2
-    obs_seq_list = []
-    # for i in range(object_id_list.shape[0]):
-    #     if object_id_list[i] != -1:
-    #         obs_seq_list.append([obs_seq[np.arange(i,200,obs),:], object_id_list[i]]) # recover trajectories for each obs
-
-    try:
-        for i in range(object_id_list.shape[0]):
-            if object_id_list[i] != -1:
-                obs_seq_list.append([obs_seq[np.arange(i,seq_end,obs),:], object_id_list[i]]) # recover trajectories for each obs
-    except Exception as e:
-        print(e)
-        pdb.set_trace()
-    # Plot all the tracks up till current frame
-
-    for seq_id in obs_seq_list:
-        object_type = int(seq_id[1])
-        seq_rel = seq_id[0]
-
-        object_type = translate_object_type(object_type)
-
-        cor_x = seq_rel[:,0] + xcenter
-        cor_y = seq_rel[:,1] + ycenter
-
-        if smoothen:
-            polyline = np.column_stack((cor_x, cor_y))
-            num_points = cor_x.shape[0] * 3
-            smooth_polyline = interpolate_polyline(polyline, num_points)
-            cor_x = smooth_polyline[:, 0]
-            cor_y = smooth_polyline[:, 1]
-        
-        #pdb.set_trace()
-
-        plt.plot(
-            cor_x,
-            cor_y,
-            "-",
-            color=color_dict[object_type],
-            label=object_type if not object_type_tracker[object_type] else "",
-            alpha=1,
-            linewidth=1,
-            zorder=_ZORDER[object_type],
-        )
-
-        final_x = cor_x[-1]
-        final_y = cor_y[-1]
-
-        if object_type == "AGENT":
-            marker_type = "o"
-            marker_size = 7
-        elif object_type == "OTHERS":
-            marker_type = "o"
-            marker_size = 7
-        elif object_type == "AV":
-            marker_type = "o"
-            marker_size = 7
-
-        plt.plot(
-            final_x,
-            final_y,
-            marker_type,
-            color=color_dict[object_type],
-            label=object_type if not object_type_tracker[object_type] else "",
-            alpha=1,
-            markersize=marker_size,
-            zorder=_ZORDER[object_type],
-        )
-
-        object_type_tracker[object_type] += 1
-
-    plt.show()
-
-    pdb.set_trace()
-
-    plt.axis("off")
-    if show:
-        plt.show()
-    return fig
