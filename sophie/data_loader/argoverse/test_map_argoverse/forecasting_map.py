@@ -33,8 +33,7 @@ dist_rasterized_map = [-d,d,-d,d]
 # print("city_name: ", city_name, type(city_name))
 
 t0 = time.time()
-fg_plt, bg_plt, img_cv = map_utils.map_generator(curr_obs_seq_data, 
-# fig = map_utils.optimized_map_generator(curr_obs_seq_data, 
+img = map_utils.map_generator(curr_obs_seq_data, 
                               curr_ego_origin, 
                               dist_rasterized_map, 
                               avm, 
@@ -43,12 +42,8 @@ fg_plt, bg_plt, img_cv = map_utils.map_generator(curr_obs_seq_data,
                               show=False, 
                               smoothen=True)
 
-print("Time consumed: ", time.time() - t0)
-# t0 = time.time()
-# img_render = map_utils.renderize_image(fig)
-# img = img_render * 255.0
-# print("Time consumed by image rendering: ", time.time() - t0)
+print("Time consumed by map generation and rendering: ", time.time() - t0)
 
 curr_folder = os.getcwd()
 filename = curr_folder + "/hdmap_images/test_image_full_image.png"
-cv2.imwrite(filename,img_cv)
+cv2.imwrite(filename,img)
