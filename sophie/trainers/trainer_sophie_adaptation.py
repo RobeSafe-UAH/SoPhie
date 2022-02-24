@@ -306,7 +306,6 @@ def model_trainer(config, logger):
 
                 min_ade = min(checkpoint.config_cp["metrics_val"]['ade'])
                 min_ade_nl = min(checkpoint.config_cp["metrics_val"]['ade_nl'])
-                pdb.set_trace()
                 if metrics_val['ade'] <= min_ade:
                     logger.info('New low for avg_disp_error')
                     checkpoint.config_cp["best_t"] = t
