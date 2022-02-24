@@ -426,7 +426,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 ###################################################################
                 seq_id_list.append(id_frame_list[:num_objs_considered]) # (timestamp, id, file_id)
                 object_class_id_list.append(object_class_list[:num_objs_considered]) # obj_class (-1 0 1 2 2 2 2 ...)
-                object_id_list.append(id_frame_list[:,1,0])
+                object_id_list.append(id_frame_list[:num_objs_considered,1,0])
                 ###################################################################
                 self.city_ids.append(city_id)
                 self.ego_vehicle_origin.append(ego_origin)

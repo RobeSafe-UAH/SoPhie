@@ -8,7 +8,7 @@ dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
     batch_size: 32 # 32 max
-    split_percentage: 0.5
+    split_percentage: 0.02
     shuffle: False # False to check the input data, always set to True
     num_workers: 0
 optim_parameters:
@@ -20,7 +20,7 @@ hyperparameters:
     classic_trainer: False
     tensorboard_active: True
     num_iterations: 20000 #1608 #20000
-    num_epochs: 200
+    num_epochs: 50
     d_steps: 2
     g_steps: 1
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
