@@ -41,6 +41,23 @@ def get_dtypes(use_gpu):
         float_dtype = torch.cuda.FloatTensor
     return long_dtype, float_dtype
 
+def handle_batch(batch, is_single_agent_out):
+    # load batch in cuda
+    batch = [tensor.cuda() for tensor in batch]
+
+    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
+     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq_list) = batch
+    
+    # handle single agent 
+    agent_idx = None
+    if is_single_agent_out: # search agent idx
+        agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
+        pred_traj_gt = pred_traj_gt[:,agent_idx, :]
+        pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
+
+    return (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
+     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq_list)
+
 def model_trainer(config, logger):
     """
     """
@@ -98,6 +115,8 @@ def model_trainer(config, logger):
         if (hyperparameters.num_iterations > hyperparameters.num_epochs* iterations_per_epoch) and (hyperparameters.num_epochs != 0):
             hyperparameters.num_iterations = hyperparameters.num_epochs* iterations_per_epoch
 
+
+    output_single_agent = hyperparameters.hyperparameters
 
     logger.info(
         'There are {} iterations per epoch'.format(hyperparameters.num_iterations)
@@ -165,66 +184,6 @@ def model_trainer(config, logger):
         epoch += 1
         logger.info('Starting epoch {}'.format(epoch))
         for batch in train_loader: # bottleneck
-            
-            # batch = [tensor.cuda() for tensor in batch]
-            # (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-            #     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
-            # ############################
-            # # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-            # ###########################
-            # ## Train with all-real batch
-            # # if t == 170:
-            # #     pdb.set_trace()
-            # discriminator.zero_grad()
-            
-            # traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
-            # traj_real_rel = torch.cat([obs_traj_rel, pred_traj_gt_rel], dim=0)
-            # t0 = time.time()
-            # output = discriminator(pred_traj_gt, pred_traj_gt_rel)
-            # # print("Discriminator time: ", time.time() - t0)
-            # label = torch.ones_like(output) * random.uniform(0.8, 1)
-            # errD_real = criterion(output, label)
-            # errD_real.backward()
-            # D_x = output.mean().item()
-
-            # ## Train with all-fake batch
-            # # Generate batch of latent vectors
-            # # pdb.set_trace()
-            # t0 = time.time()
-            # generator_out = generator(obs_traj, obs_traj_rel, frames)
-            # # print("Generator time: ", time.time() - t0)
-            # # last_obs = obs_traj_rel[-1].unsqueeze(0).repeat(hyperparameters.pred_len, 1, 1)
-            # # generator_out += last_obs
-            # pred_traj_fake_rel = generator_out
-            # pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin)
-            # traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-            # traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
-            # output = discriminator(pred_traj_fake.detach(), pred_traj_fake_rel.detach())
-            # label = torch.ones_like(output) * random.uniform(0, 0.2)
-            # errD_fake = criterion(output, label)
-            # errD_fake.backward()
-            # D_G_z1 = output.mean().item()
-            # errD = errD_real + errD_fake
-            # # Update D
-            # optimizer_d.step()
-
-            # losses_d = {"errD":errD.item(), "D_x":D_x, "D_G_z1":D_G_z1}
-
-            # ############################
-            # # (2) Update G network: maximize log(D(G(z)))
-            # ###########################
-            # generator.zero_grad()
-            # output = discriminator(pred_traj_fake, pred_traj_fake_rel)
-            # label = torch.ones_like(output) * random.uniform(0.8, 1)
-            # errG = criterion(output, label)
-            # # Calculate gradients for G
-            # errG.backward()
-            # D_G_z2 = output.mean().item()
-            # # Update G
-            # optimizer_g.step()
-            # losses_g = {"errG": errG.item(), "D_G_z2": D_G_z2}
-            # if t == 50:
-            #     pdb.set_trace()
 
             if not hyperparameters.classic_trainer:
                 if d_steps_left > 0:
@@ -232,7 +191,7 @@ def model_trainer(config, logger):
 
                     losses_d = discriminator_step(hyperparameters, batch, generator,
                                                 discriminator, d_loss_fn,
-                                                optimizer_d)
+                                                optimizer_d, output_single_agent)
 
                     checkpoint.config_cp["norm_d"].append(
                         get_total_norm(discriminator.parameters()))
@@ -242,7 +201,7 @@ def model_trainer(config, logger):
 
                     losses_g = generator_step(hyperparameters, batch, generator,
                                             discriminator, g_loss_fn,
-                                            optimizer_g)
+                                            optimizer_g, output_single_agent)
                     checkpoint.config_cp["norm_g"].append(
                         get_total_norm(generator.parameters())
                     )
@@ -253,13 +212,13 @@ def model_trainer(config, logger):
             else:
                 losses_d = discriminator_step(hyperparameters, batch, generator,
                                                 discriminator, d_loss_fn,
-                                                optimizer_d)
+                                                optimizer_d, output_single_agent)
                 checkpoint.config_cp["norm_d"].append(
                         get_total_norm(discriminator.parameters()))
                 
                 losses_g = generator_step(hyperparameters, batch, generator,
                                             discriminator, g_loss_fn,
-                                            optimizer_g)
+                                            optimizer_g, output_single_agent)
                     
                 # print("Generator time: ", end-start)
                 checkpoint.config_cp["norm_g"].append(
@@ -293,7 +252,7 @@ def model_trainer(config, logger):
                 # Check stats on the validation set
                 logger.info('Checking stats on val ...')
                 metrics_val = check_accuracy(
-                    hyperparameters, val_loader, generator, discriminator, d_loss_fn
+                    hyperparameters, val_loader, generator, discriminator, d_loss_fn, output_single_agent
                 )
 
                 for k, v in sorted(metrics_val.items()):
@@ -367,7 +326,7 @@ def model_trainer(config, logger):
     checkpoint.config_cp["sample_ts"].append(t)
     logger.info('Checking stats on val ...')
     metrics_val = check_accuracy(
-        hyperparameters, val_loader, generator, discriminator, d_loss_fn
+        hyperparameters, val_loader, generator, discriminator, d_loss_fn, output_single_agent
     )
 
     for k, v in sorted(metrics_val.items()):
@@ -381,13 +340,13 @@ def model_trainer(config, logger):
     min_ade = min(checkpoint.config_cp["metrics_val"]['ade'])
     min_ade_nl = min(checkpoint.config_cp["metrics_val"]['ade_nl'])
 
-    if metrics_val['ade'] == min_ade:
+    if metrics_val['ade'] <= min_ade:
         logger.info('New low for avg_disp_error')
         checkpoint.config_cp["best_t"] = t
         checkpoint.config_cp["g_best_state"] = generator.state_dict()
         checkpoint.config_cp["d_best_state"] = discriminator.state_dict()
 
-    if metrics_val['ade_nl'] == min_ade_nl:
+    if metrics_val['ade_nl'] <= min_ade_nl:
         logger.info('New low for avg_disp_error_nl')
         checkpoint.config_cp["best_t_nl"] = t
         checkpoint.config_cp["g_best_nl_state"] = generator.state_dict()
@@ -405,25 +364,37 @@ def model_trainer(config, logger):
 
 
 def discriminator_step(
-    hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d
+    hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d, is_single_agent=True
 ):
     batch = [tensor.cuda() for tensor in batch]
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
      loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
 
+    # placeholder loss
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
-    # pdb.set_trace()
-    # generator_out = generator(frames, obs_traj)
-    generator_out = generator(obs_traj, obs_traj_rel, frames)
-    # last_obs = obs_traj_rel[-1].unsqueeze(0).repeat(hyperparameters.pred_len, 1, 1)
-    # generator_out += last_obs
 
+    # single agent output idx
+    agent_idx = None
+    if is_single_agent:
+        agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
+
+    # forward
+    generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+
+    # single agent trajectories
+    if is_single_agent:
+        obs_traj = obs_traj[:,agent_idx, :]
+        pred_traj_gt = pred_traj_gt[:,agent_idx, :]
+        obs_traj_rel = obs_traj_rel[:, agent_idx, :]
+        pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
+
+    # rel to abs
     pred_traj_fake_rel = generator_out
-    # pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin)
     pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
 
+    # calculate full traj
     traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
     traj_real_rel = torch.cat([obs_traj_rel, pred_traj_gt_rel], dim=0)
     traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
@@ -431,8 +402,6 @@ def discriminator_step(
 
     scores_fake = discriminator(traj_fake, traj_fake_rel)
     scores_real = discriminator(traj_real, traj_real_rel)
-    # scores_fake = discriminator(pred_traj_fake, pred_traj_fake_rel)
-    # scores_real = discriminator(pred_traj_gt, pred_traj_gt_rel)
 
     # Compute loss with optional gradient penalty
     data_loss = d_loss_fn(scores_real, scores_fake)
@@ -454,56 +423,76 @@ def discriminator_step(
     return losses
 
 def generator_step(
-    hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g
+    hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g, is_single_agent=True
 ):
     batch = [tensor.cuda() for tensor in batch]
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
      loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
 
+    # place holder loss
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
     g_l2_loss_rel = []
 
-    loss_mask = loss_mask[:, hyperparameters.obs_len:]  # 160x30 -> 0 o 1
+    # single agent output idx
+    agent_idx = None
+    if is_single_agent:
+        agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
+
+    if is_single_agent:
+        loss_mask = loss_mask[agent_idx, hyperparameters.obs_len:]
+    else:  # 160x30 -> 0 o 1
+        loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
     for _ in range(hyperparameters.best_k):
-        # generator_out = generator(frames, obs_traj)
-        generator_out = generator(obs_traj, obs_traj_rel, frames)
-        # last_obs = obs_traj_rel[-1].unsqueeze(0).repeat(hyperparameters.pred_len, 1, 1)
-        # generator_out += last_obs
+        # forward
+        generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+
+        # single agent trajectories # TODO this overwrite full traj
+        if is_single_agent:
+            obs_traj = obs_traj[:,agent_idx, :]
+            pred_traj_gt = pred_traj_gt[:,agent_idx, :]
+            obs_traj_rel = obs_traj_rel[:, agent_idx, :]
+            pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
 
         pred_traj_fake_rel = generator_out
-        # pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin)
         pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
 
         if hyperparameters.l2_loss_weight > 0:
             g_l2_loss_rel.append(hyperparameters.l2_loss_weight * l2_loss(
-                pred_traj_fake_rel, # ya no son relativas !!!
+                pred_traj_fake_rel,
                 pred_traj_gt_rel,
                 loss_mask,
                 mode='raw'))
 
+    # calculate l2 loss
     g_l2_loss_sum_rel = torch.zeros(1).to(pred_traj_gt)
     if hyperparameters.l2_loss_weight > 0:
         g_l2_loss_rel = torch.stack(g_l2_loss_rel, dim=1)
-        for start, end in seq_start_end.data:
-            _g_l2_loss_rel = g_l2_loss_rel[start:end]
-            _g_l2_loss_rel = torch.sum(_g_l2_loss_rel, dim=0)
-            _g_l2_loss_rel = torch.min(_g_l2_loss_rel) / torch.sum(
-                loss_mask[start:end])
-            g_l2_loss_sum_rel += _g_l2_loss_rel
+        if is_single_agent:
+            for i in range(len(agent_idx)):
+                _g_l2_loss_rel = g_l2_loss_rel[i]
+                _g_l2_loss_rel = torch.sum(_g_l2_loss_rel, dim=0)
+                _g_l2_loss_rel = torch.min(_g_l2_loss_rel) / torch.sum(
+                    loss_mask[i])
+                g_l2_loss_sum_rel += _g_l2_loss_rel
+        else:
+            for start, end in seq_start_end.data:
+                _g_l2_loss_rel = g_l2_loss_rel[start:end]
+                _g_l2_loss_rel = torch.sum(_g_l2_loss_rel, dim=0)
+                _g_l2_loss_rel = torch.min(_g_l2_loss_rel) / torch.sum(
+                    loss_mask[start:end])
+                g_l2_loss_sum_rel += _g_l2_loss_rel
         losses['G_l2_loss_rel'] = g_l2_loss_sum_rel.item()
         loss += g_l2_loss_sum_rel
 
-    traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0) # 50x160x2
+    # calculate full traj
+    traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
     traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
-    #scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
-    # for param in discriminator.parameters():
-    #         param.requires_grad = False
+    # discriminator scores
     scores_fake = discriminator(traj_fake, traj_fake_rel)
-    # scores_fake = discriminator(pred_traj_fake, pred_traj_fake_rel)
     discriminator_loss = g_loss_fn(scores_fake)
 
     loss += discriminator_loss
@@ -520,13 +509,10 @@ def generator_step(
         )
     optimizer_g.step()
 
-    # for param in discriminator.parameters():
-    #         param.requires_grad = True
-
     return losses
 
 def check_accuracy(
-    hyperparameters, loader, generator, discriminator, d_loss_fn, limit=False
+    hyperparameters, loader, generator, discriminator, d_loss_fn, limit=False, is_single_agent=True
 ):
     d_losses = []
     metrics = {}
@@ -543,18 +529,37 @@ def check_accuracy(
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
              loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
 
+            # single agent output idx
+            agent_idx = None
+            if is_single_agent:
+                agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
+
+            # mask and linear
             mask = np.where(obj_id.cpu() == -1, 0, 1)
             mask = torch.tensor(mask, device=obj_id.device).reshape(-1)
-             
-            linear_obj = 1 - non_linear_obj
-            loss_mask = loss_mask[:, hyperparameters.obs_len:]
+            if is_single_agent:
+                mask = mask[agent_idx]
+                non_linear_obj = non_linear_obj[agent_idx]
+                loss_mask = loss_mask[agent_idx, hyperparameters.obs_len:]
+                linear_obj = 1 - non_linear_obj
+            else:  # 160x30 -> 0 o 1
+                loss_mask = loss_mask[:, hyperparameters.obs_len:]
+                linear_obj = 1 - non_linear_obj
 
-            pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames)
-            # last_obs = obs_traj_rel[-1].unsqueeze(0).repeat(hyperparameters.pred_len, 1, 1)
-            # pred_traj_fake_rel += last_obs
-            # pdb.set_trace()
-            # pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin)
+            # forward
+            pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+
+            # single agent trajectories
+            if is_single_agent:
+                obs_traj = obs_traj[:,agent_idx, :]
+                pred_traj_gt = pred_traj_gt[:,agent_idx, :]
+                obs_traj_rel = obs_traj_rel[:, agent_idx, :]
+                pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
+
+            # rel to abs
             pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
+
+            # l2 loss
             g_l2_loss_abs, g_l2_loss_rel = cal_l2_losses(
                 pred_traj_gt, pred_traj_gt_rel, pred_traj_fake,
                 pred_traj_fake_rel, loss_mask
@@ -566,21 +571,6 @@ def check_accuracy(
             fde, fde_l, fde_nl = cal_fde(
                 pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, mask
             )
-
-            traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
-            traj_real_rel = torch.cat([obs_traj_rel, pred_traj_gt_rel], dim=0)
-            traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-            traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
-
-            # scores_fake = discriminator(traj_fake, traj_fake_rel, seq_start_end)
-            # scores_real = discriminator(traj_real, traj_real_rel, seq_start_end)
-
-            # scores_fake = discriminator(traj_fake)
-            # scores_real = discriminator(traj_real)
-
-            # d_loss = d_loss_fn(scores_real, scores_fake)
-            # d_losses.append(d_loss.item())
-            # pdb.set_trace()
 
             g_l2_losses_abs.append(g_l2_loss_abs.item())
             g_l2_losses_rel.append(g_l2_loss_rel.item())
@@ -597,7 +587,6 @@ def check_accuracy(
             total_traj_nl += torch.sum(non_linear_obj).item()
             if limit and total_traj >= hyperparameters.num_samples_check:
                 break
-
     # metrics['d_loss'] = sum(d_losses) / len(d_losses)
     metrics['g_l2_loss_abs'] = sum(g_l2_losses_abs) / loss_mask_sum
     metrics['g_l2_loss_rel'] = sum(g_l2_losses_rel) / loss_mask_sum

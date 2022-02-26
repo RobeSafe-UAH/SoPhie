@@ -38,7 +38,6 @@ if __name__ == "__main__":
 
     with open(r'./configs/sophie_argoverse.yml') as config_file:
         config_file = yaml.safe_load(config_file)
-        print(yaml.dump(config_file, default_flow_style=False))
         config_file = Prodict.from_dict(config_file)
         config_file.base_dir = BASE_DIR
 

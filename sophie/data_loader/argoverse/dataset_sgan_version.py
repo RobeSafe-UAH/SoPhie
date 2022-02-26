@@ -370,21 +370,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
         files, num_files = load_list_from_folder(folder)
         files = files[:int(num_files*split_percentage)]
 
-        # threads = multiprocessing.cpu_count()    
-        # p = Pool(threads)
-        # n_splits = int(len(files) / threads) + 1
-        # # dts_files_pool = list(chunks(files, n_splits))
-        # dts_files_pool = list(chunks(files, 100))
-
-        # args_func = zip(
-        #     dts_files_pool
-        # )
-        # t0 = time.time()
-        # sequences = p.starmap(load_sequences_thread, args_func)
-        # print("sequences ", len(sequences))
-        # print("time ", time.time() - t0)
-        # assert 1 == 0
-        # pdb.set_trace()
         num_objs_in_seq = []
         seq_list = []
         seq_list_rel = []
