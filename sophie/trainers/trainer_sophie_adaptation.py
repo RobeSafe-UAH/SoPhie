@@ -116,7 +116,7 @@ def model_trainer(config, logger):
             hyperparameters.num_iterations = hyperparameters.num_epochs* iterations_per_epoch
 
 
-    output_single_agent = hyperparameters.hyperparameters
+    output_single_agent = hyperparameters.output_single_agent
 
     logger.info(
         'There are {} iterations per epoch'.format(hyperparameters.num_iterations)
@@ -434,7 +434,6 @@ def generator_step(
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
     g_l2_loss_rel = []
-
     # single agent output idx
     agent_idx = None
     if is_single_agent:
@@ -442,22 +441,19 @@ def generator_step(
 
     if is_single_agent:
         loss_mask = loss_mask[agent_idx, hyperparameters.obs_len:]
+        pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
     else:  # 160x30 -> 0 o 1
         loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
     for _ in range(hyperparameters.best_k):
         # forward
         generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
-
+        pred_traj_fake_rel = generator_out
         # single agent trajectories # TODO this overwrite full traj
         if is_single_agent:
-            obs_traj = obs_traj[:,agent_idx, :]
-            pred_traj_gt = pred_traj_gt[:,agent_idx, :]
-            obs_traj_rel = obs_traj_rel[:, agent_idx, :]
-            pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
-
-        pred_traj_fake_rel = generator_out
-        pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
+            pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
+        else:
+            pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
 
         if hyperparameters.l2_loss_weight > 0:
             g_l2_loss_rel.append(hyperparameters.l2_loss_weight * l2_loss(
@@ -465,6 +461,11 @@ def generator_step(
                 pred_traj_gt_rel,
                 loss_mask,
                 mode='raw'))
+    # handle single agent output
+    if is_single_agent:
+        obs_traj = obs_traj[:,agent_idx, :]
+        pred_traj_gt = pred_traj_gt[:,agent_idx, :]
+        obs_traj_rel = obs_traj_rel[:, agent_idx, :]
 
     # calculate l2 loss
     g_l2_loss_sum_rel = torch.zeros(1).to(pred_traj_gt)
@@ -472,10 +473,10 @@ def generator_step(
         g_l2_loss_rel = torch.stack(g_l2_loss_rel, dim=1)
         if is_single_agent:
             for i in range(len(agent_idx)):
-                _g_l2_loss_rel = g_l2_loss_rel[i]
+                _g_l2_loss_rel = g_l2_loss_rel[i].unsqueeze(0)
                 _g_l2_loss_rel = torch.sum(_g_l2_loss_rel, dim=0)
                 _g_l2_loss_rel = torch.min(_g_l2_loss_rel) / torch.sum(
-                    loss_mask[i])
+                    loss_mask[i].unsqueeze(0))
                 g_l2_loss_sum_rel += _g_l2_loss_rel
         else:
             for start, end in seq_start_end.data:

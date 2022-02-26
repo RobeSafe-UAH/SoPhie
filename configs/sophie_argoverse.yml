@@ -22,18 +22,18 @@ hyperparameters:
     tensorboard_active: True
     num_iterations: 20000 #1608 #20000
     num_epochs: 75
-    d_steps: 3
+    d_steps: 2
     g_steps: 1
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 2
     checkpoint_every: 200
-    output_dir: "save/argoverse/exp_single_agent_out_temporal_2"
+    output_dir: "save/argoverse/exp_single_agent_out_temporal_3"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 
     clipping_threshold_d: 0
-    clipping_threshold_g: 0
-    best_k: 1
+    clipping_threshold_g: 1.5
+    best_k: 10
     l2_loss_weight: 1 # If different from 0, L2 loss is considered when training
     num_samples_check: 5000
     obs_len: &obs_len 20 
