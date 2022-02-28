@@ -1,4 +1,6 @@
 ## Problems
+* dummies
+    * bad influence in model
 * Normalization of rel and abs
 * Imbalanced "class" problem
     * relatives min and max
@@ -10,6 +12,7 @@
     * PReLU
 * Temporal Decoder
     * It takes into account full trajectory
+* Layernorm and LeakyReLU 
 
 
 ## Experimento 1

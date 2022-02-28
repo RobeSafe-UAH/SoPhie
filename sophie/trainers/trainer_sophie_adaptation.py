@@ -232,20 +232,7 @@ def model_trainer(config, logger):
                 if d_steps_left > 0 or g_steps_left > 0:
                     continue
             else:
-                losses_d = discriminator_step(hyperparameters, batch, generator,
-                                                discriminator, d_loss_fn,
-                                                optimizer_d, output_single_agent)
-                checkpoint.config_cp["norm_d"].append(
-                        get_total_norm(discriminator.parameters()))
-                
-                losses_g = generator_step(hyperparameters, batch, generator,
-                                            discriminator, g_loss_fn,
-                                            optimizer_g, output_single_agent)
-                    
-                # print("Generator time: ", end-start)
-                checkpoint.config_cp["norm_g"].append(
-                    get_total_norm(generator.parameters())
-                )
+                print("hehe")
 
             if t % hyperparameters.print_every == 0:
                 # print logger
@@ -438,8 +425,8 @@ def discriminator_step(
         traj_fake_rel.detach()
     )
     scores_real = discriminator(
-        traj_real.detach(),
-        traj_real_rel.detach()
+        traj_real,
+        traj_real_rel
     )
 
     # Compute loss with optional gradient penalty
@@ -563,6 +550,72 @@ def generator_step(
     optimizer_g.step()
 
     return losses
+
+def classic_trainer(hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g, optimizer_d, criterion):
+    batch = [tensor.cuda() for tensor in batch]
+    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
+        loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _,_) = batch
+
+    ## single angent flag
+    # single agent output idx
+    agent_idx = None
+    if hyperparameters.output_single_agent:
+        agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
+    ############################
+    # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+    ###########################
+    ## Train with all-real batch
+    discriminator.zero_grad()
+    
+    traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
+    traj_real_rel = torch.cat([obs_traj_rel, pred_traj_gt_rel], dim=0)
+    output = discriminator(
+        traj_real,
+        traj_real_rel
+    )
+    label = torch.ones_like(output) * random.uniform(0.8, 1)
+    errD_real = criterion(output, label)
+    errD_real.backward()
+    D_x = output.mean().item()
+
+    ## Train with all-fake batch
+    # Generate batch of latent vectors
+    generator_out = generator(frames, obs_traj)
+    last_obs = obs_traj_rel[-1].unsqueeze(0).repeat(hyperparameters.pred_len, 1, 1)
+    generator_out += last_obs
+    pred_traj_fake_rel = generator_out
+    pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin)
+    traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
+    output = discriminator(traj_fake.detach())
+    label = torch.zeros_like(output) * random.uniform(0, 0.2)
+    errD_fake = criterion(output, label)
+    errD_fake.backward()
+    D_G_z1 = output.mean().item()
+    errD = errD_real + errD_fake
+    # Update D
+    optimizer_d.step()
+    # print("Render traj_fake gn...")
+    # t = time.time()
+    # dot = make_dot(traj_fake, params=dict(generator.named_parameters()))
+    # dot.format = "png"
+    # dot.render("traj_fake_grad_fn")
+    # print("render finished: ", time.time() -t)
+
+    losses_d = {"errD":errD.item(), "D_x":D_x, "D_G_z1":D_G_z1}
+
+    ############################
+    # (2) Update G network: maximize log(D(G(z)))
+    ###########################
+    generator.zero_grad()
+    output = discriminator(traj_fake)
+    label = torch.ones_like(output) * random.uniform(0.8, 1)
+    errG = criterion(output, label)
+    # Calculate gradients for G
+    errG.backward()
+    D_G_z2 = output.mean().item()
+    # Update G
+    optimizer_g.step()
+    losses_g = {"errG": errG.item(), "D_G_z2": D_G_z2}
 
 def check_accuracy(
     hyperparameters, loader, generator, discriminator, d_loss_fn, limit=False, is_single_agent=True

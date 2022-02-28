@@ -401,7 +401,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 process_window_sequence(idx, frame_data, frames, \
                     self.seq_len, self.pred_len, threshold, file_id, self.split)
             
-            if (curr_seq_rel.min() < -3.5) or (curr_seq_rel.max() > 3.5):
+            if (curr_seq_rel.min() < -2.5) or (curr_seq_rel.max() > 2.5):
                 continue
             
             # pdb.set_trace()
