@@ -8,6 +8,7 @@ import copy
 import glob2
 import glob
 import multiprocessing
+from numpy.random import default_rng
 
 import cv2
 import matplotlib.pyplot as plt
@@ -369,7 +370,13 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
         folder = root_folder + split + "/data/"
         files, num_files = load_list_from_folder(folder)
-        files = files[:int(num_files*split_percentage)]
+
+        if self.shuffle:
+            rng = default_rng()
+            indeces = rng.choice(num_files, size=int(num_files*split_percentage), replace=False)
+            files = np.take(files, indeces, axis=0)
+        else:
+            files = files[:int(num_files*split_percentage)]
 
         num_objs_in_seq = []
         seq_list = []
@@ -381,6 +388,9 @@ class ArgoverseMotionForecastingDataset(Dataset):
         object_id_list = []
         num_seq_list = []
         self.city_ids = []
+
+        min_disp_rel = []
+        max_disp_rel = []
 
         print("Start Dataset")
         t0 = time.time()
@@ -400,9 +410,13 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 curr_seq_rel, id_frame_list, object_class_list, city_id, ego_origin = \
                 process_window_sequence(idx, frame_data, frames, \
                     self.seq_len, self.pred_len, threshold, file_id, self.split)
-            
-            if (curr_seq_rel.min() < -3.5) or (curr_seq_rel.max() > 3.5):
-                continue
+
+            # if (curr_seq_rel.min() < -3.5) or (curr_seq_rel.max() > 3.5):
+
+            # min_disp_rel.append(curr_seq_rel.min())
+            # max_disp_rel.append(curr_seq_rel.max())
+
+            # continue
             
             # pdb.set_trace()
 
@@ -420,6 +434,13 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 self.city_ids.append(city_id)
                 self.ego_vehicle_origin.append(ego_origin)
 
+        # disp_hist = min_disp_rel + max_disp_rel
+        # disp_hist = np.array(disp_hist)
+
+        # n, bins, patches = plt.hist(disp_hist, bins=40)
+        # plt.show()
+
+        # pdb.set_trace()
         print("Dataset time: ", time.time() - t0)
         self.num_seq = len(seq_list)
         seq_list = np.concatenate(seq_list, axis=0) # Objects x 2 x seq_len
