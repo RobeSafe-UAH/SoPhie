@@ -10,6 +10,8 @@ import glob
 import multiprocessing
 from numpy.random import default_rng
 
+from sklearn import linear_model
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -365,7 +367,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.windows_frames = windows_frames
         self.split = split
         self.shuffle = shuffle
-        self.min_ped=2
+        self.min_ped = 2
         self.ego_vehicle_origin = []
 
         folder = root_folder + split + "/data/"
@@ -411,6 +413,27 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 process_window_sequence(idx, frame_data, frames, \
                     self.seq_len, self.pred_len, threshold, file_id, self.split)
 
+            # agent_idx = np.where(object_class_list == self.objects_id_dict['AGENT'])[0]
+            # agent_seq = curr_seq[agent_idx,:,:]
+
+            # ransac = linear_model.RANSACRegressor(max_trials=100,min_samples=40)
+            # agent_x = agent_seq[0,0,:].reshape(-1,1)
+            # agent_y = agent_seq[0,1,:].reshape(-1,1)
+            # ransac.fit(agent_x,agent_y)
+
+            # line_x = np.arange(agent_x.min(), agent_x.max())[:, np.newaxis]
+            # line_y_ransac = ransac.predict(line_x)
+
+            # plt.scatter(agent_x,agent_y, color='yellowgreen', marker='.',
+            #             label='Inliers')
+            # plt.plot(line_x, line_y_ransac, color='cornflowerblue', linewidth=1,
+            #         label='RANSAC regressor')
+            # plt.legend(loc='lower right')
+            # plt.xlabel("Input")
+            # plt.ylabel("Response")
+            # plt.show()
+
+            # pdb.set_trace()
             # if (curr_seq_rel.min() < -3.5) or (curr_seq_rel.max() > 3.5):
 
             # min_disp_rel.append(curr_seq_rel.min())

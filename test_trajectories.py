@@ -4,6 +4,7 @@ import numpy as np
 from pathlib import Path
 from prodict import Prodict
 import csv
+import pdb
 
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
@@ -11,7 +12,8 @@ from torch.utils.data import DataLoader
 from sophie.utils.utils import relative_to_abs_sgan
 from sophie.models.sophie_adaptation import TrajectoryGenerator
 from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
-from sophie.trainers.trainer_sophie_adaptation_single_agent import cal_ade, cal_fde
+# from sophie.trainers.trainer_sophie_adaptation_single_agent import cal_ade, cal_fde
+from sophie.trainers.trainer_sophie_adaptation import cal_ade, cal_fde
 
 pred_gt_file = "test_trajectories/" "pred_gt.npy"
 pred_fake_file = "test_trajectories/" "pred_fake.npy"
@@ -70,7 +72,7 @@ except:
     num_agents_per_obs = config.hyperparameters.num_agents_per_obs
     config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
-    split_percentage = 0.05
+    split_percentage = 0.005
     batch_size = 1
 
     data = ArgoverseMotionForecastingDataset(dataset_name=config.dataset_name,
@@ -90,9 +92,11 @@ except:
                         num_workers=0,
                         collate_fn=seq_collate)
 
-    model_path = "./save/argoverse/exp3_single_agent/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    model_path = "./save/argoverse/exp5_single_agent/argoverse_motion_forecasting_dataset_0_with_model.pt"
     checkpoint = torch.load(model_path)
     generator = TrajectoryGenerator(config.sophie.generator)
+    pdb.set_trace()
+
     generator.load_state_dict(checkpoint.config_cp['g_best_state'])
     generator.cuda() # Use GPU
     generator.eval()
@@ -180,7 +184,7 @@ except:
 
         # Write ade and fde values in CSV
 
-        with open('test_trajectories/metrics_g_best_state.csv', 'w', newline='') as csvfile:
+        with open('test_trajectories/metrics_test.csv', 'w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
 
             header = ['Sequence','ADE','FDE']
