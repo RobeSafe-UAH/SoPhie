@@ -106,23 +106,24 @@ class Decoder(nn.Module):
 
         self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
         self.spatial_embedding = nn.Linear(2, self.embedding_dim)
+        self.ln1 = nn.LayerNorm(2)
         self.hidden2pos = nn.Linear(self.h_dim, 2)
+        self.ln2 = nn.LayerNorm(self.h_dim)
         self.output_activation = nn.Sigmoid()
 
     def forward(self, last_pos, last_pos_rel, state_tuple):
-        pdb.set_trace()
         npeds = last_pos.size(0)
         pred_traj_fake_rel = []
-        decoder_input = F.leaky_relu(self.spatial_embedding(last_pos_rel)) # 16
+        decoder_input = F.leaky_relu(self.spatial_embedding(self.ln1(last_pos_rel))) # 16
         decoder_input = decoder_input.view(1, npeds, self.embedding_dim) # 1x batchx 16
 
         for _ in range(self.seq_len):
             output, state_tuple = self.decoder(decoder_input, state_tuple) #
-            rel_pos = self.output_activation(self.hidden2pos(output.view(-1, self.h_dim)))# + last_pos_rel # 32 -> 2
+            rel_pos = self.output_activation(self.hidden2pos(self.ln2(output.view(-1, self.h_dim))))# + last_pos_rel # 32 -> 2
             curr_pos = rel_pos + last_pos
             embedding_input = rel_pos
 
-            decoder_input = F.leaky_relu(self.spatial_embedding(embedding_input))
+            decoder_input = F.leaky_relu(self.spatial_embedding(self.ln1(embedding_input)))
             decoder_input = decoder_input.view(1, npeds, self.embedding_dim)
             pred_traj_fake_rel.append(rel_pos.view(npeds,-1))
             last_pos = curr_pos
@@ -286,7 +287,7 @@ class TrajectoryGenerator(nn.Module):
 
 
         self.encoder = Encoder(h_dim=self.h_dim)
-        self.lne = nn.LayerNorm()
+        self.lne = nn.LayerNorm(self.h_dim)
         self.sattn = MultiHeadAttention(
             key_size=self.h_dim, query_size=self.h_dim, value_size=self.h_dim, num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
@@ -297,8 +298,9 @@ class TrajectoryGenerator(nn.Module):
         self.decoder = Decoder(h_dim=self.h_dim)
 
         # mlp_decoder_context_dims = [self.h_dim*3, self.mlp_dim, self.h_dim - self.noise_dim]
-        # mlp_decoder_context_dims = [self.h_dim*2, self.mlp_dim, self.h_dim - self.noise_dim]
-        mlp_decoder_context_dims = [self.h_dim, self.mlp_dim, self.h_dim - self.noise_dim]
+        mlp_context_input = self.h_dim*2
+        self.lnc = nn.LayerNorm(mlp_context_input)
+        mlp_decoder_context_dims = [mlp_context_input, self.mlp_dim, self.h_dim - self.noise_dim]
         self.mlp_decoder_context = make_mlp(mlp_decoder_context_dims) # [96, 64, 44]
 
     def add_noise(self, _input):
@@ -348,7 +350,7 @@ class TrajectoryGenerator(nn.Module):
         if agent_idx is not None:
             mlp_decoder_context_input = mlp_decoder_context_input[agent_idx,:]
 
-        noise_input = self.mlp_decoder_context(mlp_decoder_context_input) # 80x24
+        noise_input = self.mlp_decoder_context(self.lnc(mlp_decoder_context_input)) # 80x24
         decoder_h = self.add_noise(noise_input) # 80x32
         decoder_h = torch.unsqueeze(decoder_h, 0) # 1x80x32
 
