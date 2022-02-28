@@ -173,7 +173,7 @@ def seq_collate(data): # 2.58 seconds - batch 8
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
      non_linear_obj, loss_mask, seq_id_list, object_class_id_list, 
-     object_id_list, city_id, ego_vehicle_origin, num_seq_list) = zip(*data)
+     object_id_list, city_id, ego_vehicle_origin, num_seq_list, norm) = zip(*data)
 
     batch_size = len(ego_vehicle_origin) # tuple of tensors
 
@@ -208,9 +208,10 @@ def seq_collate(data): # 2.58 seconds - batch 8
     obj_id = torch.cat(object_id_list, dim=0)
     ego_vehicle_origin = torch.stack(ego_vehicle_origin)
     num_seq_list = torch.stack(num_seq_list)
+    norm = torch.stack(norm)
 
     out = [obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-           loss_mask, seq_start_end, frames, object_cls, obj_id, ego_vehicle_origin, num_seq_list] 
+           loss_mask, seq_start_end, frames, object_cls, obj_id, ego_vehicle_origin, num_seq_list, norm]
 
     end = time.time()
     # print(f"Time consumed by seq_collate function: {end-start}\n")
@@ -400,6 +401,9 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 process_window_sequence(idx, frame_data, frames, \
                     self.seq_len, self.pred_len, threshold, file_id, self.split)
             
+            if (curr_seq_rel.min() < -3.5) or (curr_seq_rel.max() > 3.5):
+                continue
+            
             # pdb.set_trace()
 
             if num_objs_considered >= self.min_ped:
@@ -428,6 +432,15 @@ class ArgoverseMotionForecastingDataset(Dataset):
         num_seq_list = np.concatenate([num_seq_list])
         self.ego_vehicle_origin = np.asarray(self.ego_vehicle_origin)
 
+        ## normalize abs and relative data
+        abs_norm = (seq_list.min(), seq_list.max())
+        # seq_list = (seq_list - seq_list.min()) / (seq_list.max() - seq_list.min())
+
+        rel_norm = (seq_list_rel.min(), seq_list_rel.max())
+        # seq_list_rel = (seq_list_rel - seq_list_rel.min()) / (seq_list_rel.max() - seq_list_rel.min())
+        norm = (abs_norm, rel_norm)
+
+        ## create torch data
         self.obs_traj = torch.from_numpy(seq_list[:, :, :self.obs_len]).type(torch.float)
         self.pred_traj_gt = torch.from_numpy(seq_list[:, :, self.obs_len:]).type(torch.float)
         self.obs_traj_rel = torch.from_numpy(seq_list_rel[:, :, :self.obs_len]).type(torch.float)
@@ -441,6 +454,8 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.object_id_list = torch.from_numpy(object_id_list).type(torch.float)
         self.ego_vehicle_origin = torch.from_numpy(self.ego_vehicle_origin).type(torch.float)
         self.num_seq_list = torch.from_numpy(num_seq_list).type(torch.int)
+        self.norm = torch.from_numpy(np.array(norm))
+        
 
     def __len__(self):
         return self.num_seq
@@ -454,6 +469,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 self.non_linear_obj[start:end], self.loss_mask[start:end, :],
                 self.seq_id_list[start:end, :, :], self.object_class_id_list[start:end], 
                 self.object_id_list[start:end], self.city_ids[index], self.ego_vehicle_origin[index,:,:],
-                self.num_seq_list[index]
+                self.num_seq_list[index], self.norm
               ] 
         return out

@@ -87,7 +87,7 @@ class Encoder(nn.Module):
 
         npeds = obs_traj.size(1)
 
-        obs_traj_embedding = self.spatial_embedding(obs_traj.contiguous().view(-1, 2))
+        obs_traj_embedding = F.leaky_relu(self.spatial_embedding(obs_traj.contiguous().view(-1, 2)))
         obs_traj_embedding = obs_traj_embedding.view(-1, npeds, self.embedding_dim)
         state = self.init_hidden(npeds)
         output, state = self.encoder(obs_traj_embedding, state)
@@ -107,21 +107,22 @@ class Decoder(nn.Module):
         self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
         self.spatial_embedding = nn.Linear(2, self.embedding_dim)
         self.hidden2pos = nn.Linear(self.h_dim, 2)
+        self.output_activation = nn.Sigmoid()
 
     def forward(self, last_pos, last_pos_rel, state_tuple):
+        pdb.set_trace()
         npeds = last_pos.size(0)
         pred_traj_fake_rel = []
-        # TODO encode full trajectory -> 2*20 input features
-        decoder_input = self.spatial_embedding(last_pos_rel) # 16
+        decoder_input = F.leaky_relu(self.spatial_embedding(last_pos_rel)) # 16
         decoder_input = decoder_input.view(1, npeds, self.embedding_dim) # 1x batchx 16
 
         for _ in range(self.seq_len):
             output, state_tuple = self.decoder(decoder_input, state_tuple) #
-            rel_pos = self.hidden2pos(output.view(-1, self.h_dim))# + last_pos_rel # 32 -> 2
+            rel_pos = self.output_activation(self.hidden2pos(output.view(-1, self.h_dim)))# + last_pos_rel # 32 -> 2
             curr_pos = rel_pos + last_pos
             embedding_input = rel_pos
 
-            decoder_input = self.spatial_embedding(embedding_input)
+            decoder_input = F.leaky_relu(self.spatial_embedding(embedding_input))
             decoder_input = decoder_input.view(1, npeds, self.embedding_dim)
             pred_traj_fake_rel.append(rel_pos.view(npeds,-1))
             last_pos = curr_pos
@@ -141,6 +142,7 @@ class DecoderTemporal(nn.Module):
         self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
         self.spatial_embedding = nn.Linear(40, self.embedding_dim) # 2 (x,y) | 20 num_obs
         self.hidden2pos = nn.Linear(self.h_dim, 2)
+        self.output_activation = nn.Sigmoid()
 
     def forward(self, traj_abs, traj_rel, state_tuple):
         """
@@ -148,16 +150,16 @@ class DecoderTemporal(nn.Module):
         """
         npeds = traj_abs.size(1)
         pred_traj_fake_rel = []
-        decoder_input = self.spatial_embedding(traj_rel.contiguous().view(npeds, -1)) # bx16
+        decoder_input = F.leaky_relu(self.spatial_embedding(traj_rel.contiguous().view(npeds, -1))) # bx16
         decoder_input = decoder_input.contiguous().view(1, npeds, self.embedding_dim) # 1x batchx 16
 
         for _ in range(self.seq_len):
             output, state_tuple = self.decoder(decoder_input, state_tuple) #
-            rel_pos = self.hidden2pos(output.contiguous().view(-1, self.h_dim))# + last_pos_rel # 32 -> 2
-            embedding_input = torch.roll(traj_rel, -1, dims=(0))
-            embedding_input[-1] = rel_pos
+            rel_pos = F.leaky_relu(self.output_activation(self.hidden2pos(output.contiguous().view(-1, self.h_dim))))# + last_pos_rel # 32 -> 2
+            traj_rel = torch.roll(traj_rel, -1, dims=(0))
+            traj_rel[-1] = rel_pos
 
-            decoder_input = self.spatial_embedding(embedding_input.contiguous().view(npeds, -1))
+            decoder_input = F.leaky_relu(self.spatial_embedding(traj_rel.contiguous().view(npeds, -1)))
             decoder_input = decoder_input.contiguous().view(1, npeds, self.embedding_dim)
             pred_traj_fake_rel.append(rel_pos.contiguous().view(npeds,-1))
 
@@ -284,6 +286,7 @@ class TrajectoryGenerator(nn.Module):
 
 
         self.encoder = Encoder(h_dim=self.h_dim)
+        self.lne = nn.LayerNorm()
         self.sattn = MultiHeadAttention(
             key_size=self.h_dim, query_size=self.h_dim, value_size=self.h_dim, num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
@@ -291,7 +294,7 @@ class TrajectoryGenerator(nn.Module):
         self.pattn = MultiHeadAttention(
             key_size=self.img_feats, query_size=self.h_dim, value_size=self.img_feats, num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
-        self.decoder = DecoderTemporal(h_dim=self.h_dim)
+        self.decoder = Decoder(h_dim=self.h_dim)
 
         # mlp_decoder_context_dims = [self.h_dim*3, self.mlp_dim, self.h_dim - self.noise_dim]
         mlp_decoder_context_dims = [self.h_dim*2, self.mlp_dim, self.h_dim - self.noise_dim]
@@ -329,6 +332,7 @@ class TrajectoryGenerator(nn.Module):
         final_encoder_h = torch.unsqueeze(final_encoder_h, 0) #  1xbatchx32
 
         # queries -> indican la forma del tensor de salida (primer argumento)
+        final_encoder_h = self.lne(final_encoder_h)
         attn_s = self.sattn(final_encoder_h, final_encoder_h, final_encoder_h, None) # 8x10x32 # multi head self attention
         # attn_p = self.pattn(final_encoder_h, visual_patch_enc, visual_patch_enc, None) # 8x10x32
         
@@ -351,8 +355,8 @@ class TrajectoryGenerator(nn.Module):
         state_tuple = (decoder_h, decoder_c)
 
         if agent_idx is not None: # for single agent prediction
-            last_pos = obs_traj[:, agent_idx, :]
-            last_pos_rel = obs_traj_rel[:, agent_idx, :]
+            last_pos = obs_traj[-1, agent_idx, :]
+            last_pos_rel = obs_traj_rel[-1, agent_idx, :]
         else:
             last_pos = obs_traj[-1, :, :]
             last_pos_rel = obs_traj_rel[-1, :, :]

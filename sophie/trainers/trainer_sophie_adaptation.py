@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.models.sophie_adaptation import TrajectoryGenerator
 from sophie.models.sophie_adaptation import TrajectoryDiscriminator
-from sophie.modules.losses import gan_g_loss, gan_d_loss, l2_loss
+from sophie.modules.losses import gan_g_loss, gan_d_loss, l2_loss, gan_d_loss_bce, gan_g_loss_bce
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
 from sophie.utils.utils import relative_to_abs, relative_to_abs_sgan
@@ -57,6 +57,12 @@ def handle_batch(batch, is_single_agent_out):
 
     return (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
      loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq_list)
+
+def n_data(data, vmin, vmax):
+    return (data - vmin) / (vmax - vmin)
+
+def dn_data(data, vmin, vmax):
+    return data * (vmax - vmin) + vmin
 
 def model_trainer(config, logger):
     """
@@ -102,6 +108,18 @@ def model_trainer(config, logger):
                             num_workers=config.dataset.num_workers,
                             collate_fn=seq_collate)
 
+    tn = next(iter(train_loader))
+    vn = next(iter(val_loader))
+    # select absolute min max norm
+    tn_abs = tn[-1][0,0]
+    vn_abs = vn[-1][0,0]
+    abs_norm = (min(tn_abs[0], vn_abs[0]), max(tn_abs[1], vn_abs[1]))
+
+    # select relative min max norm
+    tn_rel = tn[-1][0,1]
+    vn_rel = vn[-1][0,1]
+    rel_norm = (min(tn_rel[0], vn_rel[0]), max(tn_rel[1], vn_rel[1]))
+
     hyperparameters = config.hyperparameters
     optim_parameters = config.optim_parameters
     if not hyperparameters.classic_trainer:
@@ -117,6 +135,10 @@ def model_trainer(config, logger):
 
 
     output_single_agent = hyperparameters.output_single_agent
+    hyperparameters["abs_norm"] = abs_norm
+    hyperparameters["rel_norm"] = rel_norm
+    logger.info("abs_norm: {}".format(abs_norm))
+    logger.info("abs_norm: {}".format(rel_norm))
 
     logger.info(
         'There are {} iterations per epoch'.format(hyperparameters.num_iterations)
@@ -136,8 +158,8 @@ def model_trainer(config, logger):
     logger.info('Discriminator model:')
     logger.info(discriminator)
 
-    g_loss_fn = gan_g_loss
-    d_loss_fn = gan_d_loss
+    g_loss_fn = gan_g_loss_bce
+    d_loss_fn = gan_d_loss_bce
     optimizer_g = optim.Adam(generator.parameters(), lr=optim_parameters.g_learning_rate, weight_decay=optim_parameters.g_weight_decay)
     optimizer_d = optim.Adam(
         discriminator.parameters(), lr=optim_parameters.d_learning_rate, weight_decay=optim_parameters.d_weight_decay
@@ -191,7 +213,7 @@ def model_trainer(config, logger):
 
                     losses_d = discriminator_step(hyperparameters, batch, generator,
                                                 discriminator, d_loss_fn,
-                                                optimizer_d, output_single_agent)
+                                                optimizer_d, criterion, output_single_agent)
 
                     checkpoint.config_cp["norm_d"].append(
                         get_total_norm(discriminator.parameters()))
@@ -201,7 +223,7 @@ def model_trainer(config, logger):
 
                     losses_g = generator_step(hyperparameters, batch, generator,
                                             discriminator, g_loss_fn,
-                                            optimizer_g, output_single_agent)
+                                            optimizer_g, criterion, output_single_agent)
                     checkpoint.config_cp["norm_g"].append(
                         get_total_norm(generator.parameters())
                     )
@@ -364,12 +386,12 @@ def model_trainer(config, logger):
 
 
 def discriminator_step(
-    hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d, is_single_agent=True
+    hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d, criterion, is_single_agent=True
 ):
     batch = [tensor.cuda() for tensor in batch]
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
+     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _,_) = batch
 
     # placeholder loss
     losses = {}
@@ -380,8 +402,19 @@ def discriminator_step(
     if is_single_agent:
         agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
 
+    # get norm
+    abs_norm = (hyperparameters.abs_norm[0].cuda(), hyperparameters.abs_norm[1].cuda())
+    rel_norm = (hyperparameters.rel_norm[0].cuda(), hyperparameters.rel_norm[1].cuda())
     # forward
-    generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+    # generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+    generator_out = generator(
+        n_data(obs_traj, abs_norm[0], abs_norm[1]), 
+        n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
+        frames, 
+        agent_idx
+    )
+
+    generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
 
     # single agent trajectories
     if is_single_agent:
@@ -400,11 +433,17 @@ def discriminator_step(
     traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
     traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
-    scores_fake = discriminator(traj_fake, traj_fake_rel)
-    scores_real = discriminator(traj_real, traj_real_rel)
+    scores_fake = discriminator(
+        traj_fake.detach(),
+        traj_fake_rel.detach()
+    )
+    scores_real = discriminator(
+        traj_real.detach(),
+        traj_real_rel.detach()
+    )
 
     # Compute loss with optional gradient penalty
-    data_loss = d_loss_fn(scores_real, scores_fake)
+    data_loss = d_loss_fn(scores_real, scores_fake, criterion)
     losses['D_data_loss'] = data_loss.item()
     loss += data_loss
     losses['D_total_loss'] = loss.item()
@@ -423,12 +462,12 @@ def discriminator_step(
     return losses
 
 def generator_step(
-    hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g, is_single_agent=True
+    hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g, criterion, is_single_agent=True
 ):
     batch = [tensor.cuda() for tensor in batch]
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
+     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _, _) = batch
 
     # place holder loss
     losses = {}
@@ -445,9 +484,23 @@ def generator_step(
     else:  # 160x30 -> 0 o 1
         loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
+    # get norm
+    abs_norm = (hyperparameters.abs_norm[0].cuda(), hyperparameters.abs_norm[1].cuda())
+    rel_norm = (hyperparameters.rel_norm[0].cuda(), hyperparameters.rel_norm[1].cuda())
+
     for _ in range(hyperparameters.best_k):
         # forward
-        generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+        # generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+        # pred_traj_fake_rel = generator_out
+
+        # forward
+        generator_out = generator(
+            n_data(obs_traj, abs_norm[0], abs_norm[1]), 
+            n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
+            frames, 
+            agent_idx
+        )
+        generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
         pred_traj_fake_rel = generator_out
         # single agent trajectories # TODO this overwrite full traj
         if is_single_agent:
@@ -466,7 +519,6 @@ def generator_step(
         obs_traj = obs_traj[:,agent_idx, :]
         pred_traj_gt = pred_traj_gt[:,agent_idx, :]
         obs_traj_rel = obs_traj_rel[:, agent_idx, :]
-
     # calculate l2 loss
     g_l2_loss_sum_rel = torch.zeros(1).to(pred_traj_gt)
     if hyperparameters.l2_loss_weight > 0:
@@ -494,7 +546,7 @@ def generator_step(
 
     # discriminator scores
     scores_fake = discriminator(traj_fake, traj_fake_rel)
-    discriminator_loss = g_loss_fn(scores_fake)
+    discriminator_loss = g_loss_fn(scores_fake, criterion)
 
     loss += discriminator_loss
     losses['G_discriminator_loss'] = discriminator_loss.item()
@@ -523,12 +575,15 @@ def check_accuracy(
     total_traj, total_traj_l, total_traj_nl = 0, 0, 0
     loss_mask_sum = 0
     generator.eval()
+    # get norm
+    abs_norm = (hyperparameters.abs_norm[0].cuda(), hyperparameters.abs_norm[1].cuda())
+    rel_norm = (hyperparameters.rel_norm[0].cuda(), hyperparameters.rel_norm[1].cuda())
     with torch.no_grad():
         for batch in loader:
             batch = [tensor.cuda() for tensor in batch]
 
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-             loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
+             loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _, _) = batch
 
             # single agent output idx
             agent_idx = None
@@ -547,8 +602,16 @@ def check_accuracy(
                 loss_mask = loss_mask[:, hyperparameters.obs_len:]
                 linear_obj = 1 - non_linear_obj
 
+            # # forward
+            # pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
             # forward
-            pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+            pred_traj_fake_rel = generator(
+                n_data(obs_traj, abs_norm[0], abs_norm[1]), 
+                n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
+                frames, 
+                agent_idx
+            )
+            pred_traj_fake_rel = dn_data(pred_traj_fake_rel, rel_norm[0], rel_norm[1])
 
             # single agent trajectories
             if is_single_agent:
@@ -556,6 +619,9 @@ def check_accuracy(
                 pred_traj_gt = pred_traj_gt[:,agent_idx, :]
                 obs_traj_rel = obs_traj_rel[:, agent_idx, :]
                 pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
+            
+            print("pred_traj_fake_rel min ", pred_traj_fake_rel.min(), pred_traj_gt_rel.min())
+            print("pred_traj_fake_rel max ", pred_traj_fake_rel.max(), pred_traj_gt_rel.max())
 
             # rel to abs
             pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])

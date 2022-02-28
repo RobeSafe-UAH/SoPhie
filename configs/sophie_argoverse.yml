@@ -8,7 +8,7 @@ dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
     batch_size: 128 # 32 max
-    split_percentage: 0.5
+    split_percentage: 0.01
     shuffle: False # False to check the input data, always set to True
     num_workers: 0
 optim_parameters:
@@ -26,8 +26,8 @@ hyperparameters:
     g_steps: 1
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 2
-    checkpoint_every: 200
-    output_dir: "save/argoverse/exp_single_agent_out_temporal_3"
+    checkpoint_every: 100
+    output_dir: "save/argoverse/test"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 

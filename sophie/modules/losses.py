@@ -15,10 +15,22 @@ def gan_g_loss(scores_fake):
 
 
 def gan_d_loss(scores_real, scores_fake):
-    y_real = torch.ones_like(scores_real) * random.uniform(0.7, 1)
+    y_real = torch.ones_like(scores_real) * random.uniform(0.8, 1)
     y_fake = torch.zeros_like(scores_fake) * random.uniform(0, 0.3)
     loss_real = bce_loss(scores_real, y_real)
     loss_fake = bce_loss(scores_fake, y_fake)
+    return loss_real + loss_fake
+
+def gan_g_loss_bce(scores_fake, bce):
+    y_fake = torch.ones_like(scores_fake) * random.uniform(0.8, 1)
+    return bce(scores_fake, y_fake)
+
+
+def gan_d_loss_bce(scores_real, scores_fake, bce):
+    y_real = torch.ones_like(scores_real) * random.uniform(0.8, 1)
+    y_fake = torch.zeros_like(scores_fake) * random.uniform(0, 0.2)
+    loss_real = bce(scores_real, y_real)
+    loss_fake = bce(scores_fake, y_fake)
     return loss_real + loss_fake
 
 
