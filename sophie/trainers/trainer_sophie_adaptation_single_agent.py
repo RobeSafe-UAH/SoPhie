@@ -28,8 +28,6 @@ from torch.utils.tensorboard import SummaryWriter
 
 torch.backends.cudnn.benchmark = True
 
-MULTI_AGENT = True
-
 def init_weights(m):
     classname = m.__class__.__name__
     if classname.find('Linear') != -1:
@@ -234,7 +232,7 @@ def model_trainer(config, logger):
 
                     losses_d = discriminator_step(hyperparameters, batch, generator,
                                                 discriminator, d_loss_fn,
-                                                optimizer_d)
+                                                optimizer_d, multi_agent=hyperparameters.multi_agent)
 
                     checkpoint.config_cp["norm_d"].append(
                         get_total_norm(discriminator.parameters()))
@@ -244,7 +242,7 @@ def model_trainer(config, logger):
 
                     losses_g = generator_step(hyperparameters, batch, generator,
                                             discriminator, g_loss_fn,
-                                            optimizer_g)
+                                            optimizer_g, multi_agent=hyperparameters.multi_agent)
                     checkpoint.config_cp["norm_g"].append(
                         get_total_norm(generator.parameters())
                     )
@@ -255,13 +253,13 @@ def model_trainer(config, logger):
             else:
                 losses_d = discriminator_step(hyperparameters, batch, generator,
                                                 discriminator, d_loss_fn,
-                                                optimizer_d)
+                                                optimizer_d, multi_agent=hyperparameters.multi_agent)
                 checkpoint.config_cp["norm_d"].append(
                         get_total_norm(discriminator.parameters()))
                 
                 losses_g = generator_step(hyperparameters, batch, generator,
                                             discriminator, g_loss_fn,
-                                            optimizer_g)
+                                            optimizer_g, multi_agent=hyperparameters.multi_agent)
                     
                 # print("Generator time: ", end-start)
                 checkpoint.config_cp["norm_g"].append(
@@ -295,7 +293,7 @@ def model_trainer(config, logger):
                 # Check stats on the validation set
                 logger.info('Checking stats on val ...')
                 metrics_val = check_accuracy(
-                    hyperparameters, val_loader, generator, discriminator, d_loss_fn
+                    hyperparameters, val_loader, generator, discriminator, d_loss_fn, multi_agent=hyperparameters.multi_agent
                 )
 
                 for k, v in sorted(metrics_val.items()):
@@ -369,7 +367,7 @@ def model_trainer(config, logger):
     checkpoint.config_cp["sample_ts"].append(t)
     logger.info('Checking stats on val ...')
     metrics_val = check_accuracy(
-        hyperparameters, val_loader, generator, discriminator, d_loss_fn
+        hyperparameters, val_loader, generator, discriminator, d_loss_fn, multi_agent=hyperparameters.multi_agent
     )
 
     for k, v in sorted(metrics_val.items()):
@@ -407,18 +405,33 @@ def model_trainer(config, logger):
 
 
 def discriminator_step(
-    hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d
+    hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d, multi_agent=True
 ):
     batch = [tensor.cuda() for tensor in batch]
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
      loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
 
-    pdb.set_trace()
+    # pdb.set_trace()
 
-    # if not MULTI_AGENT:
+    if not multi_agent:
+        single_agent_indeces = torch.where(object_cls == 1.0)[0]
+        obs_traj = obs_traj[:,single_agent_indeces,:]
+        pred_traj_gt = pred_traj_gt[:,single_agent_indeces,:]
+        obs_traj_rel = obs_traj_rel[:,single_agent_indeces,:]
+        pred_traj_gt_rel = pred_traj_gt_rel[:,single_agent_indeces,:]
+        non_linear_obj = non_linear_obj[single_agent_indeces]
+        loss_mask = loss_mask[single_agent_indeces,:]
 
-
+        aux = np.arange(list(non_linear_obj.size())[0]).reshape(-1,1)
+        aux = np.hstack([aux,aux+1])
+        seq_start_end = torch.LongTensor(aux)
+        
+        frames = frames # TODO: NOT USED AT THIS MOMENT
+        object_cls = object_cls[single_agent_indeces]
+        obj_id = obj_id[single_agent_indeces]
+        # ego_origin # It is the same both in single agent and multi-agent prediction
+        
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
     # pdb.set_trace()
@@ -461,14 +474,32 @@ def discriminator_step(
     return losses
 
 def generator_step(
-    hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g
+    hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g, multi_agent=False
 ):
     batch = [tensor.cuda() for tensor in batch]
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
      loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
 
-    pdb.set_trace()
+    # pdb.set_trace()
+
+    if not multi_agent:
+        single_agent_indeces = torch.where(object_cls == 1.0)[0]
+        obs_traj = obs_traj[:,single_agent_indeces,:]
+        pred_traj_gt = pred_traj_gt[:,single_agent_indeces,:]
+        obs_traj_rel = obs_traj_rel[:,single_agent_indeces,:]
+        pred_traj_gt_rel = pred_traj_gt_rel[:,single_agent_indeces,:]
+        non_linear_obj = non_linear_obj[single_agent_indeces]
+        loss_mask = loss_mask[single_agent_indeces,:]
+
+        aux = np.arange(list(non_linear_obj.size())[0]).reshape(-1,1)
+        aux = np.hstack([aux,aux+1])
+        seq_start_end = torch.LongTensor(aux)
+        
+        frames = frames # TODO: NOT USED AT THIS MOMENT
+        object_cls = object_cls[single_agent_indeces]
+        obj_id = obj_id[single_agent_indeces]
+        # ego_origin # It is the same both in single agent and multi-agent prediction
 
     losses = {}
     loss = torch.zeros(1).to(pred_traj_gt)
@@ -535,7 +566,7 @@ def generator_step(
     return losses
 
 def check_accuracy(
-    hyperparameters, loader, generator, discriminator, d_loss_fn, limit=False
+    hyperparameters, loader, generator, discriminator, d_loss_fn, limit=False, multi_agent=False
 ):
     d_losses = []
     metrics = {}
@@ -552,7 +583,25 @@ def check_accuracy(
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
              loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _) = batch
 
-            pdb.set_trace()
+            # pdb.set_trace()
+
+            if not multi_agent:
+                single_agent_indeces = torch.where(object_cls == 1.0)[0]
+                obs_traj = obs_traj[:,single_agent_indeces,:]
+                pred_traj_gt = pred_traj_gt[:,single_agent_indeces,:]
+                obs_traj_rel = obs_traj_rel[:,single_agent_indeces,:]
+                pred_traj_gt_rel = pred_traj_gt_rel[:,single_agent_indeces,:]
+                non_linear_obj = non_linear_obj[single_agent_indeces]
+                loss_mask = loss_mask[single_agent_indeces,:]
+
+                aux = np.arange(list(non_linear_obj.size())[0]).reshape(-1,1)
+                aux = np.hstack([aux,aux+1])
+                seq_start_end = torch.LongTensor(aux)
+                
+                frames = frames # TODO: NOT USED AT THIS MOMENT
+                object_cls = object_cls[single_agent_indeces]
+                obj_id = obj_id[single_agent_indeces]
+                # ego_origin # It is the same both in single agent and multi-agent prediction
             
             mask = np.where(obj_id.cpu() == -1, 0, 1)
             mask = torch.tensor(mask, device=obj_id.device).reshape(-1)

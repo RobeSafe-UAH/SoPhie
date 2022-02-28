@@ -8,7 +8,7 @@ dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
     batch_size: 32 # 32 max
-    split_percentage: 0.02
+    split_percentage: 0.5
     shuffle: False # False to check the input data, always set to True
     num_workers: 0
 optim_parameters:
@@ -25,8 +25,8 @@ hyperparameters:
     g_steps: 1
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 2
-    checkpoint_every: 100
-    output_dir: "save/argoverse/exp2"
+    checkpoint_every: 1000
+    output_dir: "save/argoverse/exp4_single_agent"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 
@@ -39,6 +39,7 @@ hyperparameters:
     pred_len: &pred_len 30 # Must be 0 for the split test since we do not have the predictions of the agents
                            # Only the observations (0 to obs_len-1 past observations)
     num_agents_per_obs: &num_agents_per_obs 10
+    multi_agent: False # Train the model using a particular object of interest, or all obstacle in a given window
     distance_threshold: 40 # It depends on a statistical study (see get_sequences_as_array function), 
                            # where we determine the mean distance of the AGENT w.r.t the ego-vehicle
                            # in the obs_len-th frame
