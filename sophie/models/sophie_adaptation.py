@@ -107,7 +107,8 @@ class Decoder(nn.Module):
         self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
         self.spatial_embedding = nn.Linear(2, self.embedding_dim)
         self.ln1 = nn.LayerNorm(2)
-        self.hidden2pos = nn.Linear(self.h_dim, 2)
+        # self.hidden2pos = nn.Linear(self.h_dim, 2)
+        self.hidden2pos = make_mlp([self.h_dim, 128, 64, 2])
         self.ln2 = nn.LayerNorm(self.h_dim)
         self.output_activation = nn.Sigmoid()
 
@@ -142,7 +143,10 @@ class DecoderTemporal(nn.Module):
 
         self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
         self.spatial_embedding = nn.Linear(40, self.embedding_dim) # 2 (x,y) | 20 num_obs
-        self.hidden2pos = nn.Linear(self.h_dim, 2)
+        self.ln1 = nn.LayerNorm(40)
+        # self.hidden2pos = nn.Linear(self.h_dim, 2)
+        self.hidden2pos = make_mlp([self.h_dim, 128, 64, 2])
+        self.ln2 = nn.LayerNorm(self.h_dim)
         self.output_activation = nn.Sigmoid()
 
     def forward(self, traj_abs, traj_rel, state_tuple):
@@ -151,16 +155,17 @@ class DecoderTemporal(nn.Module):
         """
         npeds = traj_abs.size(1)
         pred_traj_fake_rel = []
-        decoder_input = F.leaky_relu(self.spatial_embedding(traj_rel.contiguous().view(npeds, -1))) # bx16
+        # F.leaky_relu(self.spatial_embedding(self.ln1(last_pos_rel)))
+        decoder_input = F.leaky_relu(self.spatial_embedding(self.ln1(traj_rel.contiguous().view(npeds, -1)))) # bx16
         decoder_input = decoder_input.contiguous().view(1, npeds, self.embedding_dim) # 1x batchx 16
 
         for _ in range(self.seq_len):
             output, state_tuple = self.decoder(decoder_input, state_tuple) #
-            rel_pos = F.leaky_relu(self.output_activation(self.hidden2pos(output.contiguous().view(-1, self.h_dim))))# + last_pos_rel # 32 -> 2
+            rel_pos = self.output_activation(self.hidden2pos(self.ln2(output.contiguous().view(-1, self.h_dim))))# + last_pos_rel # 32 -> 2
             traj_rel = torch.roll(traj_rel, -1, dims=(0))
             traj_rel[-1] = rel_pos
 
-            decoder_input = F.leaky_relu(self.spatial_embedding(traj_rel.contiguous().view(npeds, -1)))
+            decoder_input = F.leaky_relu(self.spatial_embedding(self.ln1(traj_rel.contiguous().view(npeds, -1))))
             decoder_input = decoder_input.contiguous().view(1, npeds, self.embedding_dim)
             pred_traj_fake_rel.append(rel_pos.contiguous().view(npeds,-1))
 
@@ -295,7 +300,7 @@ class TrajectoryGenerator(nn.Module):
         self.pattn = MultiHeadAttention(
             key_size=self.img_feats, query_size=self.h_dim, value_size=self.img_feats, num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
-        self.decoder = Decoder(h_dim=self.h_dim)
+        self.decoder = DecoderTemporal(h_dim=self.h_dim)
 
         # mlp_decoder_context_dims = [self.h_dim*3, self.mlp_dim, self.h_dim - self.noise_dim]
         mlp_context_input = self.h_dim*2
@@ -358,8 +363,8 @@ class TrajectoryGenerator(nn.Module):
         state_tuple = (decoder_h, decoder_c)
 
         if agent_idx is not None: # for single agent prediction
-            last_pos = obs_traj[-1, agent_idx, :]
-            last_pos_rel = obs_traj_rel[-1, agent_idx, :]
+            last_pos = obs_traj[:, agent_idx, :]
+            last_pos_rel = obs_traj_rel[:, agent_idx, :]
         else:
             last_pos = obs_traj[-1, :, :]
             last_pos_rel = obs_traj_rel[-1, :, :]

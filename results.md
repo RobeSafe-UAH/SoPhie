@@ -13,7 +13,12 @@
 * Temporal Decoder
     * It takes into account full trajectory
 * Layernorm and LeakyReLU 
-
+* Train
+    * Generator -> Normalized
+    * Discriminator -> no Normalized
+* Deep Prediction model based on sgan
+    * abs normalized -> min 0
+    * rel normalized -> calculated with abs norm
 
 ## Experimento 1
 * multi to single

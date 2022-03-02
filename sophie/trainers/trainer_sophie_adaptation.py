@@ -232,8 +232,13 @@ def model_trainer(config, logger):
                 if d_steps_left > 0 or g_steps_left > 0:
                     continue
             else:
-                print("hehe")
-
+                losses_d, losses_g = classic_trainer(hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g, optimizer_d, criterion)
+                checkpoint.config_cp["norm_d"].append(
+                        get_total_norm(discriminator.parameters())
+                    )
+                checkpoint.config_cp["norm_g"].append(
+                        get_total_norm(generator.parameters())
+                    )
             if t % hyperparameters.print_every == 0:
                 # print logger
                 logger.info('t = {} / {}'.format(t + 1, hyperparameters.num_iterations))
@@ -517,6 +522,7 @@ def generator_step(
                 _g_l2_loss_rel = torch.min(_g_l2_loss_rel) / torch.sum(
                     loss_mask[i].unsqueeze(0))
                 g_l2_loss_sum_rel += _g_l2_loss_rel
+            # g_l2_loss_sum_rel /= len(agent_idx)
         else:
             for start, end in seq_start_end.data:
                 _g_l2_loss_rel = g_l2_loss_rel[start:end]
@@ -556,11 +562,16 @@ def classic_trainer(hyperparameters, batch, generator, discriminator, g_loss_fn,
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
         loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _,_) = batch
 
-    ## single angent flag
+    # pdb.set_trace()
     # single agent output idx
     agent_idx = None
     if hyperparameters.output_single_agent:
         agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
+
+    # get norm
+    abs_norm = (hyperparameters.abs_norm[0].cuda(), hyperparameters.abs_norm[1].cuda())
+    rel_norm = (hyperparameters.rel_norm[0].cuda(), hyperparameters.rel_norm[1].cuda())
+
     ############################
     # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
     ###########################
@@ -570,52 +581,80 @@ def classic_trainer(hyperparameters, batch, generator, discriminator, g_loss_fn,
     traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
     traj_real_rel = torch.cat([obs_traj_rel, pred_traj_gt_rel], dim=0)
     output = discriminator(
-        traj_real,
-        traj_real_rel
+        traj_real if agent_idx is None else traj_real[:,agent_idx,:],
+        traj_real_rel if agent_idx is None else traj_real_rel[:,agent_idx,:]
     )
-    label = torch.ones_like(output) * random.uniform(0.8, 1)
+    label = torch.ones_like(output) * torch.from_numpy(np.random.uniform(0.8, 1, tuple(output.shape)).astype(np.float32)).cuda()
     errD_real = criterion(output, label)
     errD_real.backward()
     D_x = output.mean().item()
 
     ## Train with all-fake batch
     # Generate batch of latent vectors
-    generator_out = generator(frames, obs_traj)
-    last_obs = obs_traj_rel[-1].unsqueeze(0).repeat(hyperparameters.pred_len, 1, 1)
-    generator_out += last_obs
+    generator_out = generator(
+        n_data(obs_traj, abs_norm[0], abs_norm[1]),
+        n_data(obs_traj_rel, rel_norm[0], rel_norm[1]),
+        frames,
+        agent_idx
+    )
+
+    # rel to abs
+    generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
     pred_traj_fake_rel = generator_out
-    pred_traj_fake = relative_to_abs(pred_traj_fake_rel, ego_origin)
-    traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-    output = discriminator(traj_fake.detach())
-    label = torch.zeros_like(output) * random.uniform(0, 0.2)
+    pred_traj_fake = relative_to_abs_sgan(
+        pred_traj_fake_rel,
+        obs_traj[-1] if agent_idx is None else obs_traj[-1,agent_idx,:]
+    )
+    traj_fake_rel = torch.cat(
+        [
+            obs_traj_rel if agent_idx is None else obs_traj_rel[:,agent_idx,:], 
+            pred_traj_fake_rel
+        ]
+        , dim=0
+    )
+    traj_fake = torch.cat(
+        [
+            obs_traj if agent_idx is None else obs_traj[:,agent_idx,:], 
+            pred_traj_fake
+        ]
+        , dim=0
+    )
+    output = discriminator(
+        traj_fake.detach(),
+        traj_fake_rel.detach()
+    )
+    label = torch.ones_like(output) * torch.from_numpy(np.random.uniform(0, 0.2, tuple(output.shape)).astype(np.float32)).cuda()
     errD_fake = criterion(output, label)
     errD_fake.backward()
     D_G_z1 = output.mean().item()
     errD = errD_real + errD_fake
+    # clipping
+    if hyperparameters.clipping_threshold_d > 0:
+        nn.utils.clip_grad_norm_(discriminator.parameters(),
+                                 hyperparameters.clipping_threshold_d)
     # Update D
     optimizer_d.step()
-    # print("Render traj_fake gn...")
-    # t = time.time()
-    # dot = make_dot(traj_fake, params=dict(generator.named_parameters()))
-    # dot.format = "png"
-    # dot.render("traj_fake_grad_fn")
-    # print("render finished: ", time.time() -t)
-
     losses_d = {"errD":errD.item(), "D_x":D_x, "D_G_z1":D_G_z1}
 
     ############################
     # (2) Update G network: maximize log(D(G(z)))
     ###########################
     generator.zero_grad()
-    output = discriminator(traj_fake)
-    label = torch.ones_like(output) * random.uniform(0.8, 1)
+    output = discriminator(traj_fake, traj_fake_rel)
+    label = torch.ones_like(output) * torch.from_numpy(np.random.uniform(0.8, 1, tuple(output.shape)).astype(np.float32)).cuda()
     errG = criterion(output, label)
     # Calculate gradients for G
     errG.backward()
-    D_G_z2 = output.mean().item()
+    # clipping
+    if hyperparameters.clipping_threshold_g > 0:
+        nn.utils.clip_grad_norm_(
+            generator.parameters(), hyperparameters.clipping_threshold_g
+        )
     # Update G
     optimizer_g.step()
+    D_G_z2 = output.mean().item()
     losses_g = {"errG": errG.item(), "D_G_z2": D_G_z2}
+    return losses_d, losses_g
 
 def check_accuracy(
     hyperparameters, loader, generator, discriminator, d_loss_fn, limit=False, is_single_agent=True
