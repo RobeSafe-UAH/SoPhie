@@ -571,7 +571,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         return self.num_seq
 
     def __getitem__(self, index):
-        
+        print("index: ", index)
         class_balance = 0.7 # % of straight trajectories (considering the agent at this moment) in the batch
 
         if index % self.batch_size == 0: # Get a new batch
@@ -591,7 +591,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
             index = random.choice(self.cont_curved_traj)
 
         start, end = self.seq_start_end[index]
-        # print("self.object_class_id_list[start:end] ", self.object_class_id_list[start:end])
         out = [
                 self.obs_traj[start:end, :, :], self.pred_traj_gt[start:end, :, :],
                 self.obs_traj_rel[start:end, :, :], self.pred_traj_gt_rel[start:end, :, :],

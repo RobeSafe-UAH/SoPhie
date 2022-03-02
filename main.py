@@ -54,7 +54,8 @@ if __name__ == "__main__":
     if not os.path.exists(exp_path):
     #     # raise Exception(f"Experiment path does not exist: {exp_path}")
     #     logger.error(f"Experiment path does not exist: {exp_path}")
-        print("Experiment Path does not exist: ", exp_path)
+        print("Create experiment path: ", exp_path)
+        os.mkdir(exp_path)
         sys.exit(1)
     now = datetime.now()
     time = now.strftime("%H:%M:%S")
