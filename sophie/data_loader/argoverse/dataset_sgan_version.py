@@ -336,7 +336,6 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, \
     return num_objs_considered, _non_linear_obj, curr_loss_mask, \
         curr_seq, curr_seq_rel, id_frame_list, object_class_list, city_id, ego_origin
 
-
 def chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
@@ -352,7 +351,8 @@ def load_sequences_thread(files):
 class ArgoverseMotionForecastingDataset(Dataset):
     """Dataloder for the Trajectory datasets"""
     def __init__(self, dataset_name, root_folder, obs_len=20, pred_len=30, skip=1, threshold=0.002, distance_threshold=30,
-                 min_objs=0, windows_frames=None, split='train', num_agents_per_obs=10, split_percentage=0.1, shuffle=False):
+                 min_objs=0, windows_frames=None, split='train', num_agents_per_obs=10, split_percentage=0.1, shuffle=False,
+                 batch_size=16):
         super(ArgoverseMotionForecastingDataset, self).__init__()
 
         self.root_folder = root_folder
@@ -367,18 +367,29 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.windows_frames = windows_frames
         self.split = split
         self.shuffle = shuffle
+        self.batch_size = batch_size
         self.min_ped = 2
         self.ego_vehicle_origin = []
 
         folder = root_folder + split + "/data/"
         files, num_files = load_list_from_folder(folder)
 
+        self.file_id_list = []
+        root_file_name = None
+        for file_name in files:
+            if not root_file_name:
+                root_file_name = os.path.dirname(os.path.abspath(file_name))
+            file_id = int(os.path.normpath(file_name).split('/')[-1].split('.')[0])
+            self.file_id_list.append(file_id)
+        self.file_id_list.sort()
+        print("Num files: ", num_files)
+
         if self.shuffle:
             rng = default_rng()
             indeces = rng.choice(num_files, size=int(num_files*split_percentage), replace=False)
-            files = np.take(files, indeces, axis=0)
+            self.file_id_list = np.take(self.file_id_list, indeces, axis=0)
         else:
-            files = files[:int(num_files*split_percentage)]
+            self.file_id_list = self.file_id_list[:int(num_files*split_percentage)]
 
         num_objs_in_seq = []
         seq_list = []
@@ -389,6 +400,8 @@ class ArgoverseMotionForecastingDataset(Dataset):
         object_class_id_list = []
         object_id_list = []
         num_seq_list = []
+        straight_trajectories_list = []
+        curved_trajectories_list = []
         self.city_ids = []
 
         min_disp_rel = []
@@ -396,10 +409,12 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
         print("Start Dataset")
         t0 = time.time()
-        for i, path in enumerate(files):
-            file_id = int(path.split("/")[-1].split(".")[0])
+        # for i, path in enumerate(files):
+        for i, file_id in enumerate(self.file_id_list):
+            # file_id = int(path.split("/")[-1].split(".")[0])
             # print(f"File {i}/{len(files)}")
             num_seq_list.append(file_id)
+            path = os.path.join(root_file_name,str(file_id)+".csv")
             data = read_file(path) # 4946, 4 | biwi_hotel_train
             frames = np.unique(data[:, 0]).tolist() # 934
             frame_data = []
@@ -413,35 +428,78 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 process_window_sequence(idx, frame_data, frames, \
                     self.seq_len, self.pred_len, threshold, file_id, self.split)
 
-            # agent_idx = np.where(object_class_list == self.objects_id_dict['AGENT'])[0]
-            # agent_seq = curr_seq[agent_idx,:,:]
+            # Check if the trajectory is a straight line or has a curve
 
-            # ransac = linear_model.RANSACRegressor(max_trials=100,min_samples=40)
-            # agent_x = agent_seq[0,0,:].reshape(-1,1)
-            # agent_y = agent_seq[0,1,:].reshape(-1,1)
-            # ransac.fit(agent_x,agent_y)
+            DEBUG_TRAJECTORY_CLASSIFIER = False
 
-            # line_x = np.arange(agent_x.min(), agent_x.max())[:, np.newaxis]
-            # line_y_ransac = ransac.predict(line_x)
+            agent_idx = int(np.where(object_class_list==1)[0]) #.cpu().item())
+            agent_seq = curr_seq[agent_idx,:,:] #.cpu().detach().numpy()
 
-            # plt.scatter(agent_x,agent_y, color='yellowgreen', marker='.',
-            #             label='Inliers')
-            # plt.plot(line_x, line_y_ransac, color='cornflowerblue', linewidth=1,
-            #         label='RANSAC regressor')
-            # plt.legend(loc='lower right')
-            # plt.xlabel("Input")
-            # plt.ylabel("Response")
-            # plt.show()
+            agent_x = agent_seq[0,:].reshape(-1,1)
+            agent_y = agent_seq[1,:].reshape(-1,1)
 
-            # pdb.set_trace()
-            # if (curr_seq_rel.min() < -3.5) or (curr_seq_rel.max() > 3.5):
+            ## Sklearn    
+
+            ransac = linear_model.RANSACRegressor(residual_threshold=2)
+            ransac.fit(agent_x,agent_y)
+
+            inlier_mask = ransac.inlier_mask_
+            outlier_mask = np.logical_not(inlier_mask)
+            num_inliers = len(np.where(inlier_mask == True)[0])
+
+            ## Study consecutive inliers
+
+            cnt = 0
+            num_min_outliers = 8 # Minimum number of consecutive outliers to consider the trajectory as curve
+            is_curve = False
+            for is_inlier in inlier_mask:
+                if not is_inlier:
+                    cnt += 1
+                else:
+                    cnt = 0
+
+                if cnt >= num_min_outliers:
+                    is_curve = True
+
+            if DEBUG_TRAJECTORY_CLASSIFIER:
+                x_max = agent_x.max()
+                x_min = agent_x.min()
+                num_steps = 20
+                step_dist = (x_max - x_min) / num_steps
+                line_x = np.arange(x_min, x_max, step_dist)[:, np.newaxis]
+                line_y_ransac = ransac.predict(line_x)
+
+                y_min = line_y_ransac.min()
+                y_max = line_y_ransac.max()
+
+                lw = 2
+                plt.scatter(
+                    agent_x[inlier_mask], agent_y[inlier_mask], color="blue", marker=".", label="Inliers"
+                )
+                plt.scatter(
+                    agent_x[outlier_mask], agent_y[outlier_mask], color="red", marker=".", label="Outliers"
+                )
+
+                plt.plot(
+                    line_x,
+                    line_y_ransac,
+                    color="cornflowerblue",
+                    linewidth=lw,
+                    label="RANSAC regressor",
+                )
+                plt.legend(loc="lower right")
+                plt.xlabel("X (m)")
+                plt.ylabel("Y (m)")
+                plt.title('Sequence {}. Num inliers: {}. Is a curve: {}'.format(file_id,num_inliers,is_curve))
+
+                threshold = 15
+                plt.xlim([x_min-threshold, x_max+threshold])
+                plt.ylim([y_min-threshold, y_max+threshold])
+
+                plt.show()
 
             # min_disp_rel.append(curr_seq_rel.min())
             # max_disp_rel.append(curr_seq_rel.max())
-
-            # continue
-            
-            # pdb.set_trace()
 
             if num_objs_considered >= self.min_ped:
                 non_linear_obj += _non_linear_obj
@@ -456,6 +514,11 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 ###################################################################
                 self.city_ids.append(city_id)
                 self.ego_vehicle_origin.append(ego_origin)
+                ###################################################################
+                if is_curve:
+                    curved_trajectories_list.append(file_id)
+                else:
+                    straight_trajectories_list.append(file_id)
 
         # disp_hist = min_disp_rel + max_disp_rel
         # disp_hist = np.array(disp_hist)
@@ -463,7 +526,6 @@ class ArgoverseMotionForecastingDataset(Dataset):
         # n, bins, patches = plt.hist(disp_hist, bins=40)
         # plt.show()
 
-        # pdb.set_trace()
         print("Dataset time: ", time.time() - t0)
         self.num_seq = len(seq_list)
         seq_list = np.concatenate(seq_list, axis=0) # Objects x 2 x seq_len
@@ -474,6 +536,8 @@ class ArgoverseMotionForecastingDataset(Dataset):
         object_class_id_list = np.concatenate(object_class_id_list, axis=0)
         object_id_list = np.concatenate(object_id_list)
         num_seq_list = np.concatenate([num_seq_list])
+        curved_trajectories_list = np.concatenate([curved_trajectories_list])
+        straight_trajectories_list = np.concatenate([straight_trajectories_list])
         self.ego_vehicle_origin = np.asarray(self.ego_vehicle_origin)
 
         ## normalize abs and relative data
@@ -498,13 +562,31 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.object_id_list = torch.from_numpy(object_id_list).type(torch.float)
         self.ego_vehicle_origin = torch.from_numpy(self.ego_vehicle_origin).type(torch.float)
         self.num_seq_list = torch.from_numpy(num_seq_list).type(torch.int)
+        self.straight_trajectories_list = torch.from_numpy(straight_trajectories_list).type(torch.int)
+        self.curved_trajectories_list = torch.from_numpy(curved_trajectories_list).type(torch.int)
         self.norm = torch.from_numpy(np.array(norm))
         
-
     def __len__(self):
         return self.num_seq
 
     def __getitem__(self, index):
+        
+        class_balance = 0.7 # % of straight trajectories (considering the agent at this moment) in the batch
+
+        if index % self.batch_size: # Get a new batch
+            self.cont_straight_traj = 0
+            self.cont_curved_traj = 0
+
+        trajectory_index = self.num_seq_list[index]
+
+        if trajectory_index in self.straight_trajectories_list:
+            self.cont_straight_traj += 1
+        elif trajectory_index in self.curved_trajectories_list:
+            self.cont_curved_traj += 1
+
+        if self.cont_straight_traj >= int(class_balance*self.batch_size):
+            # ¿?¿?¿?
+
         start, end = self.seq_start_end[index]
         # print("self.object_class_id_list[start:end] ", self.object_class_id_list[start:end])
         out = [
@@ -515,4 +597,5 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 self.object_id_list[start:end], self.city_ids[index], self.ego_vehicle_origin[index,:,:],
                 self.num_seq_list[index], self.norm
               ] 
+
         return out

@@ -7,8 +7,8 @@ dataset_name: argoverse_motion_forecasting_dataset
 dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
-    batch_size: 128 # 32 max
-    split_percentage: 0.05
+    batch_size: 8 # 32 max
+    split_percentage: 0.005
     shuffle: False # False to check the input data, always set to True
     num_workers: 0
 optim_parameters:

@@ -6,6 +6,9 @@ from prodict import Prodict
 import csv
 import pdb
 
+from sklearn import linear_model
+from skimage.measure import LineModelND, ransac
+
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
@@ -93,13 +96,13 @@ except:
                         collate_fn=seq_collate)
 
     model_path = "./save/argoverse/exp5_single_agent/argoverse_motion_forecasting_dataset_0_with_model.pt"
-    checkpoint = torch.load(model_path)
-    generator = TrajectoryGenerator(config.sophie.generator)
-    pdb.set_trace()
+    # checkpoint = torch.load(model_path)
+    # generator = TrajectoryGenerator(config.sophie.generator)
+    # pdb.set_trace()
 
-    generator.load_state_dict(checkpoint.config_cp['g_best_state'])
-    generator.cuda() # Use GPU
-    generator.eval()
+    # generator.load_state_dict(checkpoint.config_cp['g_best_state'])
+    # generator.cuda() # Use GPU
+    # generator.eval()
 
     num_samples = 1
     output_all = []
@@ -113,12 +116,79 @@ except:
                 break
             batch = [tensor.cuda() for tensor in batch]
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-                        loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq_list) = batch
+                        loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq_list, _) = batch
 
             predicted_traj = []
             agent_idx = int(torch.where(object_cls==1)[0].cpu().item())
             traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
             predicted_traj.append(traj_real[:, agent_idx,:])
+
+            # Check if the trajectory is a straight line or has a curve
+
+            agent_seq = traj_real[:,agent_idx,:].cpu().detach().numpy()
+            agent_x = agent_seq[:,0].reshape(-1,1)
+            agent_y = agent_seq[:,1].reshape(-1,1)
+
+            ## Sklearn    
+
+            # ransac = linear_model.RANSACRegressor(max_trials=100,min_samples=40,residual_threshold=2)
+            ransac = linear_model.RANSACRegressor(residual_threshold=2)
+            ransac.fit(agent_x,agent_y)
+
+            inlier_mask = ransac.inlier_mask_
+            outlier_mask = np.logical_not(inlier_mask)
+            num_inliers = len(np.where(inlier_mask == True)[0])
+
+            ## Study consecutive inliers
+
+            cnt = 0
+            num_min_outliers = 8 # Minimum number of consecutive outliers to consider the trajectory as curve
+            is_curve = False
+            for is_inlier in inlier_mask:
+                if not is_inlier:
+                    cnt += 1
+                else:
+                    cnt = 0
+
+                if cnt >= num_min_outliers:
+                    is_curve = True
+
+            x_max = agent_x.max()
+            x_min = agent_x.min()
+            num_steps = 20
+            step_dist = (x_max - x_min) / num_steps
+            line_x = np.arange(x_min, x_max, step_dist)[:, np.newaxis]
+            line_y_ransac = ransac.predict(line_x)
+
+            y_min = line_y_ransac.min()
+            y_max = line_y_ransac.max()
+
+            lw = 2
+            plt.scatter(
+                agent_x[inlier_mask], agent_y[inlier_mask], color="blue", marker=".", label="Inliers"
+            )
+            plt.scatter(
+                agent_x[outlier_mask], agent_y[outlier_mask], color="red", marker=".", label="Outliers"
+            )
+
+            plt.plot(
+                line_x,
+                line_y_ransac,
+                color="cornflowerblue",
+                linewidth=lw,
+                label="RANSAC regressor",
+            )
+            plt.legend(loc="lower right")
+            plt.xlabel("X (m)")
+            plt.ylabel("Y (m)")
+            plt.title('Sequence {}. Num inliers: {}. Is a curve: {}'.format(batch_index,num_inliers,is_curve))
+
+            threshold = 15
+            plt.xlim([x_min-threshold, x_max+threshold])
+            plt.ylim([y_min-threshold, y_max+threshold])
+
+            plt.show()
+
             for _ in range(num_samples):
 
                 # Get predictions
