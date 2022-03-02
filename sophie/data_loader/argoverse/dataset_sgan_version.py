@@ -574,18 +574,20 @@ class ArgoverseMotionForecastingDataset(Dataset):
         class_balance = 0.7 # % of straight trajectories (considering the agent at this moment) in the batch
 
         if index % self.batch_size: # Get a new batch
-            self.cont_straight_traj = 0
-            self.cont_curved_traj = 0
+            self.cont_straight_traj = []
+            self.cont_curved_traj = []
 
         trajectory_index = self.num_seq_list[index]
+        straight_traj = True
 
         if trajectory_index in self.straight_trajectories_list:
-            self.cont_straight_traj += 1
+            self.cont_straight_traj.append(index)
         elif trajectory_index in self.curved_trajectories_list:
-            self.cont_curved_traj += 1
+            straight_traj = False
+            self.cont_curved_traj.append(index)
 
-        if self.cont_straight_traj >= int(class_balance*self.batch_size):
-            # ¿?¿?¿?
+        if (straight_traj and self.cont_straight_traj >= int(class_balance*self.batch_size)):
+            index = random.choice(self.cont_curved_traj)
 
         start, end = self.seq_start_end[index]
         # print("self.object_class_id_list[start:end] ", self.object_class_id_list[start:end])
