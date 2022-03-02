@@ -304,8 +304,7 @@ class TrajectoryGenerator(nn.Module):
 
         # mlp_decoder_context_dims = [self.h_dim*3, self.mlp_dim, self.h_dim - self.noise_dim]
         mlp_context_input = self.h_dim*2
-        # self.lnc = nn.LayerNorm(mlp_context_input)
-        self.lnc = nn.LayerNorm(self.h_dim)
+        self.lnc = nn.LayerNorm(mlp_context_input)
         mlp_decoder_context_dims = [mlp_context_input, self.mlp_dim, self.h_dim - self.noise_dim]
         self.mlp_decoder_context = make_mlp(mlp_decoder_context_dims) # [96, 64, 44]
 
@@ -348,7 +347,7 @@ class TrajectoryGenerator(nn.Module):
         mlp_decoder_context_input = torch.cat(
             [
                 final_encoder_h.contiguous().view(-1, 
-                self.h_dim) # , attn_s.contiguous().view(-1, self.h_dim), 
+                self.h_dim), attn_s.contiguous().view(-1, self.h_dim), 
                 # attn_p.contiguous().view(-1, self.h_dim)
             ],
             dim=1

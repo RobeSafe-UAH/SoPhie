@@ -261,24 +261,26 @@ def poly_fit(traj, traj_len, threshold):
         return 0.0
 
 # @jit(nopython=True)
-def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, \
-    threshold, file_id, split, skip=1):
+def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, threshold, file_id, split, skip=1):
     """
-    frame_data array (n, 6):
-        - timestamp (int)
-        - id (int) -> previously need to be converted. Original data is string
-        - type (int) -> need to be converted from string to int
-        - x (float) -> x position
-        - y (float) -> y position
-        - city_name (int)
-    seq_len (int)
-    skip (int)
-    pred_len (int)
-    threshold (float)
+    Input:
+        idx (int): AV id
+        frame_data array (n, 6):
+            - timestamp (int)
+            - id (int) -> previously need to be converted. Original data is string
+            - type (int) -> need to be converted from string to int
+            - x (float) -> x position
+            - y (float) -> y position
+            - city_name (int)
+        seq_len (int)
+        skip (int)
+        pred_len (int)
+        threshold (float)
     """
-    # try:
-    curr_seq_data = np.concatenate( # 90, 6
-        frame_data[idx:idx + seq_len], axis=0)
+
+    curr_seq_data = np.concatenate(frame_data[idx:idx + seq_len], axis=0)
+
+    pdb.set_trace()
     peds_in_curr_seq = np.unique(curr_seq_data[:, 1]) # 13
     curr_seq_rel = np.zeros((len(peds_in_curr_seq), 2, # 13, 2, 50 (sel.seq_len)
                                 seq_len))
@@ -353,7 +355,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
     """Dataloder for the Trajectory datasets"""
     def __init__(self, dataset_name, root_folder, obs_len=20, pred_len=30, skip=1, threshold=0.002, distance_threshold=30,
                  min_objs=0, windows_frames=None, split='train', num_agents_per_obs=10, split_percentage=0.1, shuffle=False,
-                 batch_size=16):
+                 batch_size=16, class_balance=-1.0):
         super(ArgoverseMotionForecastingDataset, self).__init__()
 
         self.root_folder = root_folder
@@ -369,6 +371,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.split = split
         self.shuffle = shuffle
         self.batch_size = batch_size
+        self.class_balance = class_balance
         self.min_ped = 2
         self.ego_vehicle_origin = []
 
@@ -425,79 +428,80 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 math.ceil((len(frames) - self.seq_len + 1) / skip)) # (934 - 16 + 1) / 1 
             idx = 0
             num_objs_considered, _non_linear_obj, curr_loss_mask, curr_seq, \
-                curr_seq_rel, id_frame_list, object_class_list, city_id, ego_origin = \
+            curr_seq_rel, id_frame_list, object_class_list, city_id, ego_origin = \
                 process_window_sequence(idx, frame_data, frames, \
-                    self.seq_len, self.pred_len, threshold, file_id, self.split)
+                                        self.seq_len, self.pred_len, threshold, file_id, self.split)
 
             # Check if the trajectory is a straight line or has a curve
 
-            DEBUG_TRAJECTORY_CLASSIFIER = False
+            if self.class_balance >= 0.0:
+                DEBUG_TRAJECTORY_CLASSIFIER = False
 
-            agent_idx = int(np.where(object_class_list==1)[0]) #.cpu().item())
-            agent_seq = curr_seq[agent_idx,:,:] #.cpu().detach().numpy()
+                agent_idx = int(np.where(object_class_list==1)[0]) #.cpu().item())
+                agent_seq = curr_seq[agent_idx,:,:] #.cpu().detach().numpy()
 
-            agent_x = agent_seq[0,:].reshape(-1,1)
-            agent_y = agent_seq[1,:].reshape(-1,1)
+                agent_x = agent_seq[0,:].reshape(-1,1)
+                agent_y = agent_seq[1,:].reshape(-1,1)
 
-            ## Sklearn    
+                ## Sklearn    
 
-            ransac = linear_model.RANSACRegressor(residual_threshold=2)
-            ransac.fit(agent_x,agent_y)
+                ransac = linear_model.RANSACRegressor(residual_threshold=2)
+                ransac.fit(agent_x,agent_y)
 
-            inlier_mask = ransac.inlier_mask_
-            outlier_mask = np.logical_not(inlier_mask)
-            num_inliers = len(np.where(inlier_mask == True)[0])
+                inlier_mask = ransac.inlier_mask_
+                outlier_mask = np.logical_not(inlier_mask)
+                num_inliers = len(np.where(inlier_mask == True)[0])
 
-            ## Study consecutive inliers
+                ## Study consecutive inliers
 
-            cnt = 0
-            num_min_outliers = 8 # Minimum number of consecutive outliers to consider the trajectory as curve
-            is_curve = False
-            for is_inlier in inlier_mask:
-                if not is_inlier:
-                    cnt += 1
-                else:
-                    cnt = 0
+                cnt = 0
+                num_min_outliers = 8 # Minimum number of consecutive outliers to consider the trajectory as curve
+                is_curve = False
+                for is_inlier in inlier_mask:
+                    if not is_inlier:
+                        cnt += 1
+                    else:
+                        cnt = 0
 
-                if cnt >= num_min_outliers:
-                    is_curve = True
+                    if cnt >= num_min_outliers:
+                        is_curve = True
 
-            if DEBUG_TRAJECTORY_CLASSIFIER:
-                x_max = agent_x.max()
-                x_min = agent_x.min()
-                num_steps = 20
-                step_dist = (x_max - x_min) / num_steps
-                line_x = np.arange(x_min, x_max, step_dist)[:, np.newaxis]
-                line_y_ransac = ransac.predict(line_x)
+                if DEBUG_TRAJECTORY_CLASSIFIER:
+                    x_max = agent_x.max()
+                    x_min = agent_x.min()
+                    num_steps = 20
+                    step_dist = (x_max - x_min) / num_steps
+                    line_x = np.arange(x_min, x_max, step_dist)[:, np.newaxis]
+                    line_y_ransac = ransac.predict(line_x)
 
-                y_min = line_y_ransac.min()
-                y_max = line_y_ransac.max()
+                    y_min = line_y_ransac.min()
+                    y_max = line_y_ransac.max()
 
-                lw = 2
-                plt.scatter(
-                    agent_x[inlier_mask], agent_y[inlier_mask], color="blue", marker=".", label="Inliers"
-                )
-                plt.scatter(
-                    agent_x[outlier_mask], agent_y[outlier_mask], color="red", marker=".", label="Outliers"
-                )
+                    lw = 2
+                    plt.scatter(
+                        agent_x[inlier_mask], agent_y[inlier_mask], color="blue", marker=".", label="Inliers"
+                    )
+                    plt.scatter(
+                        agent_x[outlier_mask], agent_y[outlier_mask], color="red", marker=".", label="Outliers"
+                    )
 
-                plt.plot(
-                    line_x,
-                    line_y_ransac,
-                    color="cornflowerblue",
-                    linewidth=lw,
-                    label="RANSAC regressor",
-                )
-                plt.legend(loc="lower right")
-                plt.xlabel("X (m)")
-                plt.ylabel("Y (m)")
-                plt.title('Sequence {}. Num inliers: {}. Is a curve: {}'.format(file_id,num_inliers,is_curve))
+                    plt.plot(
+                        line_x,
+                        line_y_ransac,
+                        color="cornflowerblue",
+                        linewidth=lw,
+                        label="RANSAC regressor",
+                    )
+                    plt.legend(loc="lower right")
+                    plt.xlabel("X (m)")
+                    plt.ylabel("Y (m)")
+                    plt.title('Sequence {}. Num inliers: {}. Is a curve: {}'.format(file_id,num_inliers,is_curve))
 
-                threshold = 15
-                plt.xlim([x_min-threshold, x_max+threshold])
-                plt.ylim([y_min-threshold, y_max+threshold])
+                    threshold = 15
+                    plt.xlim([x_min-threshold, x_max+threshold])
+                    plt.ylim([y_min-threshold, y_max+threshold])
 
-                plt.show()
+                    plt.show()
 
             # min_disp_rel.append(curr_seq_rel.min())
             # max_disp_rel.append(curr_seq_rel.max())
@@ -516,10 +520,11 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 self.city_ids.append(city_id)
                 self.ego_vehicle_origin.append(ego_origin)
                 ###################################################################
-                if is_curve:
-                    curved_trajectories_list.append(file_id)
-                else:
-                    straight_trajectories_list.append(file_id)
+                if self.class_balance >= 0.0:
+                    if is_curve:
+                        curved_trajectories_list.append(file_id)
+                    else:
+                        straight_trajectories_list.append(file_id)
 
         # disp_hist = min_disp_rel + max_disp_rel
         # disp_hist = np.array(disp_hist)
@@ -571,24 +576,31 @@ class ArgoverseMotionForecastingDataset(Dataset):
         return self.num_seq
 
     def __getitem__(self, index):
-        print("index: ", index)
-        class_balance = 0.7 # % of straight trajectories (considering the agent at this moment) in the batch
+        if self.class_balance >= 0.0:
+            if index % self.batch_size == 0: # Get a new batch
+                self.cont_straight_traj = []
+                self.cont_curved_traj = []
 
-        if index % self.batch_size == 0: # Get a new batch
-            self.cont_straight_traj = []
-            self.cont_curved_traj = []
+            if index % self.batch_size == (self.batch_size-1):
+                assert len(self.cont_straight_traj) < self.class_balance*self.batch_size
 
-        trajectory_index = self.num_seq_list[index]
-        straight_traj = True
+            trajectory_index = self.num_seq_list[index]
+            straight_traj = True
 
-        if trajectory_index in self.straight_trajectories_list:
-            self.cont_straight_traj.append(index)
-        elif trajectory_index in self.curved_trajectories_list:
-            straight_traj = False
-            self.cont_curved_traj.append(index)
+            if trajectory_index in self.curved_trajectories_list:
+                straight_traj = False
+                
+            if straight_traj:
+                if len(self.cont_straight_traj) >= int(class_balance*self.batch_size):
+                    # Take a random curved trajectory from the dataset
 
-        if (straight_traj and len(self.cont_straight_traj) >= int(class_balance*self.batch_size)):
-            index = random.choice(self.cont_curved_traj)
+                    aux_index = random.choice(self.curved_trajectories_list)
+                    index = int(np.where(self.num_seq_list == aux_index)[0])
+                    self.cont_curved_traj.append(index)
+                else:
+                    self.cont_straight_traj.append(index)
+            else:
+                self.cont_curved_traj.append(index)
 
         start, end = self.seq_start_end[index]
         out = [

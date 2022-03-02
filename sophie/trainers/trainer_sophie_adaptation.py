@@ -86,7 +86,8 @@ def model_trainer(config, logger):
                                                    num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
                                                    split_percentage=config.dataset.split_percentage,
                                                    shuffle=config.dataset.shuffle,
-                                                   batch_size=config.dataset.batch_size)
+                                                   batch_size=config.dataset.batch_size,
+                                                   class_balance=config.dataset.class_balance)
 
     train_loader = DataLoader(data_train,
                               batch_size=config.dataset.batch_size,
@@ -104,7 +105,7 @@ def model_trainer(config, logger):
                                                  num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
                                                  split_percentage=config.dataset.split_percentage,
                                                  shuffle=config.dataset.shuffle,
-                                                 batch_size=config.dataset.batch_size)
+                                                 class_balance=config.dataset.class_balance)
     val_loader = DataLoader(data_val,
                             batch_size=config.dataset.batch_size,
                             shuffle=config.dataset.shuffle,
@@ -400,16 +401,17 @@ def discriminator_step(
     # get norm
     abs_norm = (hyperparameters.abs_norm[0].cuda(), hyperparameters.abs_norm[1].cuda())
     rel_norm = (hyperparameters.rel_norm[0].cuda(), hyperparameters.rel_norm[1].cuda())
-    # forward
-    # generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
-    generator_out = generator(
-        n_data(obs_traj, abs_norm[0], abs_norm[1]), 
-        n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
-        frames, 
-        agent_idx
-    )
 
-    generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
+    # forward
+    generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+    # generator_out = generator(
+    #     n_data(obs_traj, abs_norm[0], abs_norm[1]), 
+    #     n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
+    #     frames, 
+    #     agent_idx
+    # )
+
+    # generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
 
     # single agent trajectories
     if is_single_agent:
@@ -485,17 +487,16 @@ def generator_step(
 
     for _ in range(hyperparameters.best_k):
         # forward
-        # generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
-        # pred_traj_fake_rel = generator_out
+        generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
 
         # forward
-        generator_out = generator(
-            n_data(obs_traj, abs_norm[0], abs_norm[1]), 
-            n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
-            frames, 
-            agent_idx
-        )
-        generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
+        # generator_out = generator(
+        #     n_data(obs_traj, abs_norm[0], abs_norm[1]), 
+        #     n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
+        #     frames, 
+        #     agent_idx
+        # )
+        # generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
         pred_traj_fake_rel = generator_out
         # single agent trajectories # TODO this overwrite full traj
         if is_single_agent:
@@ -593,16 +594,19 @@ def classic_trainer(hyperparameters, batch, generator, discriminator, g_loss_fn,
     D_x = output.mean().item()
 
     ## Train with all-fake batch
+
+    generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+    
     # Generate batch of latent vectors
-    generator_out = generator(
-        n_data(obs_traj, abs_norm[0], abs_norm[1]),
-        n_data(obs_traj_rel, rel_norm[0], rel_norm[1]),
-        frames,
-        agent_idx
-    )
+    # generator_out = generator(
+    #     n_data(obs_traj, abs_norm[0], abs_norm[1]),
+    #     n_data(obs_traj_rel, rel_norm[0], rel_norm[1]),
+    #     frames,
+    #     agent_idx
+    # )
 
     # rel to abs
-    generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
+    # generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
     pred_traj_fake_rel = generator_out
     pred_traj_fake = relative_to_abs_sgan(
         pred_traj_fake_rel,
@@ -698,15 +702,15 @@ def check_accuracy(
                 linear_obj = 1 - non_linear_obj
 
             # # forward
-            # pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+            pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
             # forward
-            pred_traj_fake_rel = generator(
-                n_data(obs_traj, abs_norm[0], abs_norm[1]), 
-                n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
-                frames, 
-                agent_idx
-            )
-            pred_traj_fake_rel = dn_data(pred_traj_fake_rel, rel_norm[0], rel_norm[1])
+            # pred_traj_fake_rel = generator(
+            #     n_data(obs_traj, abs_norm[0], abs_norm[1]), 
+            #     n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
+            #     frames, 
+            #     agent_idx
+            # )
+            # pred_traj_fake_rel = dn_data(pred_traj_fake_rel, rel_norm[0], rel_norm[1])
 
             # single agent trajectories
             if is_single_agent:
