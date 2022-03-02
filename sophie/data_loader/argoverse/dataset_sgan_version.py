@@ -1,4 +1,5 @@
 import logging
+import random
 import os
 import math
 import csv
@@ -573,7 +574,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         
         class_balance = 0.7 # % of straight trajectories (considering the agent at this moment) in the batch
 
-        if index % self.batch_size: # Get a new batch
+        if index % self.batch_size == 0: # Get a new batch
             self.cont_straight_traj = []
             self.cont_curved_traj = []
 
@@ -586,7 +587,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
             straight_traj = False
             self.cont_curved_traj.append(index)
 
-        if (straight_traj and self.cont_straight_traj >= int(class_balance*self.batch_size)):
+        if (straight_traj and len(self.cont_straight_traj) >= int(class_balance*self.batch_size)):
             index = random.choice(self.cont_curved_traj)
 
         start, end = self.seq_start_end[index]
