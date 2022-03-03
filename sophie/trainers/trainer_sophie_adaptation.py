@@ -137,8 +137,6 @@ def model_trainer(config, logger):
         if (hyperparameters.num_iterations > hyperparameters.num_epochs* iterations_per_epoch) and (hyperparameters.num_epochs != 0):
             hyperparameters.num_iterations = hyperparameters.num_epochs* iterations_per_epoch
 
-
-    output_single_agent = hyperparameters.output_single_agent
     hyperparameters["abs_norm"] = abs_norm
     hyperparameters["rel_norm"] = rel_norm
     logger.info("abs_norm: {}".format(abs_norm))
@@ -216,8 +214,8 @@ def model_trainer(config, logger):
                     step_type = 'discriminator'
 
                     losses_d = discriminator_step(hyperparameters, batch, generator,
-                                                discriminator, d_loss_fn,
-                                                optimizer_d, criterion, output_single_agent)
+                                                  discriminator, d_loss_fn,
+                                                  optimizer_d, criterion)
 
                     checkpoint.config_cp["norm_d"].append(
                         get_total_norm(discriminator.parameters()))
@@ -226,8 +224,8 @@ def model_trainer(config, logger):
                     step_type = 'generator'
 
                     losses_g = generator_step(hyperparameters, batch, generator,
-                                            discriminator, g_loss_fn,
-                                            optimizer_g, criterion, output_single_agent)
+                                              discriminator, g_loss_fn,
+                                              optimizer_g, criterion)
                     checkpoint.config_cp["norm_g"].append(
                         get_total_norm(generator.parameters())
                     )
@@ -270,7 +268,7 @@ def model_trainer(config, logger):
                 # Check stats on the validation set
                 logger.info('Checking stats on val ...')
                 metrics_val = check_accuracy(
-                    hyperparameters, val_loader, generator, discriminator, d_loss_fn, output_single_agent
+                    hyperparameters, val_loader, generator, discriminator, d_loss_fn
                 )
 
                 for k, v in sorted(metrics_val.items()):
@@ -344,7 +342,7 @@ def model_trainer(config, logger):
     checkpoint.config_cp["sample_ts"].append(t)
     logger.info('Checking stats on val ...')
     metrics_val = check_accuracy(
-        hyperparameters, val_loader, generator, discriminator, d_loss_fn, output_single_agent
+        hyperparameters, val_loader, generator, discriminator, d_loss_fn
     )
 
     for k, v in sorted(metrics_val.items()):
@@ -382,7 +380,7 @@ def model_trainer(config, logger):
 
 
 def discriminator_step(
-    hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d, criterion, is_single_agent=True
+    hyperparameters, batch, generator, discriminator, d_loss_fn, optimizer_d, criterion
 ):
     batch = [tensor.cuda() for tensor in batch]
 
@@ -395,7 +393,7 @@ def discriminator_step(
 
     # single agent output idx
     agent_idx = None
-    if is_single_agent:
+    if hyperparameters.output_single_agent:
         agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
 
     # get norm
@@ -414,7 +412,7 @@ def discriminator_step(
     # generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
 
     # single agent trajectories
-    if is_single_agent:
+    if hyperparameters.output_single_agent:
         obs_traj = obs_traj[:,agent_idx, :]
         pred_traj_gt = pred_traj_gt[:,agent_idx, :]
         obs_traj_rel = obs_traj_rel[:, agent_idx, :]
@@ -459,7 +457,7 @@ def discriminator_step(
     return losses
 
 def generator_step(
-    hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g, criterion, is_single_agent=True
+    hyperparameters, batch, generator, discriminator, g_loss_fn, optimizer_g, criterion
 ):
     batch = [tensor.cuda() for tensor in batch]
 
@@ -472,10 +470,10 @@ def generator_step(
     g_l2_loss_rel = []
     # single agent output idx
     agent_idx = None
-    if is_single_agent:
+    if hyperparameters.output_single_agent:
         agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
 
-    if is_single_agent:
+    if hyperparameters.output_single_agent:
         loss_mask = loss_mask[agent_idx, hyperparameters.obs_len:]
         pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
     else:  # 160x30 -> 0 o 1
@@ -499,7 +497,7 @@ def generator_step(
         # generator_out = dn_data(generator_out, rel_norm[0], rel_norm[1])
         pred_traj_fake_rel = generator_out
         # single agent trajectories # TODO this overwrite full traj
-        if is_single_agent:
+        if hyperparameters.output_single_agent:
             pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
         else:
             pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
@@ -511,7 +509,7 @@ def generator_step(
                 loss_mask,
                 mode='raw'))
     # handle single agent output
-    if is_single_agent:
+    if hyperparameters.output_single_agent:
         obs_traj = obs_traj[:,agent_idx, :]
         pred_traj_gt = pred_traj_gt[:,agent_idx, :]
         obs_traj_rel = obs_traj_rel[:, agent_idx, :]
@@ -519,7 +517,7 @@ def generator_step(
     g_l2_loss_sum_rel = torch.zeros(1).to(pred_traj_gt)
     if hyperparameters.l2_loss_weight > 0:
         g_l2_loss_rel = torch.stack(g_l2_loss_rel, dim=1)
-        if is_single_agent:
+        if hyperparameters.output_single_agent:
             for i in range(len(agent_idx)):
                 _g_l2_loss_rel = g_l2_loss_rel[i].unsqueeze(0)
                 _g_l2_loss_rel = torch.sum(_g_l2_loss_rel, dim=0)
@@ -664,7 +662,7 @@ def classic_trainer(hyperparameters, batch, generator, discriminator, g_loss_fn,
     return losses_d, losses_g
 
 def check_accuracy(
-    hyperparameters, loader, generator, discriminator, d_loss_fn, limit=False, is_single_agent=True
+    hyperparameters, loader, generator, discriminator, d_loss_fn, limit=False
 ):
     d_losses = []
     metrics = {}
@@ -686,13 +684,13 @@ def check_accuracy(
 
             # single agent output idx
             agent_idx = None
-            if is_single_agent:
+            if hyperparameters.output_single_agent:
                 agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
 
             # mask and linear
             mask = np.where(obj_id.cpu() == -1, 0, 1)
             mask = torch.tensor(mask, device=obj_id.device).reshape(-1)
-            if is_single_agent:
+            if hyperparameters.output_single_agent:
                 mask = mask[agent_idx]
                 non_linear_obj = non_linear_obj[agent_idx]
                 loss_mask = loss_mask[agent_idx, hyperparameters.obs_len:]
@@ -713,7 +711,7 @@ def check_accuracy(
             # pred_traj_fake_rel = dn_data(pred_traj_fake_rel, rel_norm[0], rel_norm[1])
 
             # single agent trajectories
-            if is_single_agent:
+            if hyperparameters.output_single_agent:
                 obs_traj = obs_traj[:,agent_idx, :]
                 pred_traj_gt = pred_traj_gt[:,agent_idx, :]
                 obs_traj_rel = obs_traj_rel[:, agent_idx, :]

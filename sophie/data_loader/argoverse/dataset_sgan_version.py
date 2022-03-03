@@ -280,7 +280,7 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, threshol
 
     curr_seq_data = np.concatenate(frame_data[idx:idx + seq_len], axis=0)
 
-    pdb.set_trace()
+    # pdb.set_trace()
     peds_in_curr_seq = np.unique(curr_seq_data[:, 1]) # 13
     curr_seq_rel = np.zeros((len(peds_in_curr_seq), 2, # 13, 2, 50 (sel.seq_len)
                                 seq_len))
