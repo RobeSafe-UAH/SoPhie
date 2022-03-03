@@ -58,3 +58,12 @@ class Encoder(nn.Module):
         final_h = states[0]
         
         return output, final_h
+
+class BaseEncoder(nn.Module):
+    """The base encoder interface for the encoder-decoder architecture."""
+
+    def __init__(self, **kwargs):
+        super(Encoder, self).__init__(**kwargs)
+
+    def forward(self, X, *args):
+        raise NotImplementedError

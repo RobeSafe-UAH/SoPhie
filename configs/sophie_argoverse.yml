@@ -20,6 +20,7 @@ optim_parameters:
     d_learning_rate: 1.0e-4
     d_weight_decay: 0
 hyperparameters:
+    local_social_attention: False
     output_single_agent: True
     classic_trainer: False
     tensorboard_active: True
@@ -38,7 +39,7 @@ hyperparameters:
     clipping_threshold_d: 0
     clipping_threshold_g: 1.5
     best_k: 10
-    l2_loss_weight: 1 # If different from 0, L2 loss is considered when training
+    l2_loss_weight: 0.05 # If different from 0, L2 loss is considered when training
     num_samples_check: 5000
     obs_origin: 20 # This frame will be the origin, tipically the first observation (1) or last observation 
                    # (obs_len) of the AGENT (object to be predicted in Argoverse 1.0). Note that in the code

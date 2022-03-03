@@ -397,14 +397,15 @@ def discriminator_step(
     agent_idx = None
     if hyperparameters.output_single_agent:
         agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
-
+    
     # get norm
     abs_norm = (hyperparameters.abs_norm[0].cuda(), hyperparameters.abs_norm[1].cuda())
     rel_norm = (hyperparameters.rel_norm[0].cuda(), hyperparameters.rel_norm[1].cuda())
 
     # forward
-    # generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end) # Social Attention per sequence
-    generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+    generator_out = generator(
+        obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end if hyperparameters.local_social_attention else None
+    )
     # generator_out = generator(
     #     n_data(obs_traj, abs_norm[0], abs_norm[1]), 
     #     n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
@@ -489,8 +490,9 @@ def generator_step(
 
     for _ in range(hyperparameters.best_k):
         # forward
-        # generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end) # Social Attention per sequence
-        generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+        generator_out = generator(
+            obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end if hyperparameters.local_social_attention else None
+        )
 
         # forward
         # generator_out = generator(
@@ -597,8 +599,9 @@ def classic_trainer(hyperparameters, batch, generator, discriminator, g_loss_fn,
 
     ## Train with all-fake batch
 
-    # generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end) # Social Attention per sequence
-    generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+    generator_out = generator(
+        obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end if hyperparameters.local_social_attention else None
+    )
     
     # Generate batch of latent vectors
     # generator_out = generator(
@@ -706,8 +709,9 @@ def check_accuracy(
                 linear_obj = 1 - non_linear_obj
 
             # # forward
-            # pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end)
-            pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+            pred_traj_fake_rel = generator(
+                obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end if hyperparameters.local_social_attention else None
+            )
             # forward
             # pred_traj_fake_rel = generator(
             #     n_data(obs_traj, abs_norm[0], abs_norm[1]), 

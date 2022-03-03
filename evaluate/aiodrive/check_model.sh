@@ -1,6 +1,6 @@
 #!/usr/bin/env bash 
 
-evaluate_model="evaluate/evaluate_model_interaction.py"
+evaluate_model="evaluate/evaluate_model_aiodrive.py"
 model_path="save/aiodrive/test_with_model_95_percent_labels.pt" 
 results_path="results/aiodrive"
 results_file="submission_95_percent_training_all_objects_all_skips" 

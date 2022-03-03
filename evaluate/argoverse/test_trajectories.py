@@ -5,12 +5,16 @@ from pathlib import Path
 from prodict import Prodict
 import csv
 import pdb
+import sys
+import os
 
 from sklearn import linear_model
 from skimage.measure import LineModelND, ransac
 
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
+
+sys.path.append("/home/robesafe/libraries/SoPhie")
 
 from sophie.utils.utils import relative_to_abs_sgan
 from sophie.models.sophie_adaptation import TrajectoryGenerator
@@ -96,7 +100,7 @@ except:
                             collate_fn=seq_collate)
 
     exp_name = "exp9"
-    model_path = "./save/argoverse/" + exp_name + "/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    model_path = BASE_DIR + "/save/argoverse/" + exp_name + "/argoverse_motion_forecasting_dataset_0_with_model.pt"
     checkpoint = torch.load(model_path)
     generator = TrajectoryGenerator(config.sophie.generator)
 
@@ -121,7 +125,7 @@ except:
             batch = [tensor.cuda() for tensor in batch]
             
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-                loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _,_) = batch
+             loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _,_) = batch
 
             predicted_traj = []
             agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
@@ -198,7 +202,6 @@ except:
 
                 # Get predictions
                 pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
-
                 # Get predictions in absolute coordinates
                 pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
                 traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
@@ -249,14 +252,16 @@ except:
             predicted_traj = predicted_traj.cpu().numpy()
             output_all.append(predicted_traj)
 
-        ade = sum(ade_list) / (len(ade_list))
+        ade = round(sum(ade_list) / (len(ade_list)),3)
         print("ade: ", ade)
-        fde = sum(fde_list) / (len(fde_list))
+        fde = round(sum(fde_list) / (len(fde_list)),3)
         print("fde: ", fde)
 
         # Write ade and fde values in CSV
 
-        with open('test_trajectories/'+exp_name+'_metrics_test.csv', 'w', newline='') as csvfile:
+        file_dir = str(Path(__file__).resolve().parent)
+
+        with open(file_dir+'/test_trajectories/'+exp_name+'_metrics_val.csv', 'w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
 
             header = ['Sequence','ADE','FDE']
@@ -271,6 +276,11 @@ except:
                 data = [str(i),curr_ade,curr_fde]
 
                 csv_writer.writerow(data)
+
+            # Write mean ADE and FDE 
+
+            csv_writer.writerow(['-','-','-'])
+            csv_writer.writerow(['Mean',ade,fde])
 
     
 
