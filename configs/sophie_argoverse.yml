@@ -8,7 +8,7 @@ dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
     batch_size: 128 # 32 max
-    split_percentage: 0.05
+    split_percentage: 0.5
     shuffle: False # False to check the input data, always set to True
     class_balance: -1.0 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
@@ -20,6 +20,7 @@ optim_parameters:
     d_learning_rate: 1.0e-4
     d_weight_decay: 0
 hyperparameters:
+    local_social_attention: False
     output_single_agent: True
     classic_trainer: False
     tensorboard_active: True
@@ -30,8 +31,8 @@ hyperparameters:
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 2
     checkpoint_every: 100
-    output_dir: "save/argoverse/exp_single_agent_out_temporal_7/"
-    exp_description: "no normalization, no sigmoid in discriminator, decodettemporal with linear output, social attention for each batch"
+    output_dir: "save/argoverse/exp_single_agent_out_temporal_8/"
+    exp_description: "no normalization, no sigmoid in discriminator, decodertemporal with linear output, global social attention"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 
