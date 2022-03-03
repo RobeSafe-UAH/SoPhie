@@ -144,8 +144,8 @@ class DecoderTemporal(nn.Module):
         self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
         self.spatial_embedding = nn.Linear(40, self.embedding_dim) # 2 (x,y) | 20 num_obs
         self.ln1 = nn.LayerNorm(40)
-        # self.hidden2pos = nn.Linear(self.h_dim, 2)
-        self.hidden2pos = make_mlp([self.h_dim, 128, 64, 2])
+        self.hidden2pos = nn.Linear(self.h_dim, 2)
+        # self.hidden2pos = make_mlp([self.h_dim, 128, 64, 2])
         self.ln2 = nn.LayerNorm(self.h_dim)
         self.output_activation = nn.Sigmoid()
 
@@ -161,7 +161,8 @@ class DecoderTemporal(nn.Module):
 
         for _ in range(self.seq_len):
             output, state_tuple = self.decoder(decoder_input, state_tuple) #
-            rel_pos = self.output_activation(self.hidden2pos(self.ln2(output.contiguous().view(-1, self.h_dim))))# + last_pos_rel # 32 -> 2
+            # rel_pos = self.output_activation(self.hidden2pos(self.ln2(output.contiguous().view(-1, self.h_dim))))# + last_pos_rel # 32 -> 2
+            rel_pos = self.hidden2pos(self.ln2(output.contiguous().view(-1, self.h_dim)))
             traj_rel = torch.roll(traj_rel, -1, dims=(0))
             traj_rel[-1] = rel_pos
 
@@ -386,5 +387,6 @@ class TrajectoryDiscriminator(nn.Module):
     def forward(self, traj, traj_rel):
 
         final_h = self.encoder(traj_rel)
-        scores = torch.sigmoid(self.real_classifier(final_h))
+        # scores = torch.sigmoid(self.real_classifier(final_h))
+        scores = self.real_classifier(final_h)
         return scores
