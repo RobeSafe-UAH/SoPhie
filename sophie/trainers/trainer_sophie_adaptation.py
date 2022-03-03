@@ -403,6 +403,7 @@ def discriminator_step(
     rel_norm = (hyperparameters.rel_norm[0].cuda(), hyperparameters.rel_norm[1].cuda())
 
     # forward
+    # generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end) # Social Attention per sequence
     generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
     # generator_out = generator(
     #     n_data(obs_traj, abs_norm[0], abs_norm[1]), 
@@ -431,8 +432,8 @@ def discriminator_step(
     traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
     scores_fake = discriminator(
-        traj_fake.detach(),
-        traj_fake_rel.detach()
+        traj_fake,
+        traj_fake_rel
     )
     scores_real = discriminator(
         traj_real,
@@ -440,7 +441,8 @@ def discriminator_step(
     )
 
     # Compute loss with optional gradient penalty
-    data_loss = d_loss_fn(scores_real, scores_fake, criterion)
+    # data_loss = d_loss_fn(scores_real, scores_fake, criterion)
+    data_loss = gan_d_loss(scores_real, scores_fake)
     losses['D_data_loss'] = data_loss.item()
     loss += data_loss
     losses['D_total_loss'] = loss.item()
@@ -487,6 +489,7 @@ def generator_step(
 
     for _ in range(hyperparameters.best_k):
         # forward
+        # generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end) # Social Attention per sequence
         generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
 
         # forward
@@ -526,7 +529,6 @@ def generator_step(
                 _g_l2_loss_rel = torch.min(_g_l2_loss_rel) / torch.sum(
                     loss_mask[i].unsqueeze(0))
                 g_l2_loss_sum_rel += _g_l2_loss_rel
-            # g_l2_loss_sum_rel /= len(agent_idx)
         else:
             for start, end in seq_start_end.data:
                 _g_l2_loss_rel = g_l2_loss_rel[start:end]
@@ -543,7 +545,8 @@ def generator_step(
 
     # discriminator scores
     scores_fake = discriminator(traj_fake, traj_fake_rel)
-    discriminator_loss = g_loss_fn(scores_fake, criterion)
+    # discriminator_loss = g_loss_fn(scores_fake, criterion)
+    discriminator_loss = gan_g_loss(scores_fake)
 
     loss += discriminator_loss
     losses['G_discriminator_loss'] = discriminator_loss.item()
@@ -566,7 +569,6 @@ def classic_trainer(hyperparameters, batch, generator, discriminator, g_loss_fn,
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
         loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _,_) = batch
 
-    # pdb.set_trace()
     # single agent output idx
     agent_idx = None
     if hyperparameters.output_single_agent:
@@ -595,6 +597,7 @@ def classic_trainer(hyperparameters, batch, generator, discriminator, g_loss_fn,
 
     ## Train with all-fake batch
 
+    # generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end) # Social Attention per sequence
     generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
     
     # Generate batch of latent vectors
@@ -668,9 +671,9 @@ def check_accuracy(
 ):
     d_losses = []
     metrics = {}
-    g_l2_losses_abs, g_l2_losses_rel = ([],) * 2
-    disp_error, disp_error_l, disp_error_nl = ([],) * 3
-    f_disp_error, f_disp_error_l, f_disp_error_nl = ([],) * 3
+    g_l2_losses_abs, g_l2_losses_rel = [], []
+    disp_error, disp_error_l, disp_error_nl = [], [], []
+    f_disp_error, f_disp_error_l, f_disp_error_nl = [], [], []
     total_traj, total_traj_l, total_traj_nl = 0, 0, 0
     loss_mask_sum = 0
     generator.eval()
@@ -690,10 +693,11 @@ def check_accuracy(
                 agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
 
             # mask and linear
-            mask = np.where(obj_id.cpu() == -1, 0, 1)
-            mask = torch.tensor(mask, device=obj_id.device).reshape(-1)
+            if not hyperparameters.output_single_agent: # TODO corregir con el nuevo dataset
+                mask = np.where(obj_id.cpu() == -1, 0, 1)
+                mask = torch.tensor(mask, device=obj_id.device).reshape(-1)
             if hyperparameters.output_single_agent:
-                mask = mask[agent_idx]
+                # mask = mask[agent_idx]
                 non_linear_obj = non_linear_obj[agent_idx]
                 loss_mask = loss_mask[agent_idx, hyperparameters.obs_len:]
                 linear_obj = 1 - non_linear_obj
@@ -702,6 +706,7 @@ def check_accuracy(
                 linear_obj = 1 - non_linear_obj
 
             # # forward
+            # pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end)
             pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
             # forward
             # pred_traj_fake_rel = generator(
@@ -731,11 +736,13 @@ def check_accuracy(
                 pred_traj_fake_rel, loss_mask
             )
             ade, ade_l, ade_nl = cal_ade(
-                pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, mask
+                pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj,
+                mask if not hyperparameters.output_single_agent else None
             )
 
             fde, fde_l, fde_nl = cal_fde(
-                pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, mask
+                pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj,
+                mask if not hyperparameters.output_single_agent else None
             )
 
             g_l2_losses_abs.append(g_l2_loss_abs.item())

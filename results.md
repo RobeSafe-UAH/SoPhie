@@ -19,7 +19,9 @@
 * Deep Prediction model based on sgan
     * abs normalized -> min 0
     * rel normalized -> calculated with abs norm
-
+* Trainer problem
+    * discriminator step -> detach()
+    * check_accuracy -> mask
 ## Experimento 1
 * multi to single
 * Decoder
@@ -28,3 +30,13 @@
 * metrics
     * 6.503
     * 14.565
+
+## Experimento 2
+* 1400
+    * bce loss
+    * ade: 12.6
+    * fde: 24.7
+* 1400
+    * manual bce loss - no sigmoid discriminator
+    * ade: 12.7
+    * fde: 24.8

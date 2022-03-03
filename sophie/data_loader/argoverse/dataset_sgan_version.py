@@ -24,7 +24,7 @@ from torch.utils.data import Dataset
 from numba import jit
 
 from argoverse.map_representation.map_api import ArgoverseMap
-import sophie.data_loader.argoverse.map_utils as map_utils
+# import sophie.data_loader.argoverse.map_utils as map_utils
 
 frames_path = None
 avm = ArgoverseMap()
