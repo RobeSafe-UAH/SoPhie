@@ -87,7 +87,8 @@ def model_trainer(config, logger):
                                                    split_percentage=config.dataset.split_percentage,
                                                    shuffle=config.dataset.shuffle,
                                                    batch_size=config.dataset.batch_size,
-                                                   class_balance=config.dataset.class_balance)
+                                                   class_balance=config.dataset.class_balance,
+                                                   obs_origin=config.hyperparameters.obs_origin)
 
     train_loader = DataLoader(data_train,
                               batch_size=config.dataset.batch_size,
@@ -105,7 +106,8 @@ def model_trainer(config, logger):
                                                  num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
                                                  split_percentage=config.dataset.split_percentage,
                                                  shuffle=config.dataset.shuffle,
-                                                 class_balance=config.dataset.class_balance)
+                                                 class_balance=config.dataset.class_balance,
+                                                 obs_origin=config.hyperparameters.obs_origin)
     val_loader = DataLoader(data_val,
                             batch_size=config.dataset.batch_size,
                             shuffle=config.dataset.shuffle,

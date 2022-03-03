@@ -40,6 +40,9 @@ hyperparameters:
     best_k: 10
     l2_loss_weight: 1 # If different from 0, L2 loss is considered when training
     num_samples_check: 5000
+    obs_origin: 20 # This frame will be the origin, tipically the first observation (1) or last observation 
+                   # (obs_len) of the AGENT (object to be predicted in Argoverse 1.0). Note that in the code
+                   # it will be 0 and 19 respectively
     obs_len: &obs_len 20 
     pred_len: &pred_len 30 # Must be 0 for the split test since we do not have the predictions of the agents
                            # Only the observations (0 to obs_len-1 past observations)

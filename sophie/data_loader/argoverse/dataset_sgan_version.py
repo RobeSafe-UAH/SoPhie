@@ -227,19 +227,25 @@ def read_file(_path):
     data = csv.DictReader(open(_path))
     aux = []
     id_list = []
+
+    num_agent = 0
     for row in data:
         values = list(row.values())
         # object type 
         values[2] = 0 if values[2] == "AV" else 1 if values[2] == "AGENT" else 2
+        if values[2] == 1:
+            num_agent += 1
         # city
         values[-1] = 0 if values[-1] == "PIT" else 1
         # id
         id_list.append(values[1])
         # numpy_sequence
         aux.append(values)
+ 
     id_list, id_idx = np.unique(id_list, return_inverse=True)
     data = np.array(aux)
     data[:, 1] = id_idx
+
     return data.astype(np.float64)
 
 # @jit(nopython=True)
@@ -261,7 +267,8 @@ def poly_fit(traj, traj_len, threshold):
         return 0.0
 
 # @jit(nopython=True)
-def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, threshold, file_id, split, skip=1):
+def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, 
+                            threshold, file_id, split, obs_origin, skip=1):
     """
     Input:
         idx (int): AV id
@@ -287,6 +294,7 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, threshol
 
     curr_seq_data = np.concatenate(frame_data[idx:idx + seq_len], axis=0)
     peds_in_curr_seq = np.unique(curr_seq_data[:, 1]) # Unique IDs in the sequence
+    agent_indeces = np.where(curr_seq_data[:, 1] == 1)[0]
     obs_len = seq_len - pred_len
 
     # Initialize variables
@@ -303,6 +311,17 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, threshol
                     # obs_len-1 th absolute position of the AGENT (object of interest)
     city_id = curr_seq_data[0,5]
 
+    # Get origin of this sequence. We assume we are going to take the AGENT as reference (object of interest in 
+    # Argoverse 1.0). In the code it is written ego_vehicle but actually it is NOT the ego-vehicle (AV, which 
+    # captures the scene), but another object of interest to be predicted. TODO: Change ego_vehicle_origin 
+    # notation to just origin
+
+    aux_seq = curr_seq_data[curr_seq_data[:, 2] == 1, :] # 1 is the object class, the AGENT id may not be 1!
+    ego_vehicle = aux_seq[obs_origin-1, 3:5] # x,y
+    ego_origin.append(ego_vehicle)
+
+    # Iterate over all unique objects
+
     for _, ped_id in enumerate(peds_in_curr_seq):
         curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]
 
@@ -316,43 +335,40 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, threshol
                                                                                    # it is discarded
             continue
 
-        ### AGENT (object of interest in Argoverse 1.0). As commented above, in the code it is written ego_vehicle
-        ### but actually it is NOT the ego-vehicle (AV, which captures the scene), but another object of interest
-        ### to be predicted. TODO: Change ego_vehicle_origin notation to just origin
+        # Get object class id
 
-        if curr_ped_seq[0,2] == 1:
-            ego_vehicle = curr_ped_seq[obs_len-1, 3:5] # x,y
-            ego_origin.append(ego_vehicle)
-
-        # object class id
-
-        object_class_list[num_objs_considered] = curr_ped_seq[0,2] # ?
+        object_class_list[num_objs_considered] = curr_ped_seq[0,2] # 0 == AV, 1 == AGENT, 2 == OTHER
 
         # Record seqname, frame and ID information
+
         cache_tmp = np.transpose(curr_ped_seq[:,:2])
         id_frame_list[num_objs_considered, :2, :] = cache_tmp
         id_frame_list[num_objs_considered,  2, :] = file_id
-        # get  x- y data
-        curr_ped_seq = np.transpose(curr_ped_seq[:, 3:5]) # 2, 16
-        curr_ped_seq = curr_ped_seq
-        # Make coordinates relative
-        rel_curr_ped_seq = np.zeros(curr_ped_seq.shape) # 2, 16
-        rel_curr_ped_seq[:, 1:] = \
-            curr_ped_seq[:, 1:] - curr_ped_seq[:, :-1]
+
+        # Get x-y data (w.r.t the sequence origin, so they are absolute 
+        # coordinates but in the local frame, not map (global) frame)
+
+        curr_ped_seq = np.transpose(curr_ped_seq[:, 3:5])
+        curr_ped_seq = curr_ped_seq - ego_origin[0].reshape(-1,1)
+
+        # Make coordinates relative (relative here means displacements between consecutive steps)
+
+        rel_curr_ped_seq = np.zeros(curr_ped_seq.shape) 
+        rel_curr_ped_seq[:, 1:] = curr_ped_seq[:, 1:] - curr_ped_seq[:, :-1] # Get displacements between consecutive steps
+        
         _idx = num_objs_considered
         curr_seq[_idx, :, pad_front:pad_end] = curr_ped_seq
         curr_seq_rel[_idx, :, pad_front:pad_end] = rel_curr_ped_seq
+
         # Linear vs Non-Linear Trajectory
         if split != 'test':
             _non_linear_obj.append(
                 poly_fit(curr_ped_seq, pred_len, threshold))
         curr_loss_mask[_idx, pad_front:pad_end] = 1
 
-        # add num_objs_considered
+        # Add num_objs_considered
         num_objs_considered += 1
-    # except Exception as e:
-    #     print("Error ", e)
-    #     pdb.set_trace()
+
     return num_objs_considered, _non_linear_obj, curr_loss_mask, \
         curr_seq, curr_seq_rel, id_frame_list, object_class_list, city_id, ego_origin
 
@@ -372,7 +388,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
     """Dataloder for the Trajectory datasets"""
     def __init__(self, dataset_name, root_folder, obs_len=20, pred_len=30, skip=1, threshold=0.002, distance_threshold=30,
                  min_objs=0, windows_frames=None, split='train', num_agents_per_obs=10, split_percentage=0.1, shuffle=False,
-                 batch_size=16, class_balance=-1.0):
+                 batch_size=16, class_balance=-1.0, obs_origin=1):
         super(ArgoverseMotionForecastingDataset, self).__init__()
 
         self.root_folder = root_folder
@@ -389,6 +405,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.shuffle = shuffle
         self.batch_size = batch_size
         self.class_balance = class_balance
+        self.obs_origin = obs_origin
         self.min_ped = 2
         self.ego_vehicle_origin = []
 
@@ -437,6 +454,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
             num_seq_list.append(file_id)
             path = os.path.join(root_file_name,str(file_id)+".csv")
             data = read_file(path) # 4946, 4 | biwi_hotel_train
+           
             frames = np.unique(data[:, 0]).tolist() # 934
             frame_data = []
             for frame in frames:
@@ -447,7 +465,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
             num_objs_considered, _non_linear_obj, curr_loss_mask, curr_seq, \
             curr_seq_rel, id_frame_list, object_class_list, city_id, ego_origin = \
                 process_window_sequence(idx, frame_data, frames, \
-                                        self.seq_len, self.pred_len, threshold, file_id, self.split)
+                                        self.seq_len, self.pred_len, threshold, file_id, self.split, self.obs_origin)
 
             # Check if the trajectory is a straight line or has a curve
 
