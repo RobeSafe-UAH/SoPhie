@@ -30,10 +30,6 @@ data/datasets/
 data/datasets.tar.gz
 
 save/*.pt
-
-experiments/
-
-
 save/argoverse/*
 
-results/*
+evaluate/*.ipynb
