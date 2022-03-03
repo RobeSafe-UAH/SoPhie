@@ -1,0 +1,138 @@
+base_dir: !!python/object/apply:pathlib.PosixPath
+- /
+- home
+- robesafe
+- tesis
+- SoPhie
+dataset:
+  batch_size: 8
+  class_balance: -1.0
+  num_workers: 0
+  path: data/datasets/argoverse/motion-forecasting/
+  shuffle: false
+  split: train
+  split_percentage: 0.005
+dataset_name: argoverse_motion_forecasting_dataset
+hyperparameters:
+  best_k: 10
+  checkpoint_every: 100
+  checkpoint_name: '0'
+  checkpoint_start_from: null
+  classic_trainer: false
+  clipping_threshold_d: 0
+  clipping_threshold_g: 1.5
+  d_steps: 2
+  distance_threshold: 40
+  exp_description: no normalization, no sigmoid in discriminator, decodettemporal
+    with linear output, social attention for each batch
+  g_steps: 1
+  hidden_dim_lstm_decoder: 128
+  l2_loss_weight: 1
+  num_agents_per_obs: 10
+  num_epochs: 100
+  num_iterations: 20000
+  num_samples_check: 5000
+  obs_len: 20
+  output_dir: test
+  output_single_agent: true
+  pred_len: 30
+  print_every: 2
+  restore_from_checkpoint: null
+  tensorboard_active: true
+  timing: 0
+optim_parameters:
+  d_learning_rate: 0.0001
+  d_weight_decay: 0
+  g_learning_rate: 0.0001
+  g_weight_decay: 0
+sophie:
+  discriminator:
+    classifier:
+      mlp_config:
+        activation: relu
+        batch_norm: true
+        dim_list:
+        - 64
+        - 1024
+        - 1
+        dropout: 0.5
+    encoder:
+      dropout: 0
+      emb_dim: 16
+      hidden_dim: 64
+      mlp_config:
+        activation: relu
+        batch_norm: true
+        dim_list:
+        - 2
+        - 16
+        dropout: 0.5
+      num_layers: 1
+  generator:
+    decoder:
+      dropout: 0
+      emb_dim: 64
+      hidden_dim: 128
+      linear_1:
+        input_dim: 10
+        output_dim: 64
+      linear_2:
+        input_dim: 128
+        output_dim: 64
+      linear_3:
+        input_dim: null
+        output_dim: null
+      mlp_config:
+        activation: ''
+        batch_norm: true
+        dim_list:
+        - 64
+        - 128
+        - 64
+        - 2
+        dropout: 0.5
+      num_layers: 1
+      pred_len: 30
+    joint_extractor:
+      config:
+        encoder:
+          dropout: 0
+          emb_dim: 16
+          hidden_dim: 10
+          mlp_config:
+            activation: relu
+            batch_norm: false
+            dim_list:
+            - 2
+            - 16
+            dropout: 0
+          num_layers: 1
+      type: encoder_sort
+    noise:
+      noise_type: gauss
+    physical_attention:
+      linear_decoder:
+        in_features: 128
+        out_features: 512
+      linear_feature:
+        in_features: 324
+        out_features: 2
+      softmax:
+        dim: 0
+    social_attention:
+      linear_decoder:
+        in_features: 128
+        out_features: 200
+      linear_feature:
+        in_features: 10
+        out_features: 2
+      softmax:
+        dim: 0
+    visual_extractor:
+      type: vgg19
+      vgg:
+        batch_norm: false
+        features: true
+        pretrained: true
+        vgg_type: 19
+use_gpu: 1

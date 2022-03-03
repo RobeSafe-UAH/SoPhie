@@ -326,7 +326,7 @@ class TrajectoryGenerator(nn.Module):
                 patch.append(img_tensor[:,:,i*stride:(i+1)*stride, (j)*stride:(j+1)*stride].contiguous().view(batch,-1))
         return torch.stack(patch, dim=1) # batch x 9 x (512*6*6)=18432
 
-    def forward(self, obs_traj, obs_traj_rel, frames, agent_idx=None):
+    def forward(self, obs_traj, obs_traj_rel, frames, agent_idx=None, start_end_seq=None):
 
         # visual_features = self.visual_feature_extractor(frames) # batch x 512 x 18 x 18
         # visual_patch = self.calculate_patch(visual_features) # 8x9x(512*6*6)
@@ -342,7 +342,16 @@ class TrajectoryGenerator(nn.Module):
 
         # queries -> indican la forma del tensor de salida (primer argumento)
         final_encoder_h = self.lne(final_encoder_h)
-        attn_s = self.sattn(final_encoder_h, final_encoder_h, final_encoder_h, None) # 8x10x32 # multi head self attention
+        if start_end_seq is not None:
+            attn_s = []
+            for start, end in start_end_seq.data: # slow as fuck
+                attn_s_batch = self.sattn(
+                    final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], None
+                ) # 8x10x32 # multi head self attention
+                attn_s.append(attn_s_batch)
+            attn_s = torch.cat(attn_s, 1)
+        else:
+            attn_s = self.sattn(final_encoder_h, final_encoder_h, final_encoder_h, None)
         # attn_p = self.pattn(final_encoder_h, visual_patch_enc, visual_patch_enc, None) # 8x10x32
         
         mlp_decoder_context_input = torch.cat(

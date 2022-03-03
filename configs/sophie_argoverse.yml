@@ -30,8 +30,8 @@ hyperparameters:
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 2
     checkpoint_every: 100
-    output_dir: "save/argoverse/test/"
-    exp_description: "test"
+    output_dir: "save/argoverse/exp_single_agent_out_temporal_7/"
+    exp_description: "no normalization, no sigmoid in discriminator, decodettemporal with linear output, social attention for each batch"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 

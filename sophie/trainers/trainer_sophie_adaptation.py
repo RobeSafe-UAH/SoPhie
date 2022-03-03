@@ -401,7 +401,7 @@ def discriminator_step(
     rel_norm = (hyperparameters.rel_norm[0].cuda(), hyperparameters.rel_norm[1].cuda())
 
     # forward
-    generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+    generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end)
     # generator_out = generator(
     #     n_data(obs_traj, abs_norm[0], abs_norm[1]), 
     #     n_data(obs_traj_rel, rel_norm[0], rel_norm[1]), 
@@ -486,7 +486,7 @@ def generator_step(
 
     for _ in range(hyperparameters.best_k):
         # forward
-        generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+        generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end)
 
         # forward
         # generator_out = generator(
@@ -593,7 +593,7 @@ def classic_trainer(hyperparameters, batch, generator, discriminator, g_loss_fn,
 
     ## Train with all-fake batch
 
-    generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+    generator_out = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end)
     
     # Generate batch of latent vectors
     # generator_out = generator(
@@ -701,7 +701,7 @@ def check_accuracy(
                 linear_obj = 1 - non_linear_obj
 
             # # forward
-            pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+            pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx, seq_start_end)
             # forward
             # pred_traj_fake_rel = generator(
             #     n_data(obs_traj, abs_norm[0], abs_norm[1]), 
