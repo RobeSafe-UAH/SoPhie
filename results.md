@@ -22,6 +22,14 @@
 * Trainer problem
     * discriminator step -> detach()
     * check_accuracy -> mask
+
+* multi head self attention local
+    * mask concentrate information in agent
+* learning rate scheduler
+* weight decay
+* l2 weight
+    * [1, 0.25, 0.2, 0.15, 0.1 , 0.05]
+
 ## Experimento 1
 * multi to single
 * Decoder

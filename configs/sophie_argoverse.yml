@@ -31,15 +31,15 @@ hyperparameters:
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 2
     checkpoint_every: 100
-    output_dir: "save/argoverse/exp_single_agent_out_temporal_8/"
-    exp_description: "no normalization, no sigmoid in discriminator, decodertemporal with linear output, global social attention"
+    output_dir: "save/argoverse/exp_single_agent_out_temporal_11/"
+    exp_description: "no normalization, no sigmoid in discriminator, decodertemporal with linear output, global social attention, l2 loss weight: 0.05"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 1.5
     best_k: 10
-    l2_loss_weight: 1 # If different from 0, L2 loss is considered when training
+    l2_loss_weight: 0.05 # If different from 0, L2 loss is considered when training
     num_samples_check: 5000
     obs_len: &obs_len 20 
     pred_len: &pred_len 30 # Must be 0 for the split test since we do not have the predictions of the agents

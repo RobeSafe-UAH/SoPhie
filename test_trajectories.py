@@ -62,7 +62,7 @@ try:
     print("fde: ", fde.item())
 
 except:
-    BASE_DIR = "/home/robesafe/libraries/SoPhie"
+    BASE_DIR = "/home/robesafe/tesis/SoPhie"
 
     with open(r'./configs/sophie_argoverse.yml') as config:
         config = yaml.safe_load(config)
@@ -88,27 +88,28 @@ except:
                                                     split_percentage=split_percentage,
                                                     shuffle=config.dataset.shuffle)
 
-
     loader = DataLoader(data,
                         batch_size=batch_size,
                         shuffle=False,
                         num_workers=0,
                         collate_fn=seq_collate)
 
-    model_path = "./save/argoverse/exp5_single_agent/argoverse_motion_forecasting_dataset_0_with_model.pt"
-    # checkpoint = torch.load(model_path)
-    # generator = TrajectoryGenerator(config.sophie.generator)
-    # pdb.set_trace()
+    exp_name = "exp_single_agent_out_temporal_7"
+    model_path = "./save/argoverse/" + exp_name + "/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    checkpoint = torch.load(model_path)
+    generator = TrajectoryGenerator(config.sophie.generator)
 
-    # generator.load_state_dict(checkpoint.config_cp['g_best_state'])
-    # generator.cuda() # Use GPU
-    # generator.eval()
+    generator.load_state_dict(checkpoint.config_cp['g_best_state'])
+    generator.cuda() # Use GPU
+    generator.eval()
 
-    num_samples = 1
+    num_samples = 4
     output_all = []
 
     ade_list = []
     fde_list = []
+
+    DEBUG_TRAJECTORY_CLASSIFIER = False
 
     with torch.no_grad():
         for batch_index, batch in enumerate(loader):
@@ -116,7 +117,7 @@ except:
                 break
             batch = [tensor.cuda() for tensor in batch]
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-                        loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq_list, _) = batch
+             loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _, _) = batch
 
             predicted_traj = []
             agent_idx = int(torch.where(object_cls==1)[0].cpu().item())
@@ -131,7 +132,6 @@ except:
 
             ## Sklearn    
 
-            # ransac = linear_model.RANSACRegressor(max_trials=100,min_samples=40,residual_threshold=2)
             ransac = linear_model.RANSACRegressor(residual_threshold=2)
             ransac.fit(agent_x,agent_y)
 
@@ -153,47 +153,48 @@ except:
                 if cnt >= num_min_outliers:
                     is_curve = True
 
-            x_max = agent_x.max()
-            x_min = agent_x.min()
-            num_steps = 20
-            step_dist = (x_max - x_min) / num_steps
-            line_x = np.arange(x_min, x_max, step_dist)[:, np.newaxis]
-            line_y_ransac = ransac.predict(line_x)
+            if DEBUG_TRAJECTORY_CLASSIFIER:
+                x_max = agent_x.max()
+                x_min = agent_x.min()
+                num_steps = 20
+                step_dist = (x_max - x_min) / num_steps
+                line_x = np.arange(x_min, x_max, step_dist)[:, np.newaxis]
+                line_y_ransac = ransac.predict(line_x)
 
-            y_min = line_y_ransac.min()
-            y_max = line_y_ransac.max()
+                y_min = line_y_ransac.min()
+                y_max = line_y_ransac.max()
 
-            lw = 2
-            plt.scatter(
-                agent_x[inlier_mask], agent_y[inlier_mask], color="blue", marker=".", label="Inliers"
-            )
-            plt.scatter(
-                agent_x[outlier_mask], agent_y[outlier_mask], color="red", marker=".", label="Outliers"
-            )
+                lw = 2
+                plt.scatter(
+                    agent_x[inlier_mask], agent_y[inlier_mask], color="blue", marker=".", label="Inliers"
+                )
+                plt.scatter(
+                    agent_x[outlier_mask], agent_y[outlier_mask], color="red", marker=".", label="Outliers"
+                )
 
-            plt.plot(
-                line_x,
-                line_y_ransac,
-                color="cornflowerblue",
-                linewidth=lw,
-                label="RANSAC regressor",
-            )
-            plt.legend(loc="lower right")
-            plt.xlabel("X (m)")
-            plt.ylabel("Y (m)")
-            plt.title('Sequence {}. Num inliers: {}. Is a curve: {}'.format(batch_index,num_inliers,is_curve))
+                plt.plot(
+                    line_x,
+                    line_y_ransac,
+                    color="cornflowerblue",
+                    linewidth=lw,
+                    label="RANSAC regressor",
+                )
+                plt.legend(loc="lower right")
+                plt.xlabel("X (m)")
+                plt.ylabel("Y (m)")
+                plt.title('Sequence {}. Num inliers: {}. Is a curve: {}'.format(batch_index,num_inliers,is_curve))
 
-            threshold = 15
-            plt.xlim([x_min-threshold, x_max+threshold])
-            plt.ylim([y_min-threshold, y_max+threshold])
+                threshold = 15
+                plt.xlim([x_min-threshold, x_max+threshold])
+                plt.ylim([y_min-threshold, y_max+threshold])
 
-            plt.show()
+                plt.show()
 
             for _ in range(num_samples):
 
                 # Get predictions
-                pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames)
-
+                pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+                print(">>>>>>>>>>>>>>>>>>")
                 # Get predictions in absolute coordinates
                 pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
                 traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
@@ -202,9 +203,6 @@ except:
                 # Get metrics
                 agent_traj_gt = pred_traj_gt[:,agent_idx,:].unsqueeze(1)
                 agent_traj_fake = pred_traj_fake[:,agent_idx,:].unsqueeze(1)
-
-                #print("agent_traj_gt", agent_traj_gt, agent_traj_gt.shape)
-                #print("agent_traj_fake", agent_traj_fake, agent_traj_fake.shape)
 
                 agent_obj_id = obj_id[agent_idx]
                 agent_non_linear_obj = non_linear_obj[agent_idx]
@@ -254,7 +252,7 @@ except:
 
         # Write ade and fde values in CSV
 
-        with open('test_trajectories/metrics_test.csv', 'w', newline='') as csvfile:
+        with open('test_trajectories/'+exp_name+'_metrics_test.csv', 'w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
 
             header = ['Sequence','ADE','FDE']
@@ -269,4 +267,3 @@ except:
                 data = [str(i),curr_ade,curr_fde]
 
                 csv_writer.writerow(data)
-
