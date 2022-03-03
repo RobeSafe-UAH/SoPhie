@@ -276,41 +276,58 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, threshol
         skip (int)
         pred_len (int)
         threshold (float)
+        file_id (int)
+        split (str: "train", "val", "test")
+        skip (int) 
+    Output:
+
     """
 
+    # Prepare current sequence and get unique obstacles
+
     curr_seq_data = np.concatenate(frame_data[idx:idx + seq_len], axis=0)
+    peds_in_curr_seq = np.unique(curr_seq_data[:, 1]) # Unique IDs in the sequence
+    obs_len = seq_len - pred_len
 
-    # pdb.set_trace()
-    peds_in_curr_seq = np.unique(curr_seq_data[:, 1]) # 13
-    curr_seq_rel = np.zeros((len(peds_in_curr_seq), 2, # 13, 2, 50 (sel.seq_len)
-                                seq_len))
-    curr_seq = np.zeros((len(peds_in_curr_seq), 2, seq_len)) # 13, 2, 50
-    curr_loss_mask = np.zeros((len(peds_in_curr_seq), # 13, 50
-                                seq_len))
+    # Initialize variables
 
-    object_class_list = np.zeros(len(peds_in_curr_seq)) # 13
+    curr_seq_rel = np.zeros((len(peds_in_curr_seq), 2, seq_len)) # peds_in_curr_seq x 2 (x,y) x seq_len (ej: 50)                              
+    curr_seq = np.zeros((len(peds_in_curr_seq), 2, seq_len)) # peds_in_curr_seq x 2 (x,y) x seq_len (ej: 50)
+    curr_loss_mask = np.zeros((len(peds_in_curr_seq), seq_len)) # peds_in_curr_seq x seq_len (ej: 50)
+    object_class_list = np.zeros(len(peds_in_curr_seq)) 
     id_frame_list  = np.zeros((len(peds_in_curr_seq), 3, seq_len))
+
     num_objs_considered = 0
     _non_linear_obj = []
-    ego_origin = []
+    ego_origin = [] # NB: This origin may not be the "ego" origin (that is, the AV origin). At this moment it is the
+                    # obs_len-1 th absolute position of the AGENT (object of interest)
     city_id = curr_seq_data[0,5]
+
     for _, ped_id in enumerate(peds_in_curr_seq):
-        curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == # 2, 6
-                                        ped_id, :]
+        curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]
+
         # curr_ped_seq = np.around(curr_ped_seq, decimals=4)
         #################################################################################
         ## test
         pad_front = frames.index(curr_ped_seq[0, 0]) - idx
         pad_end = frames.index(curr_ped_seq[-1, 0]) - idx + 1
         #################################################################################
-        if (pad_end - pad_front != seq_len) or (curr_ped_seq.shape[0] != seq_len): # -> si es menor a seq_len, fuera
+        if (pad_end - pad_front != seq_len) or (curr_ped_seq.shape[0] != seq_len): # If the object has less than "seq_len" observations,
+                                                                                   # it is discarded
             continue
-        ### ego
+
+        ### AGENT (object of interest in Argoverse 1.0). As commented above, in the code it is written ego_vehicle
+        ### but actually it is NOT the ego-vehicle (AV, which captures the scene), but another object of interest
+        ### to be predicted. TODO: Change ego_vehicle_origin notation to just origin
+
         if curr_ped_seq[0,2] == 1:
-            ego_vehicle = curr_ped_seq[19, 3:5]
+            ego_vehicle = curr_ped_seq[obs_len-1, 3:5] # x,y
             ego_origin.append(ego_vehicle)
+
         # object class id
+
         object_class_list[num_objs_considered] = curr_ped_seq[0,2] # ?
+
         # Record seqname, frame and ID information
         cache_tmp = np.transpose(curr_ped_seq[:,:2])
         id_frame_list[num_objs_considered, :2, :] = cache_tmp
@@ -591,7 +608,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 straight_traj = False
                 
             if straight_traj:
-                if len(self.cont_straight_traj) >= int(class_balance*self.batch_size):
+                if len(self.cont_straight_traj) >= int(self.class_balance*self.batch_size):
                     # Take a random curved trajectory from the dataset
 
                     aux_index = random.choice(self.curved_trajectories_list)
