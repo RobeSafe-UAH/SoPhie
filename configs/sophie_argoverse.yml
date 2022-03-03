@@ -10,7 +10,7 @@ dataset:
     batch_size: 32 # 32 max
     split_percentage: 0.005
     shuffle: False # False to check the input data, always set to True
-    class_balance: -1.0 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
+    class_balance: 0.7 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
                        # sequence regardless if it is straight or curved)
     num_workers: 0
@@ -31,7 +31,7 @@ hyperparameters:
     print_every: 2
     checkpoint_every: 500
     output_dir: "save/argoverse/test/"
-    exp_description: "No class balance. Training with Multiple Agents. Temporal decoder (only the important AGENT). No coordinates normalization"
+    exp_description: "Class balance. Local frame coordinates instead of Map frame. Training with Multiple Agents. Temporal decoder (only the important AGENT). No coordinates normalization"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 
