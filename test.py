@@ -9,6 +9,9 @@ import json
 import pandas as pd
 import math
 
+import torch.optim as optim
+import torch.optim.lr_scheduler as lrs
+
 from types import SimpleNamespace
 from sophie.models import SoPhieDiscriminator, SoPhieGenerator
 from sophie.modules.layers import MLP
@@ -1335,6 +1338,21 @@ def load_csv_number():
     csv_number = file_id_list[index_number]
     print("csv number: ", csv_number)
 
+def test_lr_scheduler(epochs, gamma):
+
+    def get_lr(optimizer):
+        for param_group in optimizer.param_groups:
+            return param_group['lr']
+    m = nn.Linear(10,5)
+    optimizer = optim.Adam(m.parameters(), lr=0.001)
+    scheduler = lrs.ExponentialLR(optimizer, gamma=gamma)
+    print("Initial lr: ", get_lr((optimizer)))
+    for i in range(epochs):
+        optimizer.step()
+        scheduler.step()
+        print("Epoch {} New lr: {}".format(i, get_lr(optimizer)))
+
+
 if __name__ == "__main__":
     # test_read_file()
     # test_dataLoader()
@@ -1347,7 +1365,7 @@ if __name__ == "__main__":
     # test_mlp()
     # test_encoder()
     # test_decoder()
-    test_sophie_generator()
+    # test_sophie_generator()
     # test_sophie_discriminator()
     # test_aiodrive_dataset()
     # test_aiodrive_frames()
@@ -1372,3 +1390,4 @@ if __name__ == "__main__":
     # image_list = read_video(path_video, (600,600))
 
     # print("image_list: ", type(image_list), len(image_list))
+    test_lr_scheduler(100, 0.95)

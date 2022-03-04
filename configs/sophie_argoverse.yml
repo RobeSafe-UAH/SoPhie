@@ -8,7 +8,7 @@ dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
     batch_size: 128 # 32 max
-    split_percentage: 0.002
+    split_percentage: 0.05
     shuffle: False # False to check the input data, always set to True
     class_balance: 0.7 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
@@ -20,19 +20,22 @@ optim_parameters:
     d_learning_rate: 1.0e-4
     d_weight_decay: 0
 hyperparameters:
-    local_social_attention: False
+    lr_schduler: False # ExponentialLR
+    lr_scheduler_gamma_g: 0.95
+    lr_scheduler_gamma_d: 0.95
+    local_social_attention: True
     output_single_agent: True
     classic_trainer: False
     tensorboard_active: True
     num_iterations: 20000 #1608 #20000
-    num_epochs: 100 #75
+    num_epochs: 500 #75
     d_steps: 2
     g_steps: 1
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 2
     checkpoint_every: 100
-    output_dir: "save/argoverse/test/"
-    exp_description: "Class balance. Local frame coordinates instead of Map frame. Training with Multiple Agents. Temporal decoder (only the important AGENT). No coordinates normalization"
+    output_dir: "save/argoverse/exp_single_agent_out_temporal_13/"
+    exp_description: "local social attention, l2 loss weight: 0.05, attention with addnorm"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 

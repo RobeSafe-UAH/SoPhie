@@ -33,3 +33,5 @@ save/*.pt
 save/argoverse/*
 
 evaluate/*.ipynb
+
+results/*

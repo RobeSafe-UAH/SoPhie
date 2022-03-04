@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import torch.optim.lr_scheduler as lrs
 
 # from sophie.data_loader.argoverse.dataset_unified import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
@@ -27,6 +28,10 @@ from sophie.utils.utils import relative_to_abs, relative_to_abs_sgan
 from torch.utils.tensorboard import SummaryWriter
 
 torch.backends.cudnn.benchmark = True
+
+def get_lr(optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
 
 def init_weights(m):
     classname = m.__class__.__name__
@@ -162,6 +167,7 @@ def model_trainer(config, logger):
     logger.info('Discriminator model:')
     logger.info(discriminator)
 
+    # optimizer, scheduler and loss functions
     g_loss_fn = gan_g_loss_bce
     d_loss_fn = gan_d_loss_bce
     optimizer_g = optim.Adam(generator.parameters(), lr=optim_parameters.g_learning_rate, weight_decay=optim_parameters.g_weight_decay)
@@ -169,6 +175,9 @@ def model_trainer(config, logger):
         discriminator.parameters(), lr=optim_parameters.d_learning_rate, weight_decay=optim_parameters.d_weight_decay
     )
     criterion = nn.BCELoss()
+    if hyperparameters.lr_schduler:
+        scheduler_g = lrs.ExponentialLR(optimizer_g, gamma=hyperparameters.lr_schduler_gamma_g)
+        scheduler_d = lrs.ExponentialLR(optimizer_d, gamma=hyperparameters.lr_schduler_gamma_d)
 
     restore_path = None
     if hyperparameters.checkpoint_start_from is not None:
@@ -332,7 +341,16 @@ def model_trainer(config, logger):
             g_steps_left = hyperparameters.g_steps
             if t >= hyperparameters.num_iterations:
                 break
-
+        
+        if hyperparameters.lr_schduler:
+            scheduler_g.step()
+            scheduler_d.step()
+            g_lr = get_lr(optimizer_g)
+            d_lr = get_lr(optimizer_d)
+            logger.info("G: New lr: {}".format(g_lr))
+            logger.info("D: New lr: ".format(d_lr))
+            writer.add_scalar("G_lr", g_lr, epoch+1)
+            writer.add_scalar("D_lr", d_lr, epoch+1)
     ###
     logger.info("Training finished")
 

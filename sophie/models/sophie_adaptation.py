@@ -6,6 +6,7 @@ import pdb
 import math
 import torchvision.transforms.functional as TF
 from sophie.modules.backbones import VisualExtractor
+from sophie.modules.attention import AddNorm
 
 MAX_PEDS = 32
 
@@ -297,6 +298,8 @@ class TrajectoryGenerator(nn.Module):
         self.sattn = MultiHeadAttention(
             key_size=self.h_dim, query_size=self.h_dim, value_size=self.h_dim, num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
+        self.addnorm1 = AddNorm(self.h_dim, 0.5)
+
         self.pos_encoding = PositionalEncoding(self.img_feats, dropout) # image
         self.pattn = MultiHeadAttention(
             key_size=self.img_feats, query_size=self.h_dim, value_size=self.img_feats, num_hiddens=self.h_dim, num_heads=4, dropout=dropout
@@ -339,7 +342,6 @@ class TrajectoryGenerator(nn.Module):
         final_encoder_h = self.encoder(obs_traj_rel) # batchx32
         # final_encoder_h = final_encoder_h.contiguous().view(batch, -1, self.h_dim) # 8x10x32
         final_encoder_h = torch.unsqueeze(final_encoder_h, 0) #  1xbatchx32
-
         # queries -> indican la forma del tensor de salida (primer argumento)
         final_encoder_h = self.lne(final_encoder_h)
         if start_end_seq is not None:
@@ -348,10 +350,12 @@ class TrajectoryGenerator(nn.Module):
                 attn_s_batch = self.sattn(
                     final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], None
                 ) # 8x10x32 # multi head self attention
+                attn_s_batch = self.addnorm1(attn_s_batch, final_encoder_h[:,start:end,:])
                 attn_s.append(attn_s_batch)
             attn_s = torch.cat(attn_s, 1)
         else:
             attn_s = self.sattn(final_encoder_h, final_encoder_h, final_encoder_h, None)
+
         # attn_p = self.pattn(final_encoder_h, visual_patch_enc, visual_patch_enc, None) # 8x10x32
         
         mlp_decoder_context_input = torch.cat(

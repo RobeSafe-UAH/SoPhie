@@ -48,3 +48,11 @@
     * manual bce loss - no sigmoid discriminator
     * ade: 12.7
     * fde: 24.8
+
+# Experimento 11
+    * ade: 3.3
+
+# Experimento 12
+    * ade ~4
+    * local attention
+    * l2 0.05
