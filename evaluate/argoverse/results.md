@@ -29,6 +29,7 @@
 * weight decay
 * l2 weight
     * [1, 0.25, 0.2, 0.15, 0.1 , 0.05]
+* addnorm -> no converge
 
 ## Experimento 1
 * multi to single
@@ -56,3 +57,32 @@
     * ade ~4
     * local attention
     * l2 0.05
+
+# Experimento 13
+    * addnorm
+    * malo, no converge
+
+# Experimento 14
+    * learning rate scheduler
+        * 1e-3
+        * 0.95
+        * 5.2 ade 1k iterations
+        * 0.05 de dataset -> learning rate baja muy rapido
+
+# Experimento G 1
+    * sube ade a +3
+    * mse
+
+# Experimento G 2
+    * mse
+    * ade min a 2.5
+    * 0.05 % dataset
+    * lr: 1e-4
+    * tendencia a bajar en iter 12k
+    * loss estable
+
+# Experimento G 3
+    * nll
+    * baja mas rapido
+    * lr: 1e-3
+    * ade 2.5 -> 6k

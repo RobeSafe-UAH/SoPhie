@@ -20,6 +20,7 @@ optim_parameters:
     d_learning_rate: 1.0e-4
     d_weight_decay: 0
 hyperparameters:
+    loss_type_g: "nll" # mse nll mse+nll
     lr_schduler: False # ExponentialLR
     lr_scheduler_gamma_g: 0.95
     lr_scheduler_gamma_d: 0.95
@@ -34,8 +35,8 @@ hyperparameters:
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 2
     checkpoint_every: 100
-    output_dir: "save/argoverse/exp_single_agent_out_temporal_13/"
-    exp_description: "local social attention, l2 loss weight: 0.05, attention with addnorm"
+    output_dir:  "save/argoverse/gen_exp/exp4" # "save/argoverse/test" 
+    exp_description: "nll loss, multi to single, mp_so model, lr: 1.0e-4"
     checkpoint_name: "0"
     checkpoint_start_from: 
     restore_from_checkpoint: 

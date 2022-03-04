@@ -1352,7 +1352,48 @@ def test_lr_scheduler(epochs, gamma):
         scheduler.step()
         print("Epoch {} New lr: {}".format(i, get_lr(optimizer)))
 
+def test_mse_loss():
+    from sophie.models.mp_so import TrajectoryGenerator as TG
+    import pdb
 
+    loss = nn.MSELoss()
+    m = TG()
+    m.train()
+    m.cuda()
+    obs = torch.randn(20,10,2).cuda()
+    obs_rel = torch.randn(20,10,2).cuda()
+    start_end_seq = torch.tensor([[0,3],[3,6], [6,10]]).cuda()
+    agent_idx = torch.tensor([0,3,6]).cuda()
+    target = torch.randn(30,3,2).cuda()
+    pred_traj = m(obs, obs_rel, start_end_seq, agent_idx)
+    l = loss(pred_traj, target)
+    print(l)
+
+def test_nll_loss():
+    from sophie.modules.losses import pytorch_neg_multi_log_likelihood_batch, pytorch_neg_multi_log_likelihood_single
+    from sophie.models.mp_so import TrajectoryGenerator as TG
+    import pdb
+
+    loss = pytorch_neg_multi_log_likelihood_batch
+    m = TG()
+    m.train()
+    m.cuda()
+    obs = torch.randn(20,10,2).cuda()
+    obs_rel = torch.randn(20,10,2).cuda()
+    start_end_seq = torch.tensor([[0,3],[3,6], [6,10]]).cuda()
+    agent_idx = torch.tensor([0,3,6]).cuda()
+    target = torch.randn(30,3,2).cuda()
+    pred_traj = m(obs, obs_rel, start_end_seq, agent_idx)
+
+    gt = target.permute(1,0,2)
+    pred = pred_traj.contiguous().unsqueeze(1).permute(2,1,0,3)
+    confidences = torch.ones(3,1).cuda() # 1 -> cancela el log en el error
+    avails = torch.ones(3,30).cuda() # puede ser siempre 1 (?)
+    pdb.set_trace()
+    l = loss(gt, pred, confidences, avails)
+    print(l)
+
+    
 if __name__ == "__main__":
     # test_read_file()
     # test_dataLoader()
@@ -1390,4 +1431,6 @@ if __name__ == "__main__":
     # image_list = read_video(path_video, (600,600))
 
     # print("image_list: ", type(image_list), len(image_list))
-    test_lr_scheduler(100, 0.95)
+    # test_lr_scheduler(100, 0.95)
+    # test_mse_loss()
+    test_nll_loss()
