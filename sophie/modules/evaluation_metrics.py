@@ -17,7 +17,6 @@ def displacement_error(pred_traj, pred_traj_gt, consider_ped=None, mode='sum'):
     elif mode == 'raw':
         return loss
 
-
 def final_displacement_error(
     pred_pos, pred_pos_gt, consider_ped=None, mode='sum'
 ):
