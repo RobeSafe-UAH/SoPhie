@@ -104,6 +104,13 @@
 
 # Experimento G 7
     * mse+nll
-    * oscila bastante
     * lr: 1e-4
     * 50 % dataset
+    * ade 1.96
+
+# Experimento G 8
+    * load G 7
+    * mse+nll
+    * lr: 1e-4
+    * 100 % dataset
+    * ade

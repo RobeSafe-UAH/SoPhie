@@ -14,10 +14,12 @@ from skimage.measure import LineModelND, ransac
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-sys.path.append("/home/robesafe/libraries/SoPhie")
+BASE_DIR = "/home/robesafe/tesis/SoPhie"
+sys.path.append(BASE_DIR)
 
 from sophie.utils.utils import relative_to_abs_sgan
-from sophie.models.sophie_adaptation import TrajectoryGenerator
+# from sophie.models.sophie_adaptation import TrajectoryGenerator
+from sophie.models.mp_so import TrajectoryGenerator
 from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
 # from sophie.trainers.trainer_sophie_adaptation_single_agent import cal_ade, cal_fde
 from sophie.trainers.trainer_sophie_adaptation import cal_ade, cal_fde
@@ -66,7 +68,6 @@ try:
     print("fde: ", fde.item())
 
 except:
-    BASE_DIR = "/home/robesafe/libraries/SoPhie"
 
     with open(r'./configs/sophie_argoverse.yml') as config:
         config = yaml.safe_load(config)
@@ -102,7 +103,7 @@ except:
                             num_workers=config.dataset.num_workers,
                             collate_fn=seq_collate)
 
-    exp_name = "exp9"
+    exp_name = "gen_exp/exp7"
     model_path = BASE_DIR + "/save/argoverse/" + exp_name + "/argoverse_motion_forecasting_dataset_0_with_model.pt"
     checkpoint = torch.load(model_path)
     generator = TrajectoryGenerator(config.sophie.generator)
@@ -211,7 +212,8 @@ except:
 
             for _ in range(num_samples):
                 # Get predictions
-                pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx) # seq_start_end)
+                # pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx) # seq_start_end)
+                pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, seq_start_end, agent_idx)
 
                 # Get predictions in absolute coordinates
                 pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :]) # 30,1,2

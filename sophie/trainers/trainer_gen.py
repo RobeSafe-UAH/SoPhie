@@ -163,11 +163,11 @@ def model_trainer(config, logger):
     if restore_path is not None and os.path.isfile(restore_path):
         logger.info('Restoring from checkpoint {}'.format(restore_path))
         checkpoint = torch.load(restore_path)
-        generator.load_state_dict(checkpoint['g_state'])
-        optimizer_g.load_state_dict(checkpoint['g_optim_state'])
-        t = checkpoint['counters']['t']
-        epoch = checkpoint['counters']['epoch']
-        checkpoint['restore_ts'].append(t)
+        generator.load_state_dict(checkpoint.config_cp['g_best_state'])
+        optimizer_g.load_state_dict(checkpoint.config_cp['g_optim_state'])
+        t = checkpoint.config_cp['counters']['t']
+        epoch = checkpoint.config_cp['counters']['epoch']
+        checkpoint.config_cp['restore_ts'].append(t)
     else:
         # Starting from scratch, so initialize checkpoint data structure
         t, epoch = 0, 0
