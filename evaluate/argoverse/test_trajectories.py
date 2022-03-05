@@ -82,6 +82,8 @@ except:
     split_percentage = 0.005
     batch_size = 1
 
+    print("dataset path: ", config.dataset.path)
+
     data_val = ArgoverseMotionForecastingDataset(dataset_name=config.dataset_name,
                                                  root_folder=config.dataset.path,
                                                  obs_len=config.hyperparameters.obs_len,
@@ -93,6 +95,7 @@ except:
                                                  shuffle=config.dataset.shuffle,
                                                  class_balance=config.dataset.class_balance,
                                                  obs_origin=config.hyperparameters.obs_origin)
+
     loader = DataLoader(data_val,
                             batch_size=batch_size,
                             shuffle=False,
@@ -108,7 +111,13 @@ except:
     generator.cuda() # Use GPU
     generator.eval()
 
-    num_samples = 1
+    num_samples = 5
+    output_all = []
+
+    ade_list = []
+    fde_list = []
+
+    num_samples = 6
     output_all = []
 
     ade_list = []
@@ -130,13 +139,12 @@ except:
             predicted_traj = []
             agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
             traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
-            predicted_traj.append(traj_real[:, agent_idx,:])
 
             # Check if the trajectory is a straight line or has a curve
-
-            agent_seq = traj_real[:,agent_idx,:].cpu().detach().numpy()
-            agent_x = agent_seq[:,:,0].reshape(-1,1)
-            agent_y = agent_seq[:,:,1].reshape(-1,1)
+  
+            agent_seq = traj_real[:,agent_idx,:].cpu().detach().numpy() # 50 x batch_size x 2
+            agent_x = agent_seq[:,0,0].reshape(-1,1) # We assume here 50 x 1 x 2 (1 represents batch_size = 1)
+            agent_y = agent_seq[:,0,1].reshape(-1,1)
 
             ## Sklearn    
 
@@ -197,20 +205,24 @@ except:
                 plt.ylim([y_min-threshold, y_max+threshold])
 
                 plt.show()
+     
+            top_k_ade = 50000
+            top_k_fde = 50000
 
             for _ in range(num_samples):
-
                 # Get predictions
-                pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx)
+                pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx) # seq_start_end)
+
                 # Get predictions in absolute coordinates
-                pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
-                traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-                predicted_traj.append(traj_fake[:,agent_idx,:])
+                pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :]) # 30,1,2
+                traj_fake = torch.cat([obs_traj[:,agent_idx, :], pred_traj_fake], dim=0) # 50,1,2
+                predicted_traj.append(traj_fake)
 
                 # Get metrics
-                agent_traj_gt = pred_traj_gt[:,agent_idx,:]#.unsqueeze(1)
-                agent_traj_fake = pred_traj_fake[:,agent_idx,:]#.unsqueeze(1)
+                agent_traj_gt = pred_traj_gt[:,agent_idx,:] # From Multi to Single (30 x bs x 2)
+                agent_traj_fake = pred_traj_fake # The output of the model is already single (30 x bs x 2)
 
+                
                 agent_obj_id = obj_id[agent_idx]
                 agent_non_linear_obj = non_linear_obj[agent_idx]
 
@@ -245,8 +257,12 @@ except:
                 ade = ade.item() / pred_len
                 fde = fde.item()
 
-                ade_list.append(ade)
-                fde_list.append(fde)
+                if ade < top_k_ade:
+                    top_k_ade = ade
+                    top_k_fde = fde
+
+            ade_list.append(ade)
+            fde_list.append(fde)
 
             predicted_traj = torch.stack(predicted_traj, axis=0)
             predicted_traj = predicted_traj.cpu().numpy()

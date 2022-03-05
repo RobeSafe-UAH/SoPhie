@@ -782,6 +782,7 @@ def check_accuracy(
             total_traj_nl += torch.sum(non_linear_obj).item()
             if limit and total_traj >= hyperparameters.num_samples_check:
                 break
+
     # metrics['d_loss'] = sum(d_losses) / len(d_losses)
     metrics['g_l2_loss_abs'] = sum(g_l2_losses_abs) / loss_mask_sum
     metrics['g_l2_loss_rel'] = sum(g_l2_losses_rel) / loss_mask_sum
