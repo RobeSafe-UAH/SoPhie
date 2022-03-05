@@ -32,7 +32,7 @@ data/datasets.tar.gz
 save/*.pt
 save/argoverse/*
 
-evaluate/*.ipynb
-evaluate/argoverse/*.ipynb
+evaluate/**/*.ipynb
+evaluate/**/*.h5
 
-results/*
+results/

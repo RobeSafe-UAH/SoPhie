@@ -68,7 +68,6 @@ try:
     print("fde: ", fde.item())
 
 except:
-
     with open(r'./configs/sophie_argoverse.yml') as config:
         config = yaml.safe_load(config)
         config = Prodict.from_dict(config)
