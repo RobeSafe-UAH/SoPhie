@@ -86,3 +86,21 @@
     * baja mas rapido
     * lr: 1e-3
     * ade 2.5 -> 6k
+
+# Experimento G 4
+    * nll
+    * parecido a g 3
+    * lr: 1e-4
+
+# Experimento G 5 / 6
+    * mse+nll
+    * oscila bastante
+    * lr: 1e-3
+    * 9k -> ade empieza a subir
+    * Exp 6 -> lr: 1e-4 -> mas estable -> 20k iteraciones -> 2.2 ade -> tendencia a bajar lentamente -> bajar lr o regularizacion
+
+# Experimento G 7
+    * mse+nll
+    * oscila bastante
+    * lr: 1e-4
+    * 50 % dataset

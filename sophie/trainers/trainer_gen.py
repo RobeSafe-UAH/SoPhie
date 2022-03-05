@@ -149,7 +149,8 @@ def model_trainer(config, logger):
 
     optimizer_g = optim.Adam(generator.parameters(), lr=optim_parameters.g_learning_rate, weight_decay=optim_parameters.g_weight_decay)
     if hyperparameters.lr_schduler:
-        scheduler_g = lrs.ExponentialLR(optimizer_g, gamma=hyperparameters.lr_scheduler_gamma_g)
+        # scheduler_g = lrs.ExponentialLR(optimizer_g, gamma=hyperparameters.lr_scheduler_gamma_g)
+        scheduler_g = lrs.ReduceLROnPlateau(optimizer_g, "min", min_lr=1e-7, verbose=True, factor=0.05)
 
     restore_path = None
     if hyperparameters.checkpoint_start_from is not None:
@@ -228,7 +229,10 @@ def model_trainer(config, logger):
                     checkpoint.config_cp["metrics_val"][k].append(v)
 
                 min_ade = min(checkpoint.config_cp["metrics_val"]['ade'])
+                min_fde = min(checkpoint.config_cp["metrics_val"]['fde'])
                 min_ade_nl = min(checkpoint.config_cp["metrics_val"]['ade_nl'])
+                logger.info("Min ADE: {}".format(min_ade))
+                logger.info("Min FDE: {}".format(min_fde))
                 if metrics_val['ade'] <= min_ade:
                     logger.info('New low for avg_disp_error')
                     checkpoint.config_cp["best_t"] = t
@@ -273,7 +277,7 @@ def model_trainer(config, logger):
             if t >= hyperparameters.num_iterations:
                 break
         
-        if hyperparameters.lr_schduler:
+        if hyperparameters.lr_schduler and t > 2000:
             scheduler_g.step()
             g_lr = get_lr(optimizer_g)
             logger.info("G: New lr: {}".format(g_lr))
