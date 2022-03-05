@@ -408,6 +408,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.obs_origin = obs_origin
         self.min_ped = 2
         self.ego_vehicle_origin = []
+        self.cont_seqs = 0
 
         folder = root_folder + split + "/data/"
         files, num_files = load_list_from_folder(folder)
@@ -612,11 +613,11 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
     def __getitem__(self, index):
         if self.class_balance >= 0.0:
-            if index % self.batch_size == 0: # Get a new batch
+            if self.cont_seqs % self.batch_size == 0: # Get a new batch
                 self.cont_straight_traj = []
                 self.cont_curved_traj = []
 
-            if index % self.batch_size == (self.batch_size-1):
+            if self.cont_seqs % self.batch_size == (self.batch_size-1):
                 assert len(self.cont_straight_traj) < self.class_balance*self.batch_size
 
             trajectory_index = self.num_seq_list[index]
@@ -646,5 +647,9 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 self.object_id_list[start:end], self.city_ids[index], self.ego_vehicle_origin[index,:,:],
                 self.num_seq_list[index], self.norm
               ] 
+
+        # Increase file count
+        
+        self.cont_seqs += 1
 
         return out

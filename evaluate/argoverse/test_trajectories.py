@@ -14,7 +14,9 @@ from skimage.measure import LineModelND, ransac
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-sys.path.append("/home/robesafe/libraries/SoPhie")
+BASE_DIR = "/home/robesafe/libraries/SoPhie"
+
+sys.path.append(BASE_DIR)
 
 from sophie.utils.utils import relative_to_abs_sgan
 from sophie.models.sophie_adaptation import TrajectoryGenerator
@@ -66,8 +68,6 @@ try:
     print("fde: ", fde.item())
 
 except:
-    BASE_DIR = "/home/robesafe/libraries/SoPhie"
-
     with open(r'./configs/sophie_argoverse.yml') as config:
         config = yaml.safe_load(config)
         config = Prodict.from_dict(config)
