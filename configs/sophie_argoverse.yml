@@ -7,8 +7,8 @@ dataset_name: argoverse_motion_forecasting_dataset
 dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
-    batch_size: 128 # 32 max
-    split_percentage: 1.0
+    batch_size: 8 # 32 max
+    split_percentage: 0.005
     shuffle: False # False to check the input data, always set to True
     class_balance: 0.7 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
@@ -29,19 +29,19 @@ hyperparameters:
     classic_trainer: False
     tensorboard_active: True
     num_iterations: 20000 #1608 #20000
-    num_epochs: 500 #75
+    num_epochs: 50000000 #75
     d_steps: 2
     g_steps: 1
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 2
     checkpoint_every: 100
-    output_dir:  "save/argoverse/gen_exp/exp8" # "save/argoverse/test"  
+    output_dir:  "save/argoverse/test" # "save/argoverse/gen_exp/exp8" #   
     exp_description: "mse+nll loss, multi to single, mp_so model, lr: 1.0e-4"
     checkpoint_name: "0"
     checkpoint_start_from: "./save/argoverse/gen_exp/exp7/argoverse_motion_forecasting_dataset_0_with_model.pt"
     restore_from_checkpoint: 
     clipping_threshold_d: 0
-    clipping_threshold_g: 1.5
+    clipping_threshold_g: 1.2
     best_k: 10
     l2_loss_weight: 0.05 # If different from 0, L2 loss is considered when training
     num_samples_check: 5000

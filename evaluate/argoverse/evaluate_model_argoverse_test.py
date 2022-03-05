@@ -22,11 +22,12 @@ from torch.utils.data import DataLoader
 
 from argoverse.evaluation.competition_util import generate_forecasting_h5
 
-BASE_DIR = "/home/robesafe/libraries/SoPhie"
+BASE_DIR = "/home/robesafe/tesis/SoPhie"
 sys.path.append(BASE_DIR)
 
 from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
-from sophie.models.sophie_adaptation import TrajectoryGenerator
+# from sophie.models.sophie_adaptation import TrajectoryGenerator
+from sophie.models.mp_so import TrajectoryGenerator
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.utils import relative_to_abs, relative_to_abs_sgan
 
@@ -50,6 +51,7 @@ def evaluate(loader, generator, num_samples, pred_len, split, results_path):
     test_folder = BASE_DIR+"/data/datasets/argoverse/motion-forecasting/test/data/"
     file_list = glob.glob(os.path.join(test_folder, "*.csv"))
     file_list = [int(name.split("/")[-1].split(".")[0]) for name in file_list]
+    print("file_list ", len(file_list))
 
     with torch.no_grad(): # When testing, gradient calculation is not required
         for batch_index, batch in enumerate(loader):
@@ -62,13 +64,12 @@ def evaluate(loader, generator, num_samples, pred_len, split, results_path):
 
             predicted_traj = [] # Store k trajectories per sequence for the agent
             agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
-            
             for _ in range(num_samples):
                 # Get predictions
-                pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx) # seq_start_end)
+                pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, seq_start_end, agent_idx) # seq_start_end)
 
                 # Get predictions in absolute coordinates
-                pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :]) # 30,1,2
+                pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :]) + ego_origin.permute(1,0,2)# 30,1,2
                 predicted_traj.append(pred_traj_fake)
 
             predicted_traj = torch.stack(predicted_traj, axis=0).view(num_samples,-1,2) # Num_samples x pred_len x 2 (x,y)
@@ -85,6 +86,7 @@ def evaluate(loader, generator, num_samples, pred_len, split, results_path):
 
         # Generate H5 file for Argoverse Motion-Forecasting competition
         generate_forecasting_h5(output_all, results_path)
+        pdb.set_trace()
 
     return output_all
 
