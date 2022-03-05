@@ -108,8 +108,8 @@ class Decoder(nn.Module):
         self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
         self.spatial_embedding = nn.Linear(2, self.embedding_dim)
         self.ln1 = nn.LayerNorm(2)
-        # self.hidden2pos = nn.Linear(self.h_dim, 2)
-        self.hidden2pos = make_mlp([self.h_dim, 128, 64, 2])
+        self.hidden2pos = nn.Linear(self.h_dim, 2)
+        # self.hidden2pos = make_mlp([self.h_dim, 128, 64, 2])
         self.ln2 = nn.LayerNorm(self.h_dim)
         self.output_activation = nn.Sigmoid()
 
@@ -133,7 +133,7 @@ class Decoder(nn.Module):
         pred_traj_fake_rel = torch.stack(pred_traj_fake_rel, dim=0)
         return pred_traj_fake_rel
 
-class DecoderTemporal(nn.Module):
+class TemporalDecoder(nn.Module):
 
     def __init__(self, seq_len=30, h_dim=64, embedding_dim=16):
         super().__init__()
@@ -143,12 +143,11 @@ class DecoderTemporal(nn.Module):
         self.embedding_dim = embedding_dim
 
         self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
-        self.spatial_embedding = nn.Linear(40, self.embedding_dim) # 2 (x,y) | 20 num_obs
+        self.spatial_embedding = nn.Linear(40, self.embedding_dim) # 20 obs * 2 points
         self.ln1 = nn.LayerNorm(40)
         self.hidden2pos = nn.Linear(self.h_dim, 2)
         # self.hidden2pos = make_mlp([self.h_dim, 128, 64, 2])
         self.ln2 = nn.LayerNorm(self.h_dim)
-        self.output_activation = nn.Sigmoid()
 
     def forward(self, traj_abs, traj_rel, state_tuple):
         """
@@ -156,13 +155,11 @@ class DecoderTemporal(nn.Module):
         """
         npeds = traj_abs.size(1)
         pred_traj_fake_rel = []
-        # F.leaky_relu(self.spatial_embedding(self.ln1(last_pos_rel)))
         decoder_input = F.leaky_relu(self.spatial_embedding(self.ln1(traj_rel.contiguous().view(npeds, -1)))) # bx16
         decoder_input = decoder_input.contiguous().view(1, npeds, self.embedding_dim) # 1x batchx 16
 
         for _ in range(self.seq_len):
-            output, state_tuple = self.decoder(decoder_input, state_tuple) #
-            # rel_pos = self.output_activation(self.hidden2pos(self.ln2(output.contiguous().view(-1, self.h_dim))))# + last_pos_rel # 32 -> 2
+            output, state_tuple = self.decoder(decoder_input, state_tuple) 
             rel_pos = self.hidden2pos(self.ln2(output.contiguous().view(-1, self.h_dim)))
             traj_rel = torch.roll(traj_rel, -1, dims=(0))
             traj_rel[-1] = rel_pos
@@ -239,32 +236,10 @@ class MultiHeadAttention(nn.Module):
         output_concat = transpose_output(output, self.num_heads)
         return self.W_o(output_concat)
 
-class PositionalEncoding(nn.Module):
-    """
-    Positional encoding (absolute)
-        input: X
-        output: X + P
-        P: positional embedding matrix
-    """
-
-    def __init__(self, num_hiddens, dropout, max_len=1000):
-        super().__init__()
-        self.dropout = nn.Dropout(dropout)
-        self.P = torch.zeros((1, max_len, num_hiddens))
-        X = torch.arange(max_len, dtype=torch.float32).reshape(-1,1) / torch.pow(
-            10000, torch.arange(0,num_hiddens,2,dtype=torch.float32) / num_hiddens
-        )
-        self.P[:,:,0::2] = torch.sin(X)
-        self.P[:,:,1::2] = torch.cos(X)
-
-    def forward(self, X):
-        X = X + self.P[:, :X.shape[1], :].to(X.device)
-        return self.dropout(X)
-
 class TrajectoryGenerator(nn.Module):
     def __init__(
         self, obs_len=20, pred_len=30, mlp_dim=64, h_dim=32, embedding_dim=16, bottleneck_dim=32,
-        noise_dim=8, n_agents=10, img_feature_size=(512,6,6), dropout=0 # TODO modificar img_feature_size para que se modifique con el modelo
+        noise_dim=8, n_agents=10, img_feature_size=(512,6,6), dropout=0
     ):
         super(TrajectoryGenerator, self).__init__()
 
@@ -276,41 +251,21 @@ class TrajectoryGenerator(nn.Module):
         self.bottleneck_dim = bottleneck_dim
         self.noise_dim = noise_dim
         self.n_agents = n_agents
-        self.img_feats = img_feature_size[0]*img_feature_size[1]*img_feature_size[2]
-
-        vgg_config = {
-            "vgg_type": 19,
-            "batch_norm": False,
-            "pretrained": True,
-            "features": True
-        }
-        self.visual_feature_extractor = VisualExtractor(
-            "vgg19",
-            vgg_config
-        )
-
-        for param in self.visual_feature_extractor.parameters():
-            param.requires_grad = False
-
 
         self.encoder = Encoder(h_dim=self.h_dim)
         self.lne = nn.LayerNorm(self.h_dim)
+
         self.sattn = MultiHeadAttention(
-            key_size=self.h_dim, query_size=self.h_dim, value_size=self.h_dim, num_hiddens=self.h_dim, num_heads=4, dropout=dropout
+            key_size=self.h_dim, query_size=self.h_dim, value_size=self.h_dim,
+            num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
-        # self.addnorm1 = AddNorm(self.h_dim, 0.5)
 
-        self.pos_encoding = PositionalEncoding(self.img_feats, dropout) # image
-        self.pattn = MultiHeadAttention(
-            key_size=self.img_feats, query_size=self.h_dim, value_size=self.img_feats, num_hiddens=self.h_dim, num_heads=4, dropout=dropout
-        )
-        self.decoder = DecoderTemporal(h_dim=self.h_dim)
+        self.decoder = TemporalDecoder(h_dim=self.h_dim)
 
-        # mlp_decoder_context_dims = [self.h_dim*3, self.mlp_dim, self.h_dim - self.noise_dim]
-        mlp_context_input = self.h_dim*2
+        mlp_context_input = self.h_dim*2 # concat of social context and trajectories embedding
         self.lnc = nn.LayerNorm(mlp_context_input)
         mlp_decoder_context_dims = [mlp_context_input, self.mlp_dim, self.h_dim - self.noise_dim]
-        self.mlp_decoder_context = make_mlp(mlp_decoder_context_dims) # [96, 64, 44]
+        self.mlp_decoder_context = make_mlp(mlp_decoder_context_dims)
 
     def add_noise(self, _input):
         npeds = _input.size(0)
@@ -319,55 +274,49 @@ class TrajectoryGenerator(nn.Module):
         vec = z_decoder.view(1, -1).repeat(npeds, 1)
         return torch.cat((_input, vec), dim=1)
 
-    def calculate_patch(self, img_tensor): #TODO remove magic number
-        # batch x 512 x 18 x 18
-        stride = int(img_tensor.size(2)/3)
-        batch = img_tensor.size(0)
-        patch = []
-        for i in range(3):
-            for j in range(3):
-                patch.append(img_tensor[:,:,i*stride:(i+1)*stride, (j)*stride:(j+1)*stride].contiguous().view(batch,-1))
-        return torch.stack(patch, dim=1) # batch x 9 x (512*6*6)=18432
-
-    def forward(self, obs_traj, obs_traj_rel, frames, agent_idx=None, start_end_seq=None):
-
-        # visual_features = self.visual_feature_extractor(frames) # batch x 512 x 18 x 18
-        # visual_patch = self.calculate_patch(visual_features) # 8x9x(512*6*6)
-        # visual_patch_enc = self.pos_encoding(visual_patch)
-        # visual_patch_enc = visual_patch_enc.contiguous().view(
-        #     1, visual_patch_enc.size(0)*visual_patch_enc.size(1), visual_patch_enc.size(2)
-        # )
-        npeds = obs_traj_rel.size(1)
+    def forward(self, obs_traj, obs_traj_rel, start_end_seq, agent_idx=None):
+        """
+            n: number of objects in all the scenes of the batch
+            b: batch
+            obs_traj: (20,n,2)
+            obs_traj_rel: (20,n,2)
+            start_end_seq: (b,2)
+            agent_idx: (b, 1) -> index of agent in every sequence.
+                None: trajectories for every object in the scene will be generated
+                Not None: just trajectories for the agent in the scene will be generated
+            -----------------------------------------------------------------------------
+            pred_traj_fake_rel:
+                (30,n,2) -> if agent_idx is None
+                (30,b,2)
+        """
+        
+        ## Encode trajectory
         final_encoder_h = self.encoder(obs_traj_rel) # batchx32
-        # final_encoder_h = final_encoder_h.contiguous().view(batch, -1, self.h_dim) # 8x10x32
         final_encoder_h = torch.unsqueeze(final_encoder_h, 0) #  1xbatchx32
         # queries -> indican la forma del tensor de salida (primer argumento)
         final_encoder_h = self.lne(final_encoder_h)
-        if start_end_seq is not None:
-            attn_s = []
-            for start, end in start_end_seq.data: # slow as fuck
-                attn_s_batch = self.sattn(
-                    final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], None
-                ) # 8x10x32 # multi head self attention
-                # attn_s_batch = self.addnorm1(attn_s_batch, final_encoder_h[:,start:end,:])
-                attn_s.append(attn_s_batch)
-            attn_s = torch.cat(attn_s, 1)
-        else:
-            attn_s = self.sattn(final_encoder_h, final_encoder_h, final_encoder_h, None)
 
-        # attn_p = self.pattn(final_encoder_h, visual_patch_enc, visual_patch_enc, None) # 8x10x32
+        ## Social Attention to encoded trajectories
+        attn_s = []
+        for start, end in start_end_seq.data:
+            attn_s_batch = self.sattn(
+                final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], None
+            ) # 8x10x32 # multi head self attention
+            attn_s.append(attn_s_batch)
+        attn_s = torch.cat(attn_s, 1)
         
+        ## create decoder context input
         mlp_decoder_context_input = torch.cat(
             [
                 final_encoder_h.contiguous().view(-1, 
-                self.h_dim), attn_s.contiguous().view(-1, self.h_dim), 
-                # attn_p.contiguous().view(-1, self.h_dim)
+                self.h_dim), attn_s.contiguous().view(-1, self.h_dim)
             ],
             dim=1
         ) # 80 x (32*3)
         if agent_idx is not None:
             mlp_decoder_context_input = mlp_decoder_context_input[agent_idx,:]
 
+        ## add noise to decoder input
         noise_input = self.mlp_decoder_context(self.lnc(mlp_decoder_context_input)) # 80x24
         decoder_h = self.add_noise(noise_input) # 80x32
         decoder_h = torch.unsqueeze(decoder_h, 0) # 1x80x32
@@ -375,6 +324,7 @@ class TrajectoryGenerator(nn.Module):
         decoder_c = torch.zeros(tuple(decoder_h.shape)).cuda() # 1x80x32
         state_tuple = (decoder_h, decoder_c)
 
+        # Get agent observations
         if agent_idx is not None: # for single agent prediction
             last_pos = obs_traj[:, agent_idx, :]
             last_pos_rel = obs_traj_rel[:, agent_idx, :]
@@ -382,6 +332,7 @@ class TrajectoryGenerator(nn.Module):
             last_pos = obs_traj[-1, :, :]
             last_pos_rel = obs_traj_rel[-1, :, :]
 
+        # decode trajectories
         pred_traj_fake_rel = self.decoder(last_pos, last_pos_rel, state_tuple)
         return pred_traj_fake_rel
 
@@ -399,6 +350,5 @@ class TrajectoryDiscriminator(nn.Module):
     def forward(self, traj, traj_rel):
 
         final_h = self.encoder(traj_rel)
-        # scores = torch.sigmoid(self.real_classifier(final_h))
         scores = self.real_classifier(final_h)
         return scores

@@ -290,13 +290,13 @@ class TransformerEncoder(BaseEncoder):
         - EncoderBlock
     """
 
-    def __init__(self, vocab_size, key_size, query_size, value_size, num_hiddens, norm_shape, 
+    def __init__(self, traj_size, key_size, query_size, value_size, num_hiddens, norm_shape, 
         ffn_num_input, ffn_num_hiddens, num_heads, num_layers, dropout, 
         use_bias=False, **kwargs
     ):
         super().__init__(**kwargs)
         self.num_hiddens = num_hiddens
-        self.embedding = nn.Embedding(vocab_size, num_hiddens)
+        self.embedding = nn.Linear(traj_size, num_hiddens)
         self.pos_encoding = PositionalEncoding(num_hiddens, dropout)
         self.blks = nn.Sequential()
         for i in range(num_layers):

@@ -34,3 +34,5 @@ save/argoverse/*
 
 evaluate/**/*.ipynb
 evaluate/**/*.h5
+
+results/
