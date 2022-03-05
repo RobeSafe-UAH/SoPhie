@@ -70,13 +70,16 @@
         * 0.05 de dataset -> learning rate baja muy rapido
 
 # Experimento G 1
-    * sube ade a +3
+    * 5%
+    * oscila
+    * lr: 1e-3
+    * sube ade a +3 -> 7k -> min 2.7
     * mse
 
 # Experimento G 2
     * mse
     * ade min a 2.5
-    * 0.05 % dataset
+    * 5 % dataset
     * lr: 1e-4
     * tendencia a bajar en iter 12k
     * loss estable

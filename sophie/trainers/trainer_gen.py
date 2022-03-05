@@ -398,7 +398,7 @@ def generator_step(
             confidences,
             avails
         )
-        loss = loss_mse + loss_nll
+        loss = loss_mse + loss_nll # ponderado
         losses["G_mse_loss"] = loss_mse.item()
         losses["G_nll_loss"] = loss_nll.item()
     
