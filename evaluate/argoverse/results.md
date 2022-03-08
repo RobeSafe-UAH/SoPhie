@@ -112,5 +112,37 @@
     * load G 7
     * mse+nll
     * lr: 1e-4
-    * 100 % dataset
-    * ade
+    * 75 % dataset
+    * ADE: 1.9047845275628752
+    * FDE: 4.2565066906233575
+
+# Experimento G 9
+    * load G 8
+    * mse+nll*2
+    * lr: 5.0e-5
+    * 75 % dataset
+    * ADE: 1.90
+    * FDE: 4.25 
+
+# Experimento G 10
+    * load G 8
+    * mse_w+nll*2
+    * lr: 1.0e-3
+    * 75 % dataset
+    * ADE: 1.90
+    * FDE: 4.25
+
+# Experimento G trans 2
+    * 10% dataset
+    * mse_w+nll
+    * lr: 1.0e-3
+    * ade: 1.56
+    * fde: 3.34
+
+# Experimento G trans 3 - falta
+    * 25% dataset
+    * mse_w+nll
+    * lr: 1.0e-3
+    * load g trans 2
+    * ade: 
+    * fde: 

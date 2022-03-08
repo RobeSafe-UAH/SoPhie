@@ -11,8 +11,6 @@ from sophie.modules.encoders import EncoderLSTM as Encoder
 from sophie.modules.decoders import DecoderLSTM as Decoder
 from sophie.modules.decoders import TemporalDecoderLSTM as TemporalDecoder
 
-MAX_PEDS = 32
-
 def make_mlp(dim_list):
     layers = []
     for dim_in, dim_out in zip(dim_list[:-1], dim_list[1:]):
@@ -23,11 +21,10 @@ def make_mlp(dim_list):
 def get_noise(shape):
     return torch.randn(*shape).cuda()
 
-
 class TrajectoryGenerator(nn.Module):
     def __init__(
         self, obs_len=20, pred_len=30, mlp_dim=64, h_dim=32, embedding_dim=16, bottleneck_dim=32,
-        noise_dim=8, n_agents=10, img_feature_size=(512,6,6), dropout=0.3
+        noise_dim=8, n_agents=10, img_feature_size=(512,6,6), dropout=0.3, vi_type="home"
     ):
         super(TrajectoryGenerator, self).__init__()
 
@@ -40,16 +37,36 @@ class TrajectoryGenerator(nn.Module):
         self.noise_dim = noise_dim
         self.n_agents = n_agents
 
+        ## Social features
         self.encoder = Encoder(h_dim=self.h_dim)
         self.lne = nn.LayerNorm(self.h_dim)
 
+        ## Social context
         self.sattn = MultiHeadAttention(
             key_size=self.h_dim, query_size=self.h_dim, value_size=self.h_dim,
             num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
 
+        ## Visual features
+        self.img_features = VisualExtractor(vi_type)
+
+        ## Visual context
+        self.v_dim = 28*28
+        self.vattn = MultiHeadAttention(
+            key_size=self.v_dim, query_size=self.v_dim, value_size=self.v_dim,
+            num_hiddens=self.h_dim, num_heads=4, dropout=dropout
+        )
+
+        ## Fusion context
+        self.fattn = MultiHeadAttention(
+            key_size=self.h_dim, query_size=self.h_dim, value_size=self.h_dim,
+            num_hiddens=self.h_dim, num_heads=4, dropout=dropout
+        )
+
+        ## Decoder trajectories
         self.decoder = TemporalDecoder(h_dim=self.h_dim)
 
+        ## Noise and fuse context
         mlp_context_input = self.h_dim*2 # concat of social context and trajectories embedding
         self.lnc = nn.LayerNorm(mlp_context_input)
         mlp_decoder_context_dims = [mlp_context_input, self.mlp_dim, self.h_dim - self.noise_dim]
@@ -62,7 +79,7 @@ class TrajectoryGenerator(nn.Module):
         vec = z_decoder.view(1, -1).repeat(npeds, 1)
         return torch.cat((_input, vec), dim=1)
 
-    def forward(self, obs_traj, obs_traj_rel, start_end_seq, agent_idx=None):
+    def forward(self, obs_traj, obs_traj_rel, frames, start_end_seq, agent_idx=None):
         """
             n: number of objects in all the scenes of the batch
             b: batch
@@ -77,19 +94,27 @@ class TrajectoryGenerator(nn.Module):
                 (30,n,2) -> if agent_idx is None
                 (30,b,2)
         """
-        
+
+        ## Visual features - attention
+        visual = self.img_features(frames) # (b,128,28,28)
+        b,c,w,h = visual.shape
+        visual = visual.view(b,c,-1) # (b,c,w*h)
+        visual = self.vattn(visual,visual,visual,None) # (b,128,32)
+
         ## Encode trajectory
         final_encoder_h = self.encoder(obs_traj_rel) # batchx32
         final_encoder_h = torch.unsqueeze(final_encoder_h, 0) #  1xbatchx32
         # queries -> indican la forma del tensor de salida (primer argumento)
         final_encoder_h = self.lne(final_encoder_h)
 
+
         ## Social Attention to encoded trajectories
         attn_s = []
-        for start, end in start_end_seq.data:
+        for i, (start, end) in enumerate(start_end_seq.data):
             attn_s_batch = self.sattn(
                 final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], None
-            ) # 8x10x32 # multi head self attention
+            ) # 8x10x32 # multi head self attention (b,peds,32)
+            attn_s_batch = self.fattn(attn_s_batch, visual[i].unsqueeze(0), visual[i].unsqueeze(0), None)
             attn_s.append(attn_s_batch)
         attn_s = torch.cat(attn_s, 1)
         

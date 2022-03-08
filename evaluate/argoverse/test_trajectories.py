@@ -122,6 +122,7 @@ except:
 
     ade_list = []
     fde_list = []
+    num_seq_list = []
 
     DEBUG_TRAJECTORY_CLASSIFIER = False
 
@@ -134,7 +135,7 @@ except:
             batch = [tensor.cuda() for tensor in batch]
             
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-             loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _,_) = batch
+             loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq,_) = batch
 
             predicted_traj = []
             agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
@@ -264,6 +265,7 @@ except:
 
             ade_list.append(ade)
             fde_list.append(fde)
+            num_seq_list.append(num_seq)
 
             predicted_traj = torch.stack(predicted_traj, axis=0)
             predicted_traj = predicted_traj.cpu().numpy()
@@ -286,11 +288,11 @@ except:
 
             sorted_indeces = np.argsort(ade_list)
 
-            for _,i in enumerate(sorted_indeces):
-                seq_id = i
-                curr_ade = round(ade_list[i],3)
-                curr_fde = round(fde_list[i],3)
-                data = [str(i),curr_ade,curr_fde]
+            for _,sorted_index in enumerate(sorted_indeces):
+                seq_id = num_seq_list[sorted_index]
+                curr_ade = round(ade_list[sorted_index],3)
+                curr_fde = round(fde_list[sorted_index],3)
+                data = [str(seq_id),curr_ade,curr_fde]
 
                 csv_writer.writerow(data)
 

@@ -41,3 +41,14 @@ def relative_to_abs_sgan(rel_traj, start_pos):
     start_pos = torch.unsqueeze(start_pos, dim=1)
     abs_traj = displacement + start_pos
     return abs_traj.permute(1, 0, 2)
+
+
+def create_weights(batch, vmin, vmax, w_len=30, w_type="linear"):
+    w = torch.ones(w_len)
+    if w_type == "linear":
+        w = torch.linspace(vmin, vmax, w_len)
+    elif w_type == "exponential":
+        w = w
+
+    w = torch.repeat_interleave(w.unsqueeze(0), batch, dim=0)
+    return w

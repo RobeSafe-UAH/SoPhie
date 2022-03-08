@@ -1,103 +1,103 @@
 Sequence ADE FDE
-51 0.262 0.837
-69 0.281 0.303
-42 0.336 0.494
-40 0.337 0.551
-52 0.35 0.652
-97 0.389 0.972
-8 0.396 0.702
-89 0.429 0.947
-94 0.457 0.895
-84 0.486 1.145
-25 0.488 0.828
-57 0.496 1.297
-67 0.547 1.484
-72 0.567 1.192
-32 0.612 1.69
-36 0.612 1.833
-78 0.644 1.417
-96 0.708 1.513
-39 0.742 2.308
-7 0.742 1.685
-82 0.751 1.631
-54 0.764 1.61
-46 0.765 1.757
-74 0.776 1.37
-1 0.776 1.812
-92 0.805 1.767
-2 0.831 1.949
-22 0.854 1.413
-38 0.881 1.928
-70 0.892 1.94
-33 0.896 3.218
-56 1.129 2.445
-31 1.144 2.933
-26 1.162 3.415
-44 1.163 1.672
-17 1.174 1.849
-6 1.177 2.347
-88 1.204 3.64
-95 1.272 2.433
-93 1.311 3.043
-64 1.388 3.098
-16 1.403 2.762
-63 1.421 2.545
-27 1.458 2.754
-59 1.477 3.517
-53 1.516 3.741
-18 1.575 2.224
-76 1.585 3.898
-9 1.604 4.9
-21 1.648 4.742
-20 1.672 3.918
-87 1.817 4.369
-24 1.86 2.683
-47 1.918 4.987
-80 1.95 3.813
-41 2.037 4.931
-90 2.069 3.716
-98 2.114 5.384
-81 2.125 6.029
-37 2.173 3.014
-45 2.201 6.248
-91 2.244 4.59
-73 2.266 4.694
-3 2.336 4.614
-35 2.343 4.55
-19 2.391 5.5
-0 2.409 5.682
-83 2.423 4.667
-55 2.431 5.318
-34 2.528 6.031
-86 2.565 6.021
-68 2.671 6.039
-75 2.687 5.802
-49 2.781 6.501
-12 2.808 6.128
-15 2.971 7.994
-43 3.01 5.558
-58 3.101 7.98
-5 3.111 10.392
-65 3.187 8.352
-11 3.207 7.224
-77 3.21 5.096
-50 3.495 10.396
-28 3.566 8.633
-66 3.756 8.727
-23 3.906 8.923
-60 4.055 6.815
-62 4.071 6.882
-30 4.417 11.755
-85 4.473 12.15
-79 4.633 8.546
-10 5.993 16.712
-13 6.092 16.453
-4 6.462 17.335
-48 6.867 13.812
-14 7.047 15.828
-71 9.27 26.365
-29 19.074 36.265
-99 19.312 36.629
-61 19.314 36.649
+|tensor([52], device='cuda:0', dtype=torch.int32)| 0.255 0.844
+|tensor([41], device='cuda:0', dtype=torch.int32)| 0.264 0.407
+|tensor([101], device='cuda:0', dtype=torch.int32)| 0.283 0.783
+|tensor([53], device='cuda:0', dtype=torch.int32)| 0.35 0.673
+|tensor([71], device='cuda:0', dtype=torch.int32)| 0.368 0.432
+|tensor([9], device='cuda:0', dtype=torch.int32)| 0.369 0.639
+|tensor([71], device='cuda:0', dtype=torch.int32)| 0.418 0.532
+|tensor([26], device='cuda:0', dtype=torch.int32)| 0.457 0.715
+|tensor([43], device='cuda:0', dtype=torch.int32)| 0.49 0.53
+|tensor([28], device='cuda:0', dtype=torch.int32)| 0.498 1.501
+|tensor([58], device='cuda:0', dtype=torch.int32)| 0.505 1.322
+|tensor([93], device='cuda:0', dtype=torch.int32)| 0.508 1.066
+|tensor([98], device='cuda:0', dtype=torch.int32)| 0.529 1.169
+|tensor([87], device='cuda:0', dtype=torch.int32)| 0.531 1.243
+|tensor([75], device='cuda:0', dtype=torch.int32)| 0.543 0.99
+|tensor([33], device='cuda:0', dtype=torch.int32)| 0.573 1.754
+|tensor([69], device='cuda:0', dtype=torch.int32)| 0.607 1.55
+|tensor([115], device='cuda:0', dtype=torch.int32)| 0.633 1.345
+|tensor([55], device='cuda:0', dtype=torch.int32)| 0.678 1.368
+|tensor([2], device='cuda:0', dtype=torch.int32)| 0.72 1.747
+|tensor([37], device='cuda:0', dtype=torch.int32)| 0.734 2.095
+|tensor([96], device='cuda:0', dtype=torch.int32)| 0.744 1.747
+|tensor([40], device='cuda:0', dtype=torch.int32)| 0.771 2.361
+|tensor([77], device='cuda:0', dtype=torch.int32)| 0.772 1.374
+|tensor([85], device='cuda:0', dtype=torch.int32)| 0.778 1.679
+|tensor([3], device='cuda:0', dtype=torch.int32)| 0.816 1.944
+|tensor([114], device='cuda:0', dtype=torch.int32)| 0.851 1.226
+|tensor([8], device='cuda:0', dtype=torch.int32)| 0.867 1.85
+|tensor([23], device='cuda:0', dtype=torch.int32)| 0.871 1.472
+|tensor([100], device='cuda:0', dtype=torch.int32)| 0.88 1.682
+|tensor([81], device='cuda:0', dtype=torch.int32)| 0.887 2.594
+|tensor([114], device='cuda:0', dtype=torch.int32)| 0.888 1.367
+|tensor([34], device='cuda:0', dtype=torch.int32)| 0.903 3.254
+|tensor([39], device='cuda:0', dtype=torch.int32)| 0.92 1.974
+|tensor([72], device='cuda:0', dtype=torch.int32)| 0.938 1.972
+|tensor([27], device='cuda:0', dtype=torch.int32)| 1.118 3.347
+|tensor([7], device='cuda:0', dtype=torch.int32)| 1.122 2.24
+|tensor([57], device='cuda:0', dtype=torch.int32)| 1.135 2.402
+|tensor([45], device='cuda:0', dtype=torch.int32)| 1.146 1.458
+|tensor([18], device='cuda:0', dtype=torch.int32)| 1.152 1.84
+|tensor([45], device='cuda:0', dtype=torch.int32)| 1.158 1.553
+|tensor([45], device='cuda:0', dtype=torch.int32)| 1.189 1.545
+|tensor([82], device='cuda:0', dtype=torch.int32)| 1.256 1.795
+|tensor([97], device='cuda:0', dtype=torch.int32)| 1.262 2.956
+|tensor([54], device='cuda:0', dtype=torch.int32)| 1.326 3.485
+|tensor([17], device='cuda:0', dtype=torch.int32)| 1.348 2.67
+|tensor([61], device='cuda:0', dtype=torch.int32)| 1.387 3.325
+|tensor([92], device='cuda:0', dtype=torch.int32)| 1.389 3.865
+|tensor([99], device='cuda:0', dtype=torch.int32)| 1.415 2.529
+|tensor([66], device='cuda:0', dtype=torch.int32)| 1.516 3.309
+|tensor([79], device='cuda:0', dtype=torch.int32)| 1.592 3.923
+|tensor([47], device='cuda:0', dtype=torch.int32)| 1.653 3.777
+|tensor([10], device='cuda:0', dtype=torch.int32)| 1.671 5.183
+|tensor([21], device='cuda:0', dtype=torch.int32)| 1.705 3.967
+|tensor([62], device='cuda:0', dtype=torch.int32)| 1.716 3.678
+|tensor([22], device='cuda:0', dtype=torch.int32)| 1.747 4.897
+|tensor([46], device='cuda:0', dtype=torch.int32)| 1.756 2.396
+|tensor([48], device='cuda:0', dtype=torch.int32)| 1.881 4.956
+|tensor([94], device='cuda:0', dtype=torch.int32)| 1.885 3.239
+|tensor([90], device='cuda:0', dtype=torch.int32)| 1.891 4.465
+|tensor([19], device='cuda:0', dtype=torch.int32)| 1.944 2.994
+|tensor([25], device='cuda:0', dtype=torch.int32)| 2.02 2.848
+|tensor([42], device='cuda:0', dtype=torch.int32)| 2.026 4.899
+|tensor([83], device='cuda:0', dtype=torch.int32)| 2.036 3.966
+|tensor([84], device='cuda:0', dtype=torch.int32)| 2.053 5.873
+|tensor([102], device='cuda:0', dtype=torch.int32)| 2.071 5.314
+|tensor([149], device='cuda:0', dtype=torch.int32)| 2.09 3.261
+|tensor([76], device='cuda:0', dtype=torch.int32)| 2.192 4.542
+|tensor([173], device='cuda:0', dtype=torch.int32)| 2.196 4.13
+|tensor([38], device='cuda:0', dtype=torch.int32)| 2.242 3.08
+|tensor([1], device='cuda:0', dtype=torch.int32)| 2.328 5.534
+|tensor([4], device='cuda:0', dtype=torch.int32)| 2.342 4.632
+|tensor([86], device='cuda:0', dtype=torch.int32)| 2.358 4.543
+|tensor([20], device='cuda:0', dtype=torch.int32)| 2.393 5.447
+|tensor([95], device='cuda:0', dtype=torch.int32)| 2.402 4.888
+|tensor([35], device='cuda:0', dtype=torch.int32)| 2.487 6.094
+|tensor([36], device='cuda:0', dtype=torch.int32)| 2.514 4.892
+|tensor([89], device='cuda:0', dtype=torch.int32)| 2.609 6.067
+|tensor([70], device='cuda:0', dtype=torch.int32)| 2.72 6.114
+|tensor([78], device='cuda:0', dtype=torch.int32)| 2.788 6.089
+|tensor([50], device='cuda:0', dtype=torch.int32)| 2.838 6.447
+|tensor([56], device='cuda:0', dtype=torch.int32)| 2.935 6.299
+|tensor([6], device='cuda:0', dtype=torch.int32)| 3.019 10.235
+|tensor([60], device='cuda:0', dtype=torch.int32)| 3.019 7.853
+|tensor([44], device='cuda:0', dtype=torch.int32)| 3.054 5.713
+|tensor([67], device='cuda:0', dtype=torch.int32)| 3.102 8.174
+|tensor([12], device='cuda:0', dtype=torch.int32)| 3.221 7.249
+|tensor([80], device='cuda:0', dtype=torch.int32)| 3.319 5.299
+|tensor([157], device='cuda:0', dtype=torch.int32)| 3.428 8.335
+|tensor([51], device='cuda:0', dtype=torch.int32)| 3.477 10.427
+|tensor([68], device='cuda:0', dtype=torch.int32)| 3.896 8.94
+|tensor([24], device='cuda:0', dtype=torch.int32)| 3.901 8.895
+|tensor([16], device='cuda:0', dtype=torch.int32)| 3.998 7.185
+|tensor([88], device='cuda:0', dtype=torch.int32)| 4.547 12.309
+|tensor([5], device='cuda:0', dtype=torch.int32)| 6.239 16.6
+|tensor([11], device='cuda:0', dtype=torch.int32)| 6.419 17.507
+|tensor([15], device='cuda:0', dtype=torch.int32)| 6.862 15.421
+|tensor([49], device='cuda:0', dtype=torch.int32)| 7.168 14.313
+|tensor([73], device='cuda:0', dtype=torch.int32)| 9.194 26.259
+|tensor([103], device='cuda:0', dtype=torch.int32)| 19.189 36.473
 - - -
-Mean 2.591 5.778
+Mean 2.072 4.631
