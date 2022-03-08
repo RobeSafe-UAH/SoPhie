@@ -2,68 +2,40 @@ import torch
 from torch import nn
 from prodict import Prodict
 from sophie.modules.layers import MLP
+import torch.nn.functional as F
 
-class Encoder(nn.Module):
+class EncoderLSTM(nn.Module):
 
-    def __init__(self, num_layers, hidden_dim, emb_dim, mlp_config, dropout=0.4):
-        super(Encoder, self).__init__()
+    def __init__(self, embedding_dim=16, h_dim=64):
+        super().__init__()
 
-        self.num_layers = num_layers
-        self.hidden_dim = hidden_dim
-        self.emb_dim = emb_dim
-        self.encoder_dropout = dropout
-        self.spatial_embedding = MLP(**mlp_config) # nn.Linear(x, emb_dim_mlp)
-        self.encoder = nn.LSTM(
-            self.emb_dim,
-            self.hidden_dim,
-            self.num_layers,
-            dropout=self.encoder_dropout
-        )
+        self.embedding_dim = embedding_dim
+        self.h_dim = h_dim
+        self.encoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
+        self.spatial_embedding = nn.Linear(2, self.embedding_dim)
 
     def init_hidden(self, batch):
-        if torch.cuda.is_available():
-            return (
-                torch.zeros(self.num_layers, batch, self.hidden_dim).cuda(), # Hidden state at time 0
-                torch.zeros(self.num_layers, batch, self.hidden_dim).cuda()  # Cell state at time 0
-            )
+        h = torch.zeros(1,batch, self.h_dim).cuda()
+        c = torch.zeros(1,batch, self.h_dim).cuda()
+        return h, c
 
-            # return (
-            #     torch.zeros(self.num_layers, batch, self.hidden_dim), # Hidden state at time 0
-            #     torch.zeros(self.num_layers, batch, self.hidden_dim)  # Cell state at time 0
-            # )
+    def forward(self, obs_traj):
 
-    def forward(self,input_data):
-        """
-        Inputs:
-        - input_data: Tensor of shape (input_len, batch, 2)
-        Output:
-        - final_h: Tensor of shape (self.num_layers, batch, self.hidden_dim)
-        """
-        batch = input_data.size(1)
-        dim_features_size = input_data.size(2)
+        npeds = obs_traj.size(1)
 
-        input_embedding = self.spatial_embedding(
-            input_data.contiguous().view(-1,dim_features_size)
-        )
-        input_embedding = input_embedding.view(
-            -1, batch, self.emb_dim
-        )
-
-        if torch.cuda.is_available():
-            input_embedding = input_embedding.float()
-            input_embedding = input_embedding.cuda()
-
-        state_tuple = self.init_hidden(batch)
-        output, states = self.encoder(input_embedding, state_tuple)
-        final_h = states[0]
-        
-        return output, final_h
+        obs_traj_embedding = F.leaky_relu(self.spatial_embedding(obs_traj.contiguous().view(-1, 2)))
+        obs_traj_embedding = obs_traj_embedding.view(-1, npeds, self.embedding_dim)
+        state = self.init_hidden(npeds)
+        output, state = self.encoder(obs_traj_embedding, state)
+        final_h = state[0]
+        final_h = final_h.view(npeds, self.h_dim)
+        return final_h
 
 class BaseEncoder(nn.Module):
     """The base encoder interface for the encoder-decoder architecture."""
 
     def __init__(self, **kwargs):
-        super(Encoder, self).__init__(**kwargs)
+        super(BaseEncoder, self).__init__(**kwargs)
 
     def forward(self, X, *args):
         raise NotImplementedError

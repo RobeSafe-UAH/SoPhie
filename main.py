@@ -4,15 +4,13 @@ import logging
 import os
 import sys
 import pdb
+import argparse
 
 from datetime import datetime
 from prodict import Prodict
 from pathlib import Path
 
-# from sophie.trainers.trainer import model_trainer
-# from sophie.trainers.trainer_gan import model_trainer
-# from sophie.trainers.trainer_sophie_adaptation import model_trainer
-from sophie.trainers.trainer_gen import model_trainer
+TRAINER_LIST = ["so", "sovi", "trans_so", "trans_sovi"]
 
 def create_logger(file_path):
     FORMAT = '[%(levelname)s: %(lineno)4d]: %(message)s'
@@ -33,7 +31,26 @@ def create_logger(file_path):
     return logger
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--trainer", required=True, type=str, choices=TRAINER_LIST)
+    args = parser.parse_args()
+    print(args.trainer)
     
+    trainer = None
+    if args.trainer == "so":
+        from sophie.trainers.trainer_gen_so import model_trainer
+    elif args.trainer == "sovi":
+        from sophie.trainers.trainer_gen_sovi import model_trainer
+    elif args.trainer == "trans_so":
+        from sophie.trainers.trainer_gen_trans_so import model_trainer
+    elif args.trainer == "trans_sovi":
+        from sophie.trainers.trainer_gen_trans_sovi import model_trainer
+    else:
+        assert 1==0, "Error"
+
+    trainer = model_trainer
+
     BASE_DIR = Path(__file__).resolve().parent
 
     print("BASE_DIR: ", BASE_DIR)
@@ -65,4 +82,4 @@ if __name__ == "__main__":
 
     logger = create_logger(os.path.join(exp_path, f"{config_file.dataset_name}_{time}.log"))
     
-    model_trainer(config_file, logger)
+    trainer(config_file, logger)

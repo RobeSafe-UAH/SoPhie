@@ -3,7 +3,7 @@ import torch
 import random
 import numpy as np
 from torch import Tensor
-
+import pdb
 
 def bce_loss(input, target):
     neg_abs = -input.abs()
@@ -47,6 +47,26 @@ def l2_loss(pred_traj, pred_traj_gt, loss_mask, random=0, mode='average'):
     elif mode == 'raw':
         return loss.sum(dim=2).sum(dim=1)
 
+
+def mse_weighted(gt, pred, weights):
+    """
+        With t = predicted points
+        gt: (t, b, 2)
+        pred: (t, b, 2)
+        weights: (b, t)
+    """
+    try:
+        l2 = gt.permute(1, 0, 2) - pred.permute(1, 0, 2) # b,t,2
+        l2 = l2**2 # b, t, 2
+        l2 = torch.sum(l2, axis=2) # b, t
+        l2 = torch.sqrt(l2) # b, t
+        l2 = l2 * weights # b, t
+        l2 = torch.mean(l2, axis=1) # b
+        l2 = torch.mean(l2) # single value
+    except Exception as e:
+        print(e)
+        pdb.set_trace()
+    return l2
 
 def pytorch_neg_multi_log_likelihood_batch(
     gt: Tensor,

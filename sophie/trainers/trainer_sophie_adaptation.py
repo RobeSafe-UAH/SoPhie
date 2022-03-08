@@ -18,8 +18,8 @@ import torch.optim.lr_scheduler as lrs
 
 # from sophie.data_loader.argoverse.dataset_unified import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
-from sophie.models.sophie_adaptation import TrajectoryGenerator
-from sophie.models.sophie_adaptation import TrajectoryDiscriminator
+from sophie.models.mp_sovi_og import TrajectoryGenerator
+from sophie.models.mp_sovi_og import TrajectoryDiscriminator
 from sophie.modules.losses import gan_g_loss, gan_d_loss, l2_loss, gan_d_loss_bce, gan_g_loss_bce
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm

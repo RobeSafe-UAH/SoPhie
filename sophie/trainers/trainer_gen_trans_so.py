@@ -14,11 +14,11 @@ from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as lrs
 
 from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
-from sophie.models.mp_so import TrajectoryGenerator
-from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch
+from sophie.models.mp_trans_so import TrajectoryGenerator
+from sophie.modules.losses import pytorch_neg_multi_log_likelihood_batch, mse_weighted, l2_loss
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
-from sophie.utils.utils import relative_to_abs_sgan
+from sophie.utils.utils import relative_to_abs_sgan, create_weights
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -57,6 +57,28 @@ def handle_batch(batch, is_single_agent_out):
 
     return (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
      loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq_list)
+
+def calculate_nll_loss(gt, pred, loss_f):
+    time, bs, _ = pred.shape
+    gt = gt.permute(1,0,2)
+    pred = pred.contiguous().unsqueeze(1).permute(2,1,0,3)
+    confidences = torch.ones(bs,1).cuda()
+    avails = torch.ones(bs,time).cuda()
+    loss = loss_f(
+        gt, 
+        pred,
+        confidences,
+        avails
+    )
+    return loss
+
+def calculate_mse_loss(gt, pred, loss_f, l_type, w_loss=None):
+    if "mse_w" in l_type:
+        loss = loss_f(pred, gt, w_loss)
+    else:
+        loss = loss_f(pred, gt)
+
+    return loss
 
 def model_trainer(config, logger):
     """
@@ -135,13 +157,13 @@ def model_trainer(config, logger):
 
     # optimizer, scheduler and loss functions
 
-    if hyperparameters.loss_type_g == "mse":
-        loss_f = nn.MSELoss()
+    if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
+        loss_f = mse_weighted if "w" in hyperparameters.loss_type_g else nn.MSELoss()
     elif hyperparameters.loss_type_g == "nll":
         loss_f = pytorch_neg_multi_log_likelihood_batch
-    elif hyperparameters.loss_type_g == "mse+nll":
+    elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
         loss_f = {
-            "mse": nn.MSELoss(),
+            "mse": mse_weighted if "w" in hyperparameters.loss_type_g else nn.MSELoss(),
             "nll": pytorch_neg_multi_log_likelihood_batch
         }
     else:
@@ -212,6 +234,27 @@ def model_trainer(config, logger):
                 checkpoint.config_cp["counters"]["t"] = t
                 checkpoint.config_cp["counters"]["epoch"] = epoch
                 checkpoint.config_cp["sample_ts"].append(t)
+
+                # Check stats on the training set
+                logger.info('Checking stats on train ...')
+                # TODO add trainer metrics -> Compare for overfitting/underfitting
+                metrics_train = check_accuracy(
+                    hyperparameters, train_loader, generator
+                )
+
+                for k, v in sorted(metrics_train.items()):
+                    logger.info('  [train] {}: {:.3f}'.format(k, v))
+                    if hyperparameters.tensorboard_active:
+                        writer.add_scalar(k, v, t+1)
+                    if k not in checkpoint.config_cp["metrics_train"].keys():
+                        checkpoint.config_cp["metrics_train"][k] = []
+                    checkpoint.config_cp["metrics_train"][k].append(v)
+
+                min_ade = min(checkpoint.config_cp["metrics_train"]['ade'])
+                min_fde = min(checkpoint.config_cp["metrics_train"]['fde'])
+                min_ade_nl = min(checkpoint.config_cp["metrics_train"]['ade_nl'])
+                logger.info("Min train ADE: {}".format(min_ade))
+                logger.info("Min train FDE: {}".format(min_fde))
 
                 # Check stats on the validation set
                 logger.info('Checking stats on val ...')
@@ -349,14 +392,16 @@ def generator_step(
 
     # forward
     generator_out = generator(
-        obs_traj, obs_traj_rel, seq_start_end, agent_idx
+        obs_traj_rel, seq_start_end, agent_idx
     )
 
     pred_traj_fake_rel = generator_out
+    pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
+
     if hyperparameters.output_single_agent:
-        pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
-    else:
-        pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
+        pred_traj_fake = pred_traj_fake[:, agent_idx,:]
+        pred_traj_fake_rel = pred_traj_fake_rel[:,agent_idx,:]
+        
 
     # handle single agent output
     if hyperparameters.output_single_agent:
@@ -369,40 +414,21 @@ def generator_step(
     # traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
     # loss with relatives or abs (?) # TODO full trajectory vs pred trajectory
-    if hyperparameters.loss_type_g == "mse":
-        loss = loss_f(pred_traj_fake_rel, pred_traj_gt_rel)
+    _,b,_ = pred_traj_gt_rel.shape
+    w_loss = create_weights(b, 1, 10).cuda()
+    if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
+        loss = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f, hyperparameters.loss_type_g, w_loss)
         losses["G_mse_loss"] = loss.item()
     elif hyperparameters.loss_type_g == "nll":
-        time, bs, _ = pred_traj_fake_rel.shape
-        pred_traj_gt_rel = pred_traj_gt_rel.permute(1,0,2)
-        pred_traj_fake_rel = pred_traj_fake_rel.contiguous().unsqueeze(1).permute(2,1,0,3)
-        confidences = torch.ones(bs,1).cuda()
-        avails = torch.ones(bs,time).cuda()
-        loss = loss_f(
-            pred_traj_gt_rel, 
-            pred_traj_fake_rel,
-            confidences,
-            avails
-        )
+        loss = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f)
         losses["G_nll_loss"] = loss.item()
-    elif hyperparameters.loss_type_g == "mse+nll":
-        loss_mse = loss_f["mse"](pred_traj_fake_rel, pred_traj_gt_rel)
-        time, bs, _ = pred_traj_fake_rel.shape
-        pred_traj_gt_rel = pred_traj_gt_rel.permute(1,0,2)
-        pred_traj_fake_rel = pred_traj_fake_rel.contiguous().unsqueeze(1).permute(2,1,0,3)
-        confidences = torch.ones(bs,1).cuda()
-        avails = torch.ones(bs,time).cuda()
-        loss_nll = loss_f["nll"](
-            pred_traj_gt_rel, 
-            pred_traj_fake_rel,
-            confidences,
-            avails
-        )
+    elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
+        loss_mse = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"], hyperparameters.loss_type_g, w_loss)
+        loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"])
         loss = loss_mse + loss_nll # ponderado
         losses["G_mse_loss"] = loss_mse.item()
         losses["G_nll_loss"] = loss_nll.item()
     
-
     losses['G_total_loss'] = loss.item()
 
     optimizer_g.zero_grad()
@@ -453,8 +479,10 @@ def check_accuracy(
 
             ## forward
             pred_traj_fake_rel = generator(
-                obs_traj, obs_traj_rel, seq_start_end, agent_idx
+                obs_traj_rel, seq_start_end, agent_idx
             )
+            # rel to abs
+            pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
 
             # single agent trajectories
             if hyperparameters.output_single_agent:
@@ -462,12 +490,7 @@ def check_accuracy(
                 pred_traj_gt = pred_traj_gt[:,agent_idx, :]
                 obs_traj_rel = obs_traj_rel[:, agent_idx, :]
                 pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
-            
-            print("pred_traj_fake_rel min ", pred_traj_fake_rel.min(), pred_traj_gt_rel.min())
-            print("pred_traj_fake_rel max ", pred_traj_fake_rel.max(), pred_traj_gt_rel.max())
-
-            # rel to abs
-            pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
+                pred_traj_fake = pred_traj_fake[:, agent_idx, :]
 
             # l2 loss
             g_l2_loss_abs, g_l2_loss_rel = cal_l2_losses(

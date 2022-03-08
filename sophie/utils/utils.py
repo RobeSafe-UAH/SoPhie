@@ -32,3 +32,13 @@ def relative_to_abs(rel_traj, start_pos):
     abs_traj = displacement + start_pos
 
     return abs_traj
+
+def create_weights(batch, vmin, vmax, w_len=30, w_type="linear"):
+    w = torch.ones(w_len)
+    if w_type == "linear":
+        w = torch.linspace(vmin, vmax, w_len)
+    elif w_type == "exponential":
+        w = w
+
+    w = torch.repeat_interleave(w.unsqueeze(0), batch, dim=0)
+    return w

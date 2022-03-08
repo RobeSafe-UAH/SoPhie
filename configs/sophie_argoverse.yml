@@ -16,12 +16,12 @@ dataset:
     use_gaussian_noise: False
     num_workers: 0
 optim_parameters:
-    g_learning_rate: 1.0e-4
+    g_learning_rate: 1.0e-3
     g_weight_decay: 0
-    d_learning_rate: 1.0e-4
+    d_learning_rate: 1.0e-3
     d_weight_decay: 0
 hyperparameters:
-    loss_type_g: "mse+nll" # mse nll mse+nll
+    loss_type_g: "mse_w+nll" # (mse|mse_w) nll (mse|mse_w)+nll
     lr_schduler: False # ExponentialLR
     lr_scheduler_gamma_g: 0.95
     lr_scheduler_gamma_d: 0.95
@@ -39,10 +39,10 @@ hyperparameters:
     output_dir:  "save/argoverse/exp10" # "save/argoverse/gen_exp/exp8" #   
     exp_description: "mse+nll loss, multi to single, mp_so model, lr: 1.0e-4"
     checkpoint_name: "0"
-    checkpoint_start_from: "./save/argoverse/gen_exp/exp7/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    checkpoint_start_from: #"save/argoverse/gen_exp_trans/exp2/argoverse_motion_forecasting_dataset_0_with_model.pt"
     restore_from_checkpoint: 
     clipping_threshold_d: 0
-    clipping_threshold_g: 1.2
+    clipping_threshold_g: 1.1
     best_k: 10
     l2_loss_weight: 0.05 # If different from 0, L2 loss is considered when training
     num_samples_check: 5000

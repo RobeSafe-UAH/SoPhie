@@ -1,5 +1,7 @@
 import os
 from tabnanny import verbose
+from turtle import home
+from matplotlib.pyplot import axis
 import numpy as np
 import copy
 import yaml
@@ -14,14 +16,14 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as lrs
 
 from types import SimpleNamespace
-from sophie.models import SoPhieDiscriminator, SoPhieGenerator
+# from sophie.models.mp_so import SoPhieDiscriminator, SoPhieGenerator
 from sophie.modules.layers import MLP
-from sophie.modules.backbones import VisualExtractor, JointExtractor
-from sophie.modules.encoders import Encoder
+from sophie.modules.backbones import VisualExtractor
+from sophie.modules.encoders import EncoderLSTM as Encoder
 from sophie.modules.classifiers import Classifier
 from sophie.data_loader.ethucy.dataset import read_file, EthUcyDataset, seq_collate, seq_collate_image
 from sophie.data_loader.aiodrive.dataset import AioDriveDataset, seq_collate_image_aiodrive
-from sophie.modules.decoders import Decoder
+# from sophie.modules.decoders import Decoder
 from sophie.modules.attention import SATAttentionModule
 
 from prodict import Prodict
@@ -1395,6 +1397,103 @@ def test_nll_loss():
     l = loss(gt, pred, confidences, avails)
     print(l)
 
+def test_mse_custom():
+    import pdb
+    from sophie.modules.losses import mse_weighted
+    
+    b = 8
+    gt = torch.ones(30,b,2)
+    pred = torch.ones(30,b,2)*5
+    weights = torch.tensor([
+        1,1,1,1,1,1,1,1,1,1,
+        1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5,
+        2,2,2,2,2,2,2,2,2,2
+    ])
+    weights = torch.repeat_interleave(weights.unsqueeze(0), b, dim=0)
+    print("test_mse_custom")
+    loss = mse_weighted(gt, pred, weights)
+    print("loss ", loss)
+    pdb.set_trace()
+
+def test_create_weights():
+    import pdb
+    from sophie.utils.utils import create_weights
+    print("test_create_weights")
+    w = create_weights(8, 1, 4)
+    print("w ", w)
+
+def test_transformer_encoder():
+    import sophie.modules.attention as att
+
+    te = att.TransformerEncoder(
+        2, 32, 32, 32, 32, None, 32, 48,8,2,0.5
+    )
+    te.eval()
+    print(te)
+    # n: num objects in sequence
+    # input: (n, features)
+    output = te(torch.ones((4, 10, 2)), None)
+    print(output.shape)
+
+def test_transso():
+    from sophie.models.mp_trans_so import TrajectoryGenerator
+    import time
+
+    m = TrajectoryGenerator()
+    m.cuda()
+    t1 = time.time()
+    a = torch.randn(20,10,2).cuda()
+    b = torch.tensor([[0,3], [3,6], [6,10]]).cuda()
+    t2 = time.time()
+    output = m(None, a,b)
+    t3 = time.time()
+    print("time ", t3 - t1, t3-t2)
+
+def test_mp_so_g():
+    from sophie.models.mp_so import TrajectoryGenerator
+
+    m = TrajectoryGenerator()
+    print(m)
+
+def test_home_model():
+    from sophie.modules.backbones import HOME
+
+    m = HOME()
+    a = torch.randn(8,3,224,224)
+    b = m(a)
+    print(b.shape)
+
+def test_visual_extractor():
+    from sophie.modules.backbones import VisualExtractor
+    from sophie.modules.attention import MultiHeadAttention
+    m = VisualExtractor("home")
+    v_dim = 28*28
+    h_dim = 32
+    vattn = MultiHeadAttention(
+            key_size=v_dim, query_size=v_dim, value_size=v_dim,
+            num_hiddens=h_dim, num_heads=4, dropout=0.3
+        )
+    a = torch.randn(4,3,224,224)
+    x = m(a)
+    print("feat: ", x.shape)
+    b,c,w,h = x.shape
+    x = x.view(b,c,-1)
+    print("view: ", x.shape)
+    x = vattn(x,x,x,None)
+    print("output: ", x.shape)
+
+def test_gen_sovi():
+    from sophie.models.mp_sovi import TrajectoryGenerator
+    m = TrajectoryGenerator()
+    m.cuda()
+    obs = torch.randn(20,3,2).cuda()
+    rel = torch.randn(20,3,2).cuda()
+    frames = torch.randn(1,3,224,224).cuda()
+    se = torch.tensor([[0,3]]).cuda()
+    idx = torch.tensor([1]).cuda()
+    output = m(obs, rel, frames, se, idx)
+    print(output)
+
     
 if __name__ == "__main__":
     # test_read_file()
@@ -1433,6 +1532,14 @@ if __name__ == "__main__":
     # image_list = read_video(path_video, (600,600))
 
     # print("image_list: ", type(image_list), len(image_list))
-    test_lr_scheduler(100)
+    # test_lr_scheduler(100)
     # test_mse_loss()
     # test_nll_loss()
+    # test_mse_custom()
+    # test_create_weights()
+    # test_transformer_encoder()
+    # test_transso()
+    # test_mp_so_g()
+    # test_home_model()
+    # test_visual_extractor()
+    test_gen_sovi()

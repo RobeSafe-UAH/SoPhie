@@ -1,80 +1,78 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 from sophie.modules.layers import MLP
 
-class Decoder(nn.Module):
+class DecoderLSTM(nn.Module):
+ 
+    def __init__(self, seq_len=30, h_dim=64, embedding_dim=16):
+        super().__init__()
 
-    def __init__(self, config):
-        super(Decoder, self).__init__()
+        self.seq_len = seq_len
+        self.h_dim = h_dim
+        self.embedding_dim = embedding_dim
 
-        self.num_layers = config.num_layers
-        self.hidden_dim = config.hidden_dim
-        self.emb_dim = config.emb_dim
-        self.decoder_dropout = config.dropout
-        self.pred_len = config.pred_len
-        self.predicted_trajectories_generator = MLP(**config.mlp_config) # nn.Linear(x, emb_dim_mlp)
+        self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
+        self.spatial_embedding = nn.Linear(2, self.embedding_dim)
+        self.ln1 = nn.LayerNorm(2)
+        self.hidden2pos = nn.Linear(self.h_dim, 2)
+        self.ln2 = nn.LayerNorm(self.h_dim)
+        self.output_activation = nn.Sigmoid()
 
-        self.decoder = nn.LSTM(
-            self.emb_dim,
-            self.hidden_dim,
-            self.num_layers,
-            dropout=self.decoder_dropout
-        )
+    def forward(self, last_pos, last_pos_rel, state_tuple):
+        npeds = last_pos.size(0)
+        pred_traj_fake_rel = []
+        decoder_input = F.leaky_relu(self.spatial_embedding(self.ln1(last_pos_rel))) # 16
+        decoder_input = decoder_input.view(1, npeds, self.embedding_dim) # 1x batchx 16
 
-        self.spatial_embedding = nn.Linear(
-            config.linear_1.input_dim,
-            config.linear_1.output_dim
-        )
-        self.hidden2pos = nn.Linear(
-            config.linear_2.input_dim,
-            config.linear_2.output_dim
-        )
+        for _ in range(self.seq_len):
+            output, state_tuple = self.decoder(decoder_input, state_tuple) #
+            rel_pos = self.output_activation(self.hidden2pos(self.ln2(output.view(-1, self.h_dim))))# + last_pos_rel # 32 -> 2
+            curr_pos = rel_pos + last_pos
+            embedding_input = rel_pos
 
-    def init_hidden(self, num_agents=32):
-        if torch.cuda.is_available():
-            return (
-                torch.zeros(self.num_layers, num_agents, self.hidden_dim).cuda(),
-                torch.zeros(self.num_layers, num_agents, self.hidden_dim).cuda()
-            )
+            decoder_input = F.leaky_relu(self.spatial_embedding(self.ln1(embedding_input)))
+            decoder_input = decoder_input.view(1, npeds, self.embedding_dim)
+            pred_traj_fake_rel.append(rel_pos.view(npeds,-1))
+            last_pos = curr_pos
 
-            # return (
-            #     torch.zeros(self.num_layers, num_agents, self.hidden_dim),
-            #     torch.zeros(self.num_layers, num_agents, self.hidden_dim)
-            # )
+        pred_traj_fake_rel = torch.stack(pred_traj_fake_rel, dim=0)
+        return pred_traj_fake_rel
 
-    def forward(self, input_data, num_agents=32):
+class TemporalDecoderLSTM(nn.Module):
+
+    def __init__(self, seq_len=30, h_dim=64, embedding_dim=16):
+        super().__init__()
+
+        self.seq_len = seq_len
+        self.h_dim = h_dim
+        self.embedding_dim = embedding_dim
+
+        self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
+        self.spatial_embedding = nn.Linear(40, self.embedding_dim) # 20 obs * 2 points
+        self.ln1 = nn.LayerNorm(40)
+        self.hidden2pos = nn.Linear(self.h_dim, 2)
+        self.ln2 = nn.LayerNorm(self.h_dim)
+
+    def forward(self, traj_abs, traj_rel, state_tuple):
         """
-        input_data: (batch_size*num_agents, batch_size*num_agents)
+        traj_abs (20, b, 2)
         """
+        npeds = traj_abs.size(1)
+        pred_traj_fake_rel = []
+        decoder_input = F.leaky_relu(self.spatial_embedding(self.ln1(traj_rel.contiguous().view(npeds, -1)))) # bx16
+        decoder_input = decoder_input.contiguous().view(1, npeds, self.embedding_dim) # 1x batchx 16
 
-        batch = input_data.size(0)
-        batch_size = int(batch/num_agents)
-        state_tuple = self.init_hidden(num_agents)
+        for _ in range(self.seq_len):
+            output, state_tuple = self.decoder(decoder_input, state_tuple) 
+            rel_pos = self.hidden2pos(self.ln2(output.contiguous().view(-1, self.h_dim)))
+            traj_rel = torch.roll(traj_rel, -1, dims=(0))
+            traj_rel[-1] = rel_pos
 
-        for i in range(batch_size):
-            predicted_trajectories = []
+            decoder_input = F.leaky_relu(self.spatial_embedding(self.ln1(traj_rel.contiguous().view(npeds, -1))))
+            decoder_input = decoder_input.contiguous().view(1, npeds, self.embedding_dim)
+            pred_traj_fake_rel.append(rel_pos.contiguous().view(npeds,-1))
 
-            input_data_ind = input_data[num_agents*i:num_agents*(i+1),num_agents*i:num_agents*(i+1)]
-            input_embedding = self.spatial_embedding(input_data_ind) # 32 -> 64
-            input_embedding = input_embedding.view(
-                1, num_agents, self.emb_dim
-            )
-
-            for _ in range(self.pred_len):
-                output, state = self.decoder(input_embedding, state_tuple)
-                embedding_input = self.hidden2pos(output.view(-1,self.hidden_dim))
-                aux = embedding_input.view(-1, self.emb_dim)
-                rel_pos = self.predicted_trajectories_generator(aux)
-                input_embedding = embedding_input.view(1, num_agents, self.emb_dim)
-                predicted_trajectories.append(rel_pos.view(num_agents, -1))
-
-            pred_traj_fake_rel = torch.stack(predicted_trajectories, dim=0)
-
-            if i == 0:
-                list_pred_traj_fake_rel = pred_traj_fake_rel.view(self.pred_len,pred_traj_fake_rel.shape[1],-1)
-            else:
-                pred_traj_fake_rel = pred_traj_fake_rel.view(self.pred_len,pred_traj_fake_rel.shape[1],-1)
-                list_pred_traj_fake_rel = torch.cat((list_pred_traj_fake_rel,pred_traj_fake_rel), 1)
-        
-        return list_pred_traj_fake_rel, state_tuple[0] 
+        pred_traj_fake_rel = torch.stack(pred_traj_fake_rel, dim=0)
+        return pred_traj_fake_rel
