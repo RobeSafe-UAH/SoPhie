@@ -1436,7 +1436,7 @@ def test_transformer_encoder():
     print(output.shape)
 
 def test_transso():
-    from sophie.models.mp_transso import TrajectoryGenerator
+    from sophie.models.mp_trans_so import TrajectoryGenerator
     import time
 
     m = TrajectoryGenerator()
