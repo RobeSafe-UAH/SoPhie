@@ -23,7 +23,7 @@ from sophie.models.sophie_adaptation import TrajectoryDiscriminator
 from sophie.modules.losses import gan_g_loss, gan_d_loss, l2_loss, gan_d_loss_bce, gan_g_loss_bce
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
-from sophie.utils.utils import relative_to_abs, relative_to_abs_sgan
+from sophie.utils.utils import relative_to_abs_sgan
 
 from torch.utils.tensorboard import SummaryWriter
 

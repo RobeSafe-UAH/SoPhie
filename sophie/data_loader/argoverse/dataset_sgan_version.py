@@ -1,3 +1,11 @@
+#!/usr/bin/env python3.8
+# -*- coding: utf-8 -*-
+
+"""
+Created on Fri Feb 25 12:19:38 2022
+@author: Miguel Eduardo Ortiz Huamaní and Carlos Gómez-Huélamo
+"""
+
 import logging
 import random
 import os
@@ -24,7 +32,8 @@ from torch.utils.data import Dataset
 from numba import jit
 
 from argoverse.map_representation.map_api import ArgoverseMap
-# import sophie.data_loader.argoverse.map_utils as map_utils
+import sophie.data_loader.argoverse.map_utils as map_utils
+import sophie.data_loader.argoverse.dataset_utils as dataset_utils
 
 frames_path = None
 avm = ArgoverseMap()
@@ -88,12 +97,10 @@ def load_list_from_folder(folder_path, ext_filter=None, depth=1, recursive=False
     return full_list, num_elem
 
 def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map, 
-    num_agents_per_obs, object_class_id_list,debug_images=False):
+                object_class_id_list,debug_images=False):
     """
     Get the corresponding rasterized map
     """
-
-    # print("LOAD IMAGES")
 
     batch_size = len(object_class_id_list)
     frames_list = []
@@ -106,12 +113,12 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
         curr_num_seq = int(num_seq[i].cpu().data.numpy())
         object_class_id = object_class_id_list[i].cpu().data.numpy()
 
-        # print("obj id list: ", obj_id_list)
         t1_idx = len(object_class_id_list[i]) + t0_idx
         if i < batch_size - 1:
             curr_obs_seq_data = obs_seq_data[:,t0_idx:t1_idx,:]
         else:
             curr_obs_seq_data = obs_seq_data[:,t0_idx:,:]
+        obs_len = curr_obs_seq_data.shape[0]
 
         curr_city = city_id[i]
         if curr_city == 0:
@@ -124,9 +131,10 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
 
         curr_obs_seq_data = curr_obs_seq_data.reshape(-1,2) # Past_Observations x Num_Agents x 2 -> (Past_Observations * Num_agents) x 2 
                                                             # (required by map_utils)
+
         fig = map_utils.map_generator(
-            curr_obs_seq_data, curr_ego_origin, dist_rasterized_map, avm, city_name,
-            (object_class_id, num_agents_per_obs), show=False, smoothen=True
+            curr_obs_seq_data, obs_len, curr_ego_origin, dist_rasterized_map, avm, city_name,
+            object_class_id, show=True, smoothen=True
         )
         end = time.time()
         # print(f"Time consumed by map generator: {end-start}")
@@ -134,15 +142,12 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
         img = map_utils.renderize_image(fig)
 
         if debug_images:
-            # print("img: ", type(img), img.shape)
             print("frames path: ", frames_path)
             print("curr seq: ", str(curr_num_seq))
             filename = frames_path + "seq_" + str(curr_num_seq) + ".png"
             print("path: ", filename)
             img = img * 255.0
             cv2.imwrite(filename,img)
-
-            # assert 1 == 0
 
         plt.close("all")
         end = time.time()
@@ -160,17 +165,6 @@ def seq_collate(data): # 2.58 seconds - batch 8
     """
     This functions takes as input the dataset output (see __getitem__ function below) and transforms it to
     a particular format to feed the Pytorch standard dataloader
-
-    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
-    non_linear_obj, loss_mask, seq_id_list, object_class_id_list, 
-    object_id_list, city_id, ego_origin, num_seq_list)
-
-                                    |
-                                    v
-
-    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
-    non_linear_obj, loss_mask, seq_start_end, frames, "object_cls", 
-    "obj_id", ego_vehicle_origin, num_seq_list) = batch
     """
 
     start = time.time()
@@ -198,16 +192,16 @@ def seq_collate(data): # 2.58 seconds - batch 8
     id_frame = torch.cat(seq_id_list, dim=0).permute(2, 0, 1) # seq_len - objs_in_curr_seq - 3
 
     start = time.time()
-    num_agents_per_obs = int(obs_traj.shape[1] / batch_size)
-    # frames = load_images(num_seq_list, obs_traj_rel, city_id, ego_vehicle_origin,    # Return batch_size x 600 x 600 x 3
-    #                      dist_rasterized_map, num_agents_per_obs, object_class_id_list, debug_images=False)
+    # pdb.set_trace()
+
+    frames = load_images(num_seq_list, obs_traj_rel, city_id, ego_vehicle_origin,    # Return batch_size x 600 x 600 x 3
+                         dist_rasterized_map, object_class_id_list, debug_images=False)
     frames = np.random.randn(1,1,1,1)
     end = time.time()
     # print(f"Time consumed by load_images function: {end-start}\n")
 
     frames = torch.from_numpy(frames).type(torch.float32)
     frames = frames.permute(0, 3, 1, 2)
-    # pdb.set_trace()
     object_cls = torch.cat(object_class_id_list, dim=0)
     obj_id = torch.cat(object_id_list, dim=0)
     ego_vehicle_origin = torch.stack(ego_vehicle_origin)
@@ -322,7 +316,19 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
 
     # Iterate over all unique objects
 
-    for _, ped_id in enumerate(peds_in_curr_seq):
+    ## Generate random vector of 0s and 1s. 0 means do not apply data augmentation to the sequence
+
+    # data_aug_flag = np.random.randint(2,size=len(peds_in_curr_seq))
+    data_aug_flag = np.zeros((len(peds_in_curr_seq)))
+    rotate_seq = np.random.randint(2,size=1) # Rotate the sequence (so, the image) if 1
+    if rotate_seq:
+        availables_angles = [90,180,270]
+        rotation_angle = availables_angles[np.random.randint(3,size=1).item()]
+
+    rotation_angle = 0
+    rotate_seq = 1
+
+    for index, ped_id in enumerate(peds_in_curr_seq):
         curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]
 
         # curr_ped_seq = np.around(curr_ped_seq, decimals=4)
@@ -351,10 +357,37 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
         curr_ped_seq = np.transpose(curr_ped_seq[:, 3:5])
         curr_ped_seq = curr_ped_seq - ego_origin[0].reshape(-1,1)
 
+        # Rotation (If the image is rotated, all trajectories must be rotated)
+
+        # if rotate_seq:
+        #     curr_ped_seq = dataset_utils.rotate_traj(curr_ped_seq,rotation_angle)
+
+        if data_aug_flag[index]:
+            # Add data augmentation
+
+            augs = dataset_utils.get_data_aug_combinations(3) # Available data augs: Swapping, Erasing, Gaussian noise
+
+            ## 1. Swapping
+
+            if augs[0]:
+                curr_ped_seq = dataset_utils.swap_points(curr_ped_seq,num_obs=obs_len)
+
+            ## 2. Erasing
+
+            if augs[1]:
+                curr_ped_seq = dataset_utils.swap_points(curr_ped_seq,num_obs=obs_len)
+
+            ## 3. Add Gaussian noise
+
+            if augs[2]:
+                curr_ped_seq = dataset_utils.add_gaussian_noise(curr_ped_seq, mu=0,sigma=0.05)
+
         # Make coordinates relative (relative here means displacements between consecutive steps)
 
         rel_curr_ped_seq = np.zeros(curr_ped_seq.shape) 
         rel_curr_ped_seq[:, 1:] = curr_ped_seq[:, 1:] - curr_ped_seq[:, :-1] # Get displacements between consecutive steps
+        
+        pdb.set_trace()
         
         _idx = num_objs_considered
         curr_seq[_idx, :, pad_front:pad_end] = curr_ped_seq
@@ -362,8 +395,10 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
 
         # Linear vs Non-Linear Trajectory
         if split != 'test':
-            _non_linear_obj.append(
-                poly_fit(curr_ped_seq, pred_len, threshold))
+            # is_curve = poly_fit(curr_ped_seq, pred_len, threshold) # 1: is curve (non-linear), 0: not curve (linear)
+            non_linear = dataset_utils.get_non_linear(file_id, curr_seq, idx=_idx, obj_kind=curr_ped_seq[0,2],
+                                                      threshold=2, debug_trajectory_classifier=False)
+            _non_linear_obj.append(non_linear)
         curr_loss_mask[_idx, pad_front:pad_end] = 1
 
         # Add num_objs_considered
@@ -451,7 +486,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         # for i, path in enumerate(files):
         for i, file_id in enumerate(self.file_id_list):
             # file_id = int(path.split("/")[-1].split(".")[0])
-            # print(f"File {i}/{len(files)}")
+            print(f"File {i}/{len(files)}")
             num_seq_list.append(file_id)
             path = os.path.join(root_file_name,str(file_id)+".csv")
             data = read_file(path) # 4946, 4 | biwi_hotel_train
@@ -471,73 +506,9 @@ class ArgoverseMotionForecastingDataset(Dataset):
             # Check if the trajectory is a straight line or has a curve
 
             if self.class_balance >= 0.0:
-                DEBUG_TRAJECTORY_CLASSIFIER = False
-
-                agent_idx = int(np.where(object_class_list==1)[0]) #.cpu().item())
-                agent_seq = curr_seq[agent_idx,:,:] #.cpu().detach().numpy()
-
-                agent_x = agent_seq[0,:].reshape(-1,1)
-                agent_y = agent_seq[1,:].reshape(-1,1)
-
-                ## Sklearn    
-
-                ransac = linear_model.RANSACRegressor(residual_threshold=2)
-                ransac.fit(agent_x,agent_y)
-
-                inlier_mask = ransac.inlier_mask_
-                outlier_mask = np.logical_not(inlier_mask)
-                num_inliers = len(np.where(inlier_mask == True)[0])
-
-                ## Study consecutive inliers
-
-                cnt = 0
-                num_min_outliers = 8 # Minimum number of consecutive outliers to consider the trajectory as curve
-                is_curve = False
-                for is_inlier in inlier_mask:
-                    if not is_inlier:
-                        cnt += 1
-                    else:
-                        cnt = 0
-
-                    if cnt >= num_min_outliers:
-                        is_curve = True
-
-                if DEBUG_TRAJECTORY_CLASSIFIER:
-                    x_max = agent_x.max()
-                    x_min = agent_x.min()
-                    num_steps = 20
-                    step_dist = (x_max - x_min) / num_steps
-                    line_x = np.arange(x_min, x_max, step_dist)[:, np.newaxis]
-                    line_y_ransac = ransac.predict(line_x)
-
-                    y_min = line_y_ransac.min()
-                    y_max = line_y_ransac.max()
-
-                    lw = 2
-                    plt.scatter(
-                        agent_x[inlier_mask], agent_y[inlier_mask], color="blue", marker=".", label="Inliers"
-                    )
-                    plt.scatter(
-                        agent_x[outlier_mask], agent_y[outlier_mask], color="red", marker=".", label="Outliers"
-                    )
-
-                    plt.plot(
-                        line_x,
-                        line_y_ransac,
-                        color="cornflowerblue",
-                        linewidth=lw,
-                        label="RANSAC regressor",
-                    )
-                    plt.legend(loc="lower right")
-                    plt.xlabel("X (m)")
-                    plt.ylabel("Y (m)")
-                    plt.title('Sequence {}. Num inliers: {}. Is a curve: {}'.format(file_id,num_inliers,is_curve))
-
-                    threshold = 15
-                    plt.xlim([x_min-threshold, x_max+threshold])
-                    plt.ylim([y_min-threshold, y_max+threshold])
-
-                    plt.show()
+                agent_idx = int(np.where(object_class_list==1)[0])
+                non_linear = dataset_utils.get_non_linear(file_id, curr_seq, idx=agent_idx, obj_kind=1,
+                                                          threshold=2, debug_trajectory_classifier=False)
 
             # min_disp_rel.append(curr_seq_rel.min())
             # max_disp_rel.append(curr_seq_rel.max())
@@ -557,7 +528,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
                 self.ego_vehicle_origin.append(ego_origin)
                 ###################################################################
                 if self.class_balance >= 0.0:
-                    if is_curve:
+                    if non_linear == 1.0:
                         curved_trajectories_list.append(file_id)
                     else:
                         straight_trajectories_list.append(file_id)

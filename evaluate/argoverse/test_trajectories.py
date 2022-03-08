@@ -14,7 +14,7 @@ from skimage.measure import LineModelND, ransac
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-BASE_DIR = "/home/robesafe/tesis/SoPhie"
+BASE_DIR = "/home/robesafe/libraries/SoPhie"
 sys.path.append(BASE_DIR)
 
 from sophie.utils.utils import relative_to_abs_sgan
@@ -79,28 +79,33 @@ except:
     num_agents_per_obs = config.hyperparameters.num_agents_per_obs
     config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
-    split_percentage = 0.005
-    batch_size = 1
+    config.dataset.split = "val"
+    config.dataset.split_percentage = 0.0002 # To generate the final results, must be 1 (whole split test)
+    config.dataset.batch_size = 1 # Better to build the h5 results file
+    config.dataset.num_workers = 0
+    config.dataset.class_balance = -1.0 # Do not consider class balance in the split val
+    config.dataset.shuffle = False
 
-    print("dataset path: ", config.dataset.path)
+    config.hyperparameters.pred_len = 30 # In test, we do not have the gt (prediction points)
 
     data_val = ArgoverseMotionForecastingDataset(dataset_name=config.dataset_name,
-                                                 root_folder=config.dataset.path,
-                                                 obs_len=config.hyperparameters.obs_len,
-                                                 pred_len=config.hyperparameters.pred_len,
-                                                 distance_threshold=config.hyperparameters.distance_threshold,
-                                                 split="val",
-                                                 num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
-                                                 split_percentage=split_percentage,
-                                                 shuffle=config.dataset.shuffle,
-                                                 class_balance=config.dataset.class_balance,
-                                                 obs_origin=config.hyperparameters.obs_origin)
+                                                  root_folder=config.dataset.path,
+                                                  obs_len=config.hyperparameters.obs_len,
+                                                  pred_len=config.hyperparameters.pred_len,
+                                                  distance_threshold=config.hyperparameters.distance_threshold,
+                                                  split=config.dataset.split,
+                                                  num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
+                                                  split_percentage=config.dataset.split_percentage,
+                                                  shuffle=config.dataset.shuffle,
+                                                  batch_size=config.dataset.batch_size,
+                                                  class_balance=config.dataset.class_balance,
+                                                  obs_origin=config.hyperparameters.obs_origin)
 
     loader = DataLoader(data_val,
-                            batch_size=batch_size,
-                            shuffle=False,
-                            num_workers=config.dataset.num_workers,
-                            collate_fn=seq_collate)
+                             batch_size=config.dataset.batch_size,
+                             shuffle=config.dataset.shuffle,
+                             num_workers=config.dataset.num_workers,
+                             collate_fn=seq_collate)
 
     exp_name = "gen_exp/exp7"
     model_path = BASE_DIR + "/save/argoverse/" + exp_name + "/argoverse_motion_forecasting_dataset_0_with_model.pt"
@@ -122,6 +127,8 @@ except:
 
     ade_list = []
     fde_list = []
+    num_seq_list = []
+    traj_kind_list = []
 
     DEBUG_TRAJECTORY_CLASSIFIER = False
 
@@ -134,7 +141,7 @@ except:
             batch = [tensor.cuda() for tensor in batch]
             
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-             loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _,_) = batch
+             loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq,_) = batch
 
             predicted_traj = []
             agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
@@ -262,8 +269,20 @@ except:
                     top_k_ade = ade
                     top_k_fde = fde
 
+            # print("----------")
+            # print("Index: ", batch_index)
+            # print("csv: ", num_seq.item())
+            # print("ADE: ", ade)
+            # print("FDE: ", fde)
+
             ade_list.append(ade)
             fde_list.append(fde)
+            num_seq_list.append(num_seq)
+
+            if is_curve:
+                traj_kind_list.append(1)
+            else:
+                traj_kind_list.append(0)
 
             predicted_traj = torch.stack(predicted_traj, axis=0)
             predicted_traj = predicted_traj.cpu().numpy()
@@ -281,16 +300,18 @@ except:
         with open(file_dir+'/test_trajectories/'+exp_name+'_metrics_val.csv', 'w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
 
-            header = ['Sequence','ADE','FDE']
+            header = ['Index','Sequence.csv','Traj_Kind','ADE','FDE']
             csv_writer.writerow(header)
 
             sorted_indeces = np.argsort(ade_list)
 
-            for _,i in enumerate(sorted_indeces):
-                seq_id = i
-                curr_ade = round(ade_list[i],3)
-                curr_fde = round(fde_list[i],3)
-                data = [str(i),curr_ade,curr_fde]
+            for _,sorted_index in enumerate(sorted_indeces):
+                traj_kind = traj_kind_list[sorted_index]
+                seq_id = num_seq_list[sorted_index].item() 
+                curr_ade = round(ade_list[sorted_index],3)
+                curr_fde = round(fde_list[sorted_index],3)
+
+                data = [str(sorted_index),str(seq_id),traj_kind,curr_ade,curr_fde]
 
                 csv_writer.writerow(data)
 

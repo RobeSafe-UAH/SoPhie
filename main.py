@@ -49,7 +49,7 @@ if __name__ == "__main__":
         
         config_file["base_dir"] = BASE_DIR
         exp_path = os.path.join(config_file["base_dir"], config_file["hyperparameters"]["output_dir"])   
-        route_path = exp_path + "config_file.yml"
+        route_path = exp_path + "/config_file.yml"
 
         if not os.path.exists(exp_path):
             print("Create experiment path: ", exp_path)

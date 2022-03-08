@@ -37,6 +37,8 @@ from argoverse.utils.mpl_plotting_utils import plot_bbox_2D
 from argoverse.utils.se3 import SE3
 from argoverse.utils.transform import quat2rotmat
 
+from sophie.utils.utils import relative_to_abs
+
 IS_OCCLUDED_FLAG = 100
 LANE_TANGENT_VECTOR_SCALING = 4
 plot_lane_tangent_arrows = True
@@ -79,134 +81,6 @@ def interpolate_polyline(polyline: np.ndarray, num_points: int) -> np.ndarray:
     u = np.linspace(0.0, 1.0, num_points)
     return np.column_stack(interp.splev(u, tck))
 
-def viz_sequence(
-    df: pd.DataFrame,
-    lane_centerlines: Optional[List[np.ndarray]] = None,
-    show: bool = True,
-    smoothen: bool = False,
-) -> None:
-
-    # Seq data
-    city_name = df["CITY_NAME"].values[0]
-
-    if lane_centerlines is None:
-        # Get API for Argo Dataset map
-        avm = ArgoverseMap()
-        seq_lane_props = avm.city_lane_centerlines_dict[city_name]
-
-    plt.figure(0, figsize=(8, 7), facecolor="black")
-
-    x_min = min(df["X"]) 
-    x_max = max(df["X"])
-    y_min = min(df["Y"])
-    y_max = max(df["Y"])
-
-    if lane_centerlines is None:
-
-        plt.xlim(x_min, x_max)
-        plt.ylim(y_min, y_max)
-
-        lane_centerlines = []
-        # Get lane centerlines which lie within the range of trajectories
-        for lane_id, lane_props in seq_lane_props.items():
-
-            lane_cl = lane_props.centerline
-
-            if (
-                np.min(lane_cl[:, 0]) < x_max
-                and np.min(lane_cl[:, 1]) < y_max
-                and np.max(lane_cl[:, 0]) > x_min
-                and np.max(lane_cl[:, 1]) > y_min
-            ):
-                lane_centerlines.append(lane_cl)
-
-    for lane_cl in lane_centerlines:
-        plt.plot(
-            lane_cl[:, 0],
-            lane_cl[:, 1],
-            "-",
-            color="grey",
-            alpha=1,
-            linewidth=1,
-            zorder=0,
-        )
-    frames = df.groupby("TRACK_ID")
-
-    plt.xlabel("Map X")
-    plt.ylabel("Map Y")
-
-    color_dict = {"AGENT": "#d33e4c", "OTHERS": "#59dd4c", "AV": "#007672"}
-    object_type_tracker: Dict[int, int] = defaultdict(int)
-
-    # Plot all the tracks up till current frame
-    for group_name, group_data in frames:
-        object_type = group_data["OBJECT_TYPE"].values[0]
-
-        cor_x = group_data["X"].values
-        cor_y = group_data["Y"].values
-
-        if smoothen:
-            polyline = np.column_stack((cor_x, cor_y))
-            num_points = cor_x.shape[0] * 3
-            smooth_polyline = interpolate_polyline(polyline, num_points)
-            cor_x = smooth_polyline[:, 0]
-            cor_y = smooth_polyline[:, 1]
-
-        plt.plot(
-            cor_x,
-            cor_y,
-            "-",
-            color=color_dict[object_type],
-            label=object_type if not object_type_tracker[object_type] else "",
-            alpha=1,
-            linewidth=1,
-            zorder=_ZORDER[object_type],
-        )
-
-        final_x = cor_x[-1]
-        final_y = cor_y[-1]
-
-        # marker_type = "o"
-
-        if object_type == "AGENT":
-            marker_type = "o"
-            marker_size = 7
-        elif object_type == "OTHERS":
-            marker_type = "o"
-            marker_size = 7
-        elif object_type == "AV":
-            marker_type = "o"
-            marker_size = 7
-
-        plt.plot(
-            final_x,
-            final_y,
-            marker_type,
-            color=color_dict[object_type],
-            label=object_type if not object_type_tracker[object_type] else "",
-            alpha=1,
-            markersize=marker_size,
-            zorder=_ZORDER[object_type],
-        )
-
-        object_type_tracker[object_type] += 1
-
-    red_star = mlines.Line2D([], [], color="red", marker="*", linestyle="None", markersize=7, label="Agent")
-    green_circle = mlines.Line2D(
-        [],
-        [],
-        color="green",
-        marker="o",
-        linestyle="None",
-        markersize=7,
-        label="Others",
-    )
-    black_triangle = mlines.Line2D([], [], color="black", marker="^", linestyle="None", markersize=7, label="AV")
-
-    plt.axis("off")
-    if show:
-        plt.show()
-
 def translate_object_type(int_id):
     if int_id == 0:
         return "AV"
@@ -230,13 +104,6 @@ def draw_lane_polygons(
         color: Tuple of shape (3,) representing the RGB color or a single character 3-tuple, e.g. 'b'
     """
 
-    # relevant_lane_polygons = []
-    # point = Point(origin[0][0],origin[0][1])
-    # for pol in lane_polygons:
-    #     my_pol = Polygon(pol)
-    #     if point.within(my_pol):
-    #         relevant_lane_polygons.append(pol)
-
     for i, polygon in enumerate(lane_polygons):
         if fill:
             ax.fill(polygon[:, 0], polygon[:, 1], "black", edgecolor='w', fill=True)
@@ -244,33 +111,10 @@ def draw_lane_polygons(
         else:
             ax.plot(polygon[:, 0], polygon[:, 1], color=color, linewidth=linewidth, alpha=1.0, zorder=1)
             # ax.fill(polygon[:, 0], polygon[:, 1], edgecolor='b', fill=True)
-        
-def optimized_draw_lane_polygons(
-    img: np.array,
-    lane_polygons: np.ndarray,
-    color: tuple,
-) -> None:
-    """Draw a lane using polygons.
-
-    Args:
-        img: Numpy array (image) where lanes must be painted
-        lane_polygons: Array of (N,) objects, where each object is a (M,3) array
-    """
-    img_aux = copy.deepcopy(img)
-    for i, polygon in enumerate(lane_polygons):
-        cv_polygon = polygon[:,:2].reshape(-1,1,2).astype(np.int32)
-        isClosed = False
-        thickness = 2
-        img_aux = cv2.polylines(img_aux, [cv_polygon], isClosed, color, thickness)
-
-    return img_aux
-    # print("img: ", img.shape, img)
-    # if np.any(img):
-    #     print("Any element different from zero")
-    # assert 1 == 0
 
 def rotate_polygon_about_pt(pts: np.ndarray, rotmat: np.ndarray, center_pt: np.ndarray) -> np.ndarray:
-    """Rotate a polygon about a point with a given rotation matrix.
+    """
+    Rotate a polygon about a point with a given rotation matrix.
 
     Args:
         pts: Array of shape (N, 3) representing a polygon or point cloud
@@ -295,7 +139,8 @@ def render_bev_labels_mpl(
         city_to_egovehicle_se3: SE3,
         avm: ArgoverseMap,
     ) -> None:
-        """Plot nearby lane polygons and nearby driveable areas (da) on the Matplotlib axes.
+        """
+        Plot nearby lane polygons and nearby driveable areas (da) on the Matplotlib axes.
 
         Args:
             city_name: The name of a city, e.g. `"PIT"`
@@ -379,42 +224,15 @@ def fill_driveable_area(img_render):
 
     return filled_img
 
-def optimized_render_bev_labels_mpl(
-        origin_pos,
-        img: np.array,
-        local_lane_polygons: np.ndarray,
-        local_das: np.ndarray,
-    ) -> None:
-        """Plot nearby lane polygons and nearby driveable areas (da) on the Matplotlib axes.
-
-        Args:
-            img: Numpy array (image) where lanes must be painted
-            local_lane_polygons: Polygons representing the local lane set
-            local_das: Numpy array of objects of shape (N,) where each object is of shape (M,3)
-        """
-
-        offset = np.array([[img.shape[0]/2,img.shape[1]/2]])
-        for lp in local_lane_polygons:
-            lp[:,:2] -= origin_pos
-            lp[:,:2] += offset
-
-        for lda in local_das:
-            lda[:,:2] -= origin_pos
-            lda[:,:2] += offset
-
-        img_aux = optimized_draw_lane_polygons(img, local_lane_polygons, (255, 0, 0))
-        img_aux = optimized_draw_lane_polygons(img_aux, local_das, (0, 255, 0))
-
-        return img_aux
-
 # Main function for map generation
 
-def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200 x 2)
+def map_generator(obs_seq: np.array, # Past_Observations x num_agents x 2 (e.g. 20 x num_agents x 2)
+                  obs_len,
                   origin_pos,
                   offset,
                   avm,
                   city_name,
-                  info, # object list id + num_agents_per_obs
+                  object_id_list, 
                   lane_centerlines: Optional[List[np.ndarray]] = None,
                   show: bool = True,
                   smoothen: bool = False) -> None:
@@ -430,8 +248,6 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
     x_max = xcenter + offset[1]
     y_min = ycenter + offset[2]
     y_max = ycenter + offset[3]
-
-    object_id_list, obs = info
 
     # Get centerlines from Argoverse Map-API 
 
@@ -528,12 +344,25 @@ def map_generator(seq: np.array, # Past_Observations · Num_agents x 2 (e.g. 200
                   "OTHERS": (0.0,1.0,0.0,1.0)} 
     object_type_tracker: Dict[int, int] = defaultdict(int)
 
-    obs_seq = seq[:200, :] # 200 x 2
-    obs_seq_list = []
-    for i in range(object_id_list.shape[0]):
-        if object_id_list[i] != -1:
-            obs_seq_list.append([obs_seq[np.arange(i,200,obs),:], object_id_list[i]]) # recover trajectories for each obs
+    # obs_seq = seq[:200, :] # 200 x 2
+    # obs_seq_list = []
+    # for i in range(object_id_list.shape[0]):
+    #     if object_id_list[i] != -1:
+    #         obs_seq_list.append([obs_seq[np.arange(i,200,obs),:], object_id_list[i]]) # recover trajectories for each obs
 
+    obs_seq_list = []
+    for i in range(len(object_id_list)): # 0,1,2
+        if i < len(object_id_list) - 1:
+            obs_ = obs_seq[i*obs_len:(i+1)*obs_len,:]
+        else:
+            obs_ = obs_seq[i*obs_len:,:]
+        print("pre obs; ", obs_)
+        obs_ = relative_to_abs(obs_, obs_[-1]) #obs_[-1]
+        print("obs: ", obs_)
+
+        obj_id = object_id_list[i]
+        obs_seq_list.append([obs_,obj_id])
+    # pdb.set_trace()
     # Plot all the tracks up till current frame
 
     for seq_id in obs_seq_list:
