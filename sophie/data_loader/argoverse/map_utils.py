@@ -6,13 +6,10 @@ Created on Mon Feb 7 12::33:19 2022
 @author: Carlos Gómez-Huélamo and Miguel Eduardo Ortiz Huamaní
 """
 
-from bdb import set_trace
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-import pyqtgraph as pg
 from shapely.geometry import Polygon, MultiPolygon, Point
-import geopandas as gpd
 import copy
 import logging
 import sys
@@ -304,10 +301,6 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     plot_object_trajectories = True
     plot_object_heads = True
 
-    # img_map = plt.imread(filename)
-    img_map = cv2.imread(filename)
-    height,width,channels = img_map.shape
-
     fig, ax = plt.subplots(figsize=(6,6), facecolor="white")
     plt.xlim(x_min, x_max)
     plt.ylim(y_min, y_max)
@@ -386,7 +379,7 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
             )
 
         object_type_tracker[object_type] += 1
-    print("Time consumed by objects rendering: ", time.time()-t0)
+    # print("Time consumed by objects rendering: ", time.time()-t0)
 
     # Merge local driveable information and trajectories information
 
@@ -400,7 +393,9 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     ## Background
 
     mask_inv = cv2.bitwise_not(mask)
+    img_map = cv2.imread(filename)
     # img_map = cv2.rotate(img_map, cv2.ROTATE_90_CLOCKWISE)#ROTATE_180)
+
     img1_bg = cv2.bitwise_and(img_map,img_map,mask=mask_inv)
 
     ## Merge

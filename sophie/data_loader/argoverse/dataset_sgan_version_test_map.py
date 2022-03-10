@@ -136,12 +136,12 @@ def load_images(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rast
 
         # img_map = map_utils.map_generator(curr_num_seq,curr_ego_origin, dist_rasterized_map, avm, 
         #                                   city_name, show=False, smoothen=True)
-        root_folder = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train/data_images"
+        root_folder = "/home/robesafe/tesis/SoPhie/data/datasets/argoverse/motion-forecasting/train/data_images"
         filename = root_folder + "/" + str(curr_num_seq) + ".png"
 
         img = map_utils.plot_trajectories(filename, curr_obs_seq_data, first_obs, 
                                           curr_ego_origin, object_class_id, dist_rasterized_map,
-                                          rotation_angle=0,obs_len=obs_len, smoothen=True, show=True)
+                                          rotation_angle=0,obs_len=obs_len, smoothen=True, show=False)
 
         # cv2.imshow("img_map",img_map)
         # pdb.set_trace()
@@ -168,7 +168,7 @@ def load_images(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rast
     # print(f"Time consumed by rasterized image: {rasterized_end-rasterized_start}")
 
     frames_arr = np.array(frames_list)
-    pdb.set_trace()
+    # pdb.set_trace()
     return frames_arr
 
 def seq_collate(data): # 2.58 seconds - batch 8
@@ -211,7 +211,7 @@ def seq_collate(data): # 2.58 seconds - batch 8
     # frames = np.random.randn(1,1,1,1)
     end = time.time()
     # print(f"Time consumed by load_images function: {end-start}\n")
-    pdb.set_trace()
+    # pdb.set_trace()
     frames = torch.from_numpy(frames).type(torch.float32)
     frames = frames.permute(0, 3, 1, 2)
     object_cls = torch.cat(object_class_id_list, dim=0)
