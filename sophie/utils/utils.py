@@ -19,6 +19,7 @@ def relative_to_abs_sgan(rel_traj, start_pos):
     return abs_traj.permute(1, 0, 2)
 
 def relative_to_abs(rel_traj, start_pos):
+    # TODO: Not used in the training stage. Nevertheless, rewrite using torch, not numpy
     """
     Inputs:
     - rel_traj: numpy array of shape (len, 2)
@@ -28,7 +29,6 @@ def relative_to_abs(rel_traj, start_pos):
     """
 
     displacement = np.cumsum(rel_traj, axis=0)
-    print("start pos: ", start_pos)
     abs_traj = displacement + start_pos
 
     return abs_traj

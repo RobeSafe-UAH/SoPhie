@@ -22,6 +22,7 @@ import os
 
 import PIL.ImageDraw as ImageDraw
 import PIL.Image as Image
+import math
 
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -32,12 +33,21 @@ import numpy as np
 import pandas as pd
 import scipy.interpolate as interp
 
+from argoverse.utils.centerline_utils import (
+    centerline_to_polygon,
+    filter_candidate_centerlines,
+    get_centerlines_most_aligned_with_trajectory,
+    lane_waypt_to_query_dist,
+    remove_overlapping_lane_seq,
+)
+
 from argoverse.map_representation.map_api import ArgoverseMap
 from argoverse.utils.mpl_plotting_utils import plot_bbox_2D
 from argoverse.utils.se3 import SE3
 from argoverse.utils.transform import quat2rotmat
 
 from sophie.utils.utils import relative_to_abs
+import sophie.data_loader.argoverse.dataset_utils as dataset_utils
 
 IS_OCCLUDED_FLAG = 100
 LANE_TANGENT_VECTOR_SCALING = 4
@@ -107,65 +117,8 @@ def draw_lane_polygons(
     for i, polygon in enumerate(lane_polygons):
         if fill:
             ax.fill(polygon[:, 0], polygon[:, 1], "black", edgecolor='w', fill=True)
-            # ax.plot(polygon[:, 0], polygon[:, 1], color=color, linewidth=1.0, alpha=1.0, zorder=1)
         else:
             ax.plot(polygon[:, 0], polygon[:, 1], color=color, linewidth=linewidth, alpha=1.0, zorder=1)
-            # ax.fill(polygon[:, 0], polygon[:, 1], edgecolor='b', fill=True)
-
-def rotate_polygon_about_pt(pts: np.ndarray, rotmat: np.ndarray, center_pt: np.ndarray) -> np.ndarray:
-    """
-    Rotate a polygon about a point with a given rotation matrix.
-
-    Args:
-        pts: Array of shape (N, 3) representing a polygon or point cloud
-        rotmat: Array of shape (3, 3) representing a rotation matrix
-        center_pt: Array of shape (3,) representing point about which we rotate the polygon
-
-    Returns:
-        rot_pts: Array of shape (N, 3) representing a ROTATED polygon or point cloud
-    """
-    pts -= center_pt
-    rot_pts = pts.dot(rotmat.T)
-    rot_pts += center_pt
-    return rot_pts
-
-def render_bev_labels_mpl(
-        origin: np.array,
-        city_name: str,
-        ax: plt.Axes,
-        axis: str,
-        local_lane_polygons: np.ndarray,
-        local_das: np.ndarray,
-        city_to_egovehicle_se3: SE3,
-        avm: ArgoverseMap,
-    ) -> None:
-        """
-        Plot nearby lane polygons and nearby driveable areas (da) on the Matplotlib axes.
-
-        Args:
-            city_name: The name of a city, e.g. `"PIT"`
-            img: Numpy array (image) where lanes must be painted
-            axis: string, either 'ego_axis' or 'city_axis' to demonstrate the
-            lidar_pts:  Numpy array of shape (N,3)
-            local_lane_polygons: Polygons representing the local lane set
-            local_das: Numpy array of objects of shape (N,) where each object is of shape (M,3)
-            city_to_egovehicle_se3: Transformation from egovehicle frame to city frame
-            avm: ArgoverseMap instance
-        """
-        if axis is not "city_axis":
-            # rendering instead in the egovehicle reference frame
-            for da_idx, local_da in enumerate(local_das):
-                local_da = city_to_egovehicle_se3.inverse_transform_point_cloud(local_da)
-                local_das[da_idx] = rotate_polygon_about_pt(local_da, city_to_egovehicle_se3.rotation, np.zeros(3))
-
-            for lane_idx, local_lane_polygon in enumerate(local_lane_polygons):
-                local_lane_polygon = city_to_egovehicle_se3.inverse_transform_point_cloud(local_lane_polygon)
-                local_lane_polygons[lane_idx] = rotate_polygon_about_pt(
-                    local_lane_polygon, city_to_egovehicle_se3.rotation, np.zeros(3)
-                )
-
-        draw_lane_polygons(ax, local_lane_polygons, "tab:blue", fill=False)
-        draw_lane_polygons(ax, local_das, "tab:pink", fill=True)
 
 def fill_driveable_area(img_render):
     """
@@ -210,7 +163,6 @@ def fill_driveable_area(img_render):
                                 cv2.CHAIN_APPROX_SIMPLE)
     # Fill driveable area
 
-    # filled_img = np.zeros((*gray.shape,3))
     filled_img = 255 * np.ones((*gray.shape,3))
 
     for cnt in contours:
@@ -226,22 +178,18 @@ def fill_driveable_area(img_render):
 
 # Main function for map generation
 
-def map_generator(obs_seq: np.array, # Past_Observations x num_agents x 2 (e.g. 20 x num_agents x 2)
-                  obs_len,
+def map_generator(curr_num_seq,
                   origin_pos,
                   offset,
                   avm,
                   city_name,
-                  object_id_list, 
-                  lane_centerlines: Optional[List[np.ndarray]] = None,
-                  show: bool = True,
-                  smoothen: bool = False) -> None:
+                  show: bool = True) -> None:
+    """
+    """
 
-    plot_local_lane_polygons = False
-    plot_local_das = True
     plot_centerlines = True
-    plot_object_trajectories = True
-    plot_object_heads = True
+    plot_local_das = True
+    plot_local_lane_polygons = False
 
     xcenter, ycenter = origin_pos[0][0], origin_pos[0][1]
     x_min = xcenter + offset[0]
@@ -249,7 +197,9 @@ def map_generator(obs_seq: np.array, # Past_Observations x num_agents x 2 (e.g. 
     y_min = ycenter + offset[2]
     y_max = ycenter + offset[3]
 
-    # Get centerlines from Argoverse Map-API 
+    # Get map info 
+
+    ## Get centerlines around the origin
 
     t0 = time.time()
 
@@ -257,7 +207,22 @@ def map_generator(obs_seq: np.array, # Past_Observations x num_agents x 2 (e.g. 
     if plot_centerlines:
         seq_lane_props = avm.city_lane_centerlines_dict[city_name]
 
-    # Get local polygons
+    ### Get lane centerlines which lie within the range of trajectories
+
+    lane_centerlines = []
+    
+    for lane_id, lane_props in seq_lane_props.items():
+
+        lane_cl = lane_props.centerline
+
+        if (np.min(lane_cl[:, 0]) < x_max
+            and np.min(lane_cl[:, 1]) < y_max
+            and np.max(lane_cl[:, 0]) > x_min
+            and np.max(lane_cl[:, 1]) > y_min):
+
+            lane_centerlines.append(lane_cl)
+
+    ## Get local polygons around the origin
 
     local_lane_polygons = []
     if plot_local_lane_polygons:
@@ -267,7 +232,7 @@ def map_generator(obs_seq: np.array, # Past_Observations x num_agents x 2 (e.g. 
                                                             y_max], 
                                                             city_name)
 
-    # Get driveable area from Argoverse Map-API 
+    ## Get drivable area around the origin
 
     local_das = []
     if plot_local_das:
@@ -277,92 +242,94 @@ def map_generator(obs_seq: np.array, # Past_Observations x num_agents x 2 (e.g. 
                                                     y_max], 
                                                     city_name)
 
-    print("\nTime consumed by local das and polygons calculation: ", time.time()-t0)
+    # print("\nTime consumed by local das and polygons calculation: ", time.time()-t0)
 
-    rotation = np.array([0,0,0,1]) # Quaternion with no roation
-    translation = np.array([0,0,0]) # zero translation
-    city_to_egovehicle_se3 = SE3(rotation=quat2rotmat(rotation), translation=translation) # Just as argument, it is not used!
+    # Plot
 
-    t0 = time.time()
-    fig = plt.figure(0, figsize=(6,6), facecolor="black")
+    fig, ax = plt.subplots(figsize=(6,6), facecolor="black")
     plt.xlim(x_min, x_max)
     plt.ylim(y_min, y_max)
-    ax = fig.add_subplot(111)
+    plt.axis("off") # Uncomment if you want to generate images with x|y-labels
+    
+    ## Plot nearby segments
 
-    draw_lane_polygons(ax, local_das, "tab:pink", linewidth=1.5, fill=True)
+    # avm.plot_nearby_halluc_lanes(ax, city_name, xcenter, ycenter)
 
-    img_cv = renderize_image(fig,normalize=False)
-    filled_img = fill_driveable_area(img_cv)
-
-    ax.clear()
-    ax.set_facecolor((0.0,0.0,0.0))
-
-    draw_lane_polygons(ax, local_lane_polygons, "tab:red", linewidth=1.5, fill=False)
-
-    print("Time consumed by BEV rendering: ", time.time()-t0)
-
-    # Get lane centerlines which lie within the range of trajectories
+    ## Plot hallucinated polygones and centerlines
 
     t0 = time.time()
-
-    if lane_centerlines is None:
-
-        plt.xlim(x_min, x_max)
-        plt.ylim(y_min, y_max)
-
-        lane_centerlines = []
-        # Get lane centerlines which lie within the range of trajectories
-        for lane_id, lane_props in seq_lane_props.items():
-
-            lane_cl = lane_props.centerline
-
-            if (
-                np.min(lane_cl[:, 0]) < x_max
-                and np.min(lane_cl[:, 1]) < y_max
-                and np.max(lane_cl[:, 0]) > x_min
-                and np.max(lane_cl[:, 1]) > y_min
-            ):
-                lane_centerlines.append(lane_cl)
 
     for lane_cl in lane_centerlines:
-        plt.plot(
-            lane_cl[:, 0],
-            lane_cl[:, 1],
-            "-",
-            color="grey",
-            alpha=1,
-            linewidth=1,
-            zorder=0,
-        )
+        lane_polygon = centerline_to_polygon(lane_cl[:, :2])
+                                                                          #"black"  
+        ax.fill(lane_polygon[:, 0], lane_polygon[:, 1], "white", edgecolor='white', fill=True)
+                                                        #"grey"
+        ax.plot(lane_cl[:, 0], lane_cl[:, 1], "-", color="black", linewidth=1.5, alpha=1.0, zorder=1)
 
-    print("Time consumed by plot lane centerlines: ", time.time()-t0)
+    # print("Time consumed by plot drivable area and lane centerlines: ", time.time()-t0)
+
+    # draw_lane_polygons(ax, local_das, "tab:pink", linewidth=1.5, fill=False)
+    # filled_img = fill_driveable_area(img_cv) # Not test for complex polygons
+
+    # ax.clear()
+    # ax.set_facecolor((0.0,0.0,0.0))
+
+    # draw_lane_polygons(ax, local_lane_polygons, "tab:red", linewidth=1.5, fill=False)
+
+    full_img_cv = renderize_image(fig,new_shape=(224,224),normalize=False)
+    # full_img_cv = cv2.bitwise_not(full_img_cv)
+
+    if show:
+        cv2.imshow("full_img",full_img_cv)
+
+    root_folder = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train/data_images"
+    filename = root_folder + "/" + str(curr_num_seq) + ".png"
+    cv2.imwrite(filename,full_img_cv)
+
+    return full_img_cv
+
+def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_list,offset,\
+                      rotation_angle=0,obs_len=None,smoothen=False,show=False):
+    """
+    Plot until plot_len points per trajectory. If plot_len != None, we
+    must distinguish between observation (color with a marker) and prediction (same color with another marker)
+    """
+
+    xcenter, ycenter = origin_pos[0][0], origin_pos[0][1]
+    x_min = xcenter + offset[0]
+    x_max = xcenter + offset[1]
+    y_min = ycenter + offset[2]
+    y_max = ycenter + offset[3]
+
+    plot_object_trajectories = True
+    plot_object_heads = True
+
+    # img_map = plt.imread(filename)
+    img_map = cv2.imread(filename)
+    height,width,channels = img_map.shape
+
+    fig, ax = plt.subplots(figsize=(6,6), facecolor="white")
+    plt.xlim(x_min, x_max)
+    plt.ylim(y_min, y_max)
+    plt.axis("off") # Uncomment if you want to generate images with
 
     t0 = time.time()
 
-    color_dict = {"AGENT": (0.0,0.0,1.0,1.0),
+    color_dict = {"AGENT": (0.0,0.0,1.0,1.0), # BGR
                   "AV": (1.0,0.0,0.0,1.0), 
-                  "OTHERS": (0.0,1.0,0.0,1.0)} 
+                  "OTHERS": (0.37,0.37,0.37,1.0)} 
     object_type_tracker: Dict[int, int] = defaultdict(int)
 
-    # obs_seq = seq[:200, :] # 200 x 2
-    # obs_seq_list = []
-    # for i in range(object_id_list.shape[0]):
-    #     if object_id_list[i] != -1:
-    #         obs_seq_list.append([obs_seq[np.arange(i,200,obs),:], object_id_list[i]]) # recover trajectories for each obs
-
     obs_seq_list = []
-    for i in range(len(object_id_list)): # 0,1,2
-        if i < len(object_id_list) - 1:
-            obs_ = obs_seq[i*obs_len:(i+1)*obs_len,:]
-        else:
-            obs_ = obs_seq[i*obs_len:,:]
-        print("pre obs; ", obs_)
-        obs_ = relative_to_abs(obs_, obs_[-1]) #obs_[-1]
-        print("obs: ", obs_)
+    
+    for i in range(len(object_class_id_list)):
+        obs_ = obs_seq[:,i,:].view(-1,2) # 20 x 2 (rel-rel)
+        curr_first_obs = first_obs[i,:].view(-1)
 
-        obj_id = object_id_list[i]
-        obs_seq_list.append([obs_,obj_id])
-    # pdb.set_trace()
+        abs_obs_ = relative_to_abs(obs_, curr_first_obs) # "abs" (around 0)
+        obj_id = object_class_id_list[i]
+        obs_seq_list.append([abs_obs_,obj_id])
+
     # Plot all the tracks up till current frame
 
     for seq_id in obs_seq_list:
@@ -371,8 +338,8 @@ def map_generator(obs_seq: np.array, # Past_Observations x num_agents x 2 (e.g. 
 
         object_type = translate_object_type(object_type)
 
-        cor_x = seq_rel[:,0] + xcenter
-        cor_y = seq_rel[:,1] + ycenter
+        cor_x = seq_rel[:,0] + xcenter #+ width/2
+        cor_y = seq_rel[:,1] + ycenter #+ height/2
 
         if smoothen:
             polyline = np.column_stack((cor_x, cor_y))
@@ -380,8 +347,6 @@ def map_generator(obs_seq: np.array, # Past_Observations x num_agents x 2 (e.g. 
             smooth_polyline = interpolate_polyline(polyline, num_points)
             cor_x = smooth_polyline[:, 0]
             cor_y = smooth_polyline[:, 1]
-        
-        #pdb.set_trace()
 
         if plot_object_trajectories:
             plt.plot(
@@ -422,35 +387,29 @@ def map_generator(obs_seq: np.array, # Past_Observations x num_agents x 2 (e.g. 
 
         object_type_tracker[object_type] += 1
     print("Time consumed by objects rendering: ", time.time()-t0)
-    plt.axis("off")
 
-    # Merge local driveable information and lanes information
+    # Merge local driveable information and trajectories information
 
     ## Foreground
 
-    img_lanes = renderize_image(fig,normalize=False)
+    img_lanes = renderize_image(fig,new_shape=(224,224),normalize=False)
     img2gray = cv2.cvtColor(img_lanes,cv2.COLOR_BGR2GRAY)
-    ret,mask = cv2.threshold(img2gray,0,255,cv2.THRESH_BINARY)
-
+    ret,mask = cv2.threshold(img2gray,127,255,cv2.THRESH_BINARY_INV)
     img2_fg = cv2.bitwise_and(img_lanes,img_lanes,mask=mask)
-    
+
     ## Background
 
-    filled_img = np.asarray(filled_img, np.uint8)
     mask_inv = cv2.bitwise_not(mask)
-    img1_bg = cv2.bitwise_and(filled_img,filled_img,mask=mask_inv)
+    # img_map = cv2.rotate(img_map, cv2.ROTATE_90_CLOCKWISE)#ROTATE_180)
+    img1_bg = cv2.bitwise_and(img_map,img_map,mask=mask_inv)
 
     ## Merge
 
     full_img_cv = cv2.add(img1_bg,img2_fg)
 
-    # pdb.set_trace()
-
     if show:
-        cv2.imshow("foreground",img2_fg)
-        cv2.imshow("background",filled_img)
         cv2.imshow("full_img",full_img_cv)
-        plt.show()
-        pdb.set_trace()
 
-    return full_img_cv
+    norm_full_img_cv = full_img_cv / 255.0
+
+    return norm_full_img_cv

@@ -12,6 +12,7 @@ import os
 import math
 import csv
 import time
+from PIL import Image
 import pdb
 import copy
 import glob2
@@ -23,6 +24,7 @@ from sklearn import linear_model
 
 import cv2
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 import numpy as np
 from multiprocessing.dummy import Pool
 
@@ -96,7 +98,7 @@ def load_list_from_folder(folder_path, ext_filter=None, depth=1, recursive=False
 
     return full_list, num_elem
 
-def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map, 
+def load_images(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rasterized_map, 
                 object_class_id_list,debug_images=False):
     """
     Get the corresponding rasterized map
@@ -120,26 +122,34 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
             curr_obs_seq_data = obs_seq_data[:,t0_idx:,:]
         obs_len = curr_obs_seq_data.shape[0]
 
-        curr_city = city_id[i]
+        curr_city = round(city_id[i])
         if curr_city == 0:
             city_name = "PIT"
         else:
             city_name = "MIA"
 
         curr_ego_origin = ego_origin[i].reshape(1,-1)
+                                                     
         start = time.time()
 
-        curr_obs_seq_data = curr_obs_seq_data.reshape(-1,2) # Past_Observations x Num_Agents x 2 -> (Past_Observations * Num_agents) x 2 
-                                                            # (required by map_utils)
+        # TODO: Load here the image and then plot the trajectories
 
-        fig = map_utils.map_generator(
-            curr_obs_seq_data, obs_len, curr_ego_origin, dist_rasterized_map, avm, city_name,
-            object_class_id, show=True, smoothen=True
-        )
+        # img_map = map_utils.map_generator(curr_num_seq,curr_ego_origin, dist_rasterized_map, avm, 
+        #                                   city_name, show=False, smoothen=True)
+        root_folder = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train/data_images"
+        filename = root_folder + "/" + str(curr_num_seq) + ".png"
+
+        img = map_utils.plot_trajectories(filename, curr_obs_seq_data, first_obs, 
+                                          curr_ego_origin, object_class_id, dist_rasterized_map,
+                                          rotation_angle=0,obs_len=obs_len, smoothen=True, show=True)
+
+        # cv2.imshow("img_map",img_map)
+        # pdb.set_trace()
+
+
         end = time.time()
-        # print(f"Time consumed by map generator: {end-start}")
+        # print(f"Time consumed by map generation and render: {end-start}")
         start = time.time()
-        img = map_utils.renderize_image(fig)
 
         if debug_images:
             print("frames path: ", frames_path)
@@ -153,12 +163,12 @@ def load_images(num_seq, obs_seq_data, city_id, ego_origin, dist_rasterized_map,
         end = time.time()
         frames_list.append(img)
         t0_idx = t1_idx
-        # print(f"Time consumed by map render: {end-start}")
 
     # rasterized_end = time.time()
     # print(f"Time consumed by rasterized image: {rasterized_end-rasterized_start}")
 
     frames_arr = np.array(frames_list)
+    pdb.set_trace()
     return frames_arr
 
 def seq_collate(data): # 2.58 seconds - batch 8
@@ -194,12 +204,14 @@ def seq_collate(data): # 2.58 seconds - batch 8
     start = time.time()
     # pdb.set_trace()
 
-    # frames = load_images(num_seq_list, obs_traj_rel, city_id, ego_vehicle_origin,    # Return batch_size x 600 x 600 x 3
-    #                      dist_rasterized_map, object_class_id_list, debug_images=False)
-    frames = np.random.randn(1,1,1,1)
+    first_obs = obs_traj[0,:,:] # 1 x agents x 2
+
+    frames = load_images(num_seq_list, obs_traj_rel, first_obs, city_id, ego_vehicle_origin,    # Return batch_size x 600 x 600 x 3
+                         dist_rasterized_map, object_class_id_list, debug_images=False)
+    # frames = np.random.randn(1,1,1,1)
     end = time.time()
     # print(f"Time consumed by load_images function: {end-start}\n")
-
+    pdb.set_trace()
     frames = torch.from_numpy(frames).type(torch.float32)
     frames = frames.permute(0, 3, 1, 2)
     object_cls = torch.cat(object_class_id_list, dim=0)
@@ -322,8 +334,8 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
     #     availables_angles = [90,180,270]
     #     rotation_angle = availables_angles[np.random.randint(3,size=1).item()]
 
-    # rotation_angle = 0
-    # rotate_seq = 1
+    rotation_angle = 0
+    rotate_seq = 1
 
     for index, ped_id in enumerate(peds_in_curr_seq):
         curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]
@@ -344,7 +356,7 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
             data_aug_flag = np.random.randint(2)
         else:
             data_aug_flag = 0
-
+        data_aug_flag = 0
         # Get object class id
 
         object_class_list[num_objs_considered] = curr_ped_seq[0,2] # 0 == AV, 1 == AGENT, 2 == OTHER
@@ -363,8 +375,8 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
 
         # Rotation (If the image is rotated, all trajectories must be rotated)
 
-        # if rotate_seq:
-        #     curr_ped_seq = dataset_utils.rotate_traj(curr_ped_seq,rotation_angle)
+        if rotate_seq:
+            curr_ped_seq = dataset_utils.rotate_traj(curr_ped_seq,rotation_angle)
 
         if data_aug_flag:
             # Add data augmentation
@@ -430,8 +442,8 @@ def load_sequences_thread(files):
 class ArgoverseMotionForecastingDataset(Dataset):
     """Dataloder for the Trajectory datasets"""
     def __init__(self, dataset_name, root_folder, obs_len=20, pred_len=30, skip=1, threshold=0.002, distance_threshold=30,
-                 min_objs=0, windows_frames=None, split='train', num_agents_per_obs=10, split_percentage=0.1, shuffle=False,
-                 batch_size=16, class_balance=-1.0, obs_origin=1):
+                 min_objs=0, windows_frames=None, split='train', num_agents_per_obs=10, split_percentage=0.1, start_from_percentage=0.0,
+                 shuffle=False, batch_size=16, class_balance=-1.0, obs_origin=1):
         super(ArgoverseMotionForecastingDataset, self).__init__()
 
         self.root_folder = root_folder
@@ -471,7 +483,14 @@ class ArgoverseMotionForecastingDataset(Dataset):
             indeces = rng.choice(num_files, size=int(num_files*split_percentage), replace=False)
             self.file_id_list = np.take(self.file_id_list, indeces, axis=0)
         else:
-            self.file_id_list = self.file_id_list[:int(num_files*split_percentage)]
+            start_from = int(start_from_percentage*num_files)
+            n_files = int(split_percentage*num_files)
+            self.file_id_list = self.file_id_list[start_from:start_from+n_files]
+
+            if (start_from + n_files) >= num_files:
+                self.file_id_list = self.file_id_list[start_from:]
+            else:
+                self.file_id_list = self.file_id_list[start_from:start_from+n_files]
 
         num_objs_in_seq = []
         seq_list = []
@@ -490,11 +509,14 @@ class ArgoverseMotionForecastingDataset(Dataset):
         max_disp_rel = []
 
         print("Start Dataset")
+        # TODO: Speed-up dataloading, avoiding objects further than X distance
+
         t0 = time.time()
         # for i, path in enumerate(files):
         for i, file_id in enumerate(self.file_id_list):
             # file_id = int(path.split("/")[-1].split(".")[0])
-            print(f"File {i}/{len(files)}")
+            t1 = time.time()
+            print(f"File {file_id} -> {i}/{len(self.file_id_list)}")
             num_seq_list.append(file_id)
             path = os.path.join(root_file_name,str(file_id)+".csv")
             data = read_file(path) 
@@ -545,7 +567,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
                         curved_trajectories_list.append(file_id)
                     else:
                         straight_trajectories_list.append(file_id)
-
+            # print("File {} consumed {} s".format(i, (time.time() - t1))) 
         # disp_hist = min_disp_rel + max_disp_rel
         # disp_hist = np.array(disp_hist)
 

@@ -86,7 +86,9 @@ def get_non_linear(file_id, curr_seq, idx=0, obj_kind=2, threshold=2, debug_traj
 
     # Fit a RANSAC regressor  
 
-    ransac = linear_model.RANSACRegressor(residual_threshold=threshold, max_trials=200, min_samples=round(0.8*num_points))
+    ransac = linear_model.RANSACRegressor(residual_threshold=threshold, 
+                                          max_trials=200, 
+                                          min_samples=round(0.6*num_points))
     ransac.fit(agent_x,agent_y)
 
     inlier_mask = ransac.inlier_mask_
@@ -186,7 +188,7 @@ def get_non_linear(file_id, curr_seq, idx=0, obj_kind=2, threshold=2, debug_traj
 
         # yfit = np.polyval(coef,line_x)
         # plt.plot(line_x,yfit, label='fit')
-        print(">>>>>>>>>>>>>>>>>><")
+
         plt.legend(loc="lower right")
         plt.xlabel("X (m)")
         plt.ylabel("Y (m)")
@@ -293,23 +295,36 @@ def erase_points(traj,num_obs=20,percentage=0.2,post=False):
 
     erased_pairs = get_pairs(percentage,num_obs)
 
-    print("pre: ", erased_traj)
-    for index_pair in swapped_pairs:
+    for index_pair in erased_pairs:
         erased_traj[:,index_pair] = erased_traj[:,index_pair-1]
 
-    print("post: ", erased_traj)
-
+    return erased_traj
 
 ## 3. Gaussian noise -> Add gaussian noise to the observation data
 
-def add_gaussian_noise(traj,mu=0,sigma=0.05):
+def add_gaussian_noise(traj,num_obs=20,multi_point=True,mu=0,sigma=0.5):
     """
+    Input:
+        - traj: 2 x 50
+    Output: 
+        - noise_traj: 2 x 50 with gaussian noise in the observation points
+
+    If multi_point = False, apply a single x|y offset to all observation points.
+    Otherwise, apply a particular x|y per observation point.
+
+    By default, multi_point = True since it is more challenging.
     """
 
+    if multi_point:
+        size = num_obs
+    else:
+        size = 1
+
     noised_traj = copy.deepcopy(traj)
-    x_offset, y_offset = np.random.normal(mu,sigma), np.random.normal(mu,sigma)
-    noised_traj[:,0] += x_offset
-    noised_traj[:,1] += x_offset
+    x_offset, y_offset = np.random.normal(mu,sigma,size=size), np.random.normal(mu,sigma,size=size)
+
+    noised_traj[0,:num_obs] += x_offset
+    noised_traj[1,:num_obs] += y_offset
 
     return noised_traj
 
@@ -317,7 +332,7 @@ def add_gaussian_noise(traj,mu=0,sigma=0.05):
 
 ## 5. Rotate trajectory
 
-def rotate_traj(traj,angle):
+def rotate_traj(traj,angle,output_shape=(20,2)):
     """
     """
 
@@ -326,12 +341,19 @@ def rotate_traj(traj,angle):
     c, s = np.cos(angle_rad), np.sin(angle_rad)
     R = np.array([[c,-s], [s, c]])
 
-    trajectory = traj.transpose()
-    trajectory = np.matmul(trajectory,R)
-    rotated_traj = trajectory.transpose()
+    if traj.shape[1] != 2: # 2 x N -> N x 2
+        trajectory = traj.transpose()
+    else:
+        trajectory = traj
+
+    rotated_traj = np.matmul(trajectory,R) # (N x 2) x (2 x 2)
+    # pdb.set_trace()
+    if rotated_traj.shape[0] != output_shape[0]:
+        try: # Numpy
+            rotated_traj = rotated_traj.transpose()
+        except: # Torch
+            rotated_traj = torch.transpose(rotated_traj,0,1)
 
     return rotated_traj
 
 ## 6. Penalize coordinates that are out of the feasible area
-
-## 7. Improve algorithm to differentiate between straight and curved trajectories
