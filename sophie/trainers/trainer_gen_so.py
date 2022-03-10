@@ -135,16 +135,11 @@ def model_trainer(config, logger):
     hyperparameters = config.hyperparameters
     optim_parameters = config.optim_parameters
 
-    if not hyperparameters.classic_trainer:
-        iterations_per_epoch = len(data_train) / config.dataset.batch_size
-        if hyperparameters.num_epochs:
-            hyperparameters.num_iterations = int(iterations_per_epoch * hyperparameters.num_epochs)
-            hyperparameters.num_iterations = hyperparameters.num_iterations if hyperparameters.num_iterations != 0 else 1
-    else:
-        iterations_per_epoch = len(data_train) / config.dataset.batch_size
-        # select stop condition: epoch or iterations
-        if (hyperparameters.num_iterations > hyperparameters.num_epochs* iterations_per_epoch) and (hyperparameters.num_epochs != 0):
-            hyperparameters.num_iterations = hyperparameters.num_epochs* iterations_per_epoch
+    iterations_per_epoch = len(data_train) / config.dataset.batch_size
+    if hyperparameters.num_epochs:
+        hyperparameters.num_iterations = int(iterations_per_epoch * hyperparameters.num_epochs)
+        hyperparameters.num_iterations = hyperparameters.num_iterations if hyperparameters.num_iterations != 0 else 1
+    
 
     logger.info(
         'There are {} iterations per epoch'.format(hyperparameters.num_iterations)

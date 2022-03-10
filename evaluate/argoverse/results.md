@@ -132,17 +132,25 @@
     * ADE: 1.90
     * FDE: 4.25
 
-# Experimento G trans 2
+# Experimento G trans 2 - x
     * 10% dataset
     * mse_w+nll
     * lr: 1.0e-3
     * ade: 1.56
     * fde: 3.34
 
-# Experimento G trans 3 - falta
+# Experimento G trans 3 - x
     * 25% dataset
     * mse_w+nll
     * lr: 1.0e-3
     * load g trans 2
-    * ade: 
-    * fde: 
+    * ade: 2.59
+    * fde: 5.71
+
+# Experimento G trans 4 - x
+    * 50% dataset
+    * mse_w+nll
+    * lr: 1.0e-3
+    * load g trans 2
+    * ade: 2.82
+    * fde: 5.97
