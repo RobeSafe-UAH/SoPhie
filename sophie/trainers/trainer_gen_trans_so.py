@@ -491,6 +491,7 @@ def check_accuracy(
                 obs_traj_rel = obs_traj_rel[:, agent_idx, :]
                 pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
                 pred_traj_fake = pred_traj_fake[:, agent_idx, :]
+                pred_traj_fake_rel = pred_traj_fake_rel[:, agent_idx, :]
 
             # l2 loss
             g_l2_loss_abs, g_l2_loss_rel = cal_l2_losses(
