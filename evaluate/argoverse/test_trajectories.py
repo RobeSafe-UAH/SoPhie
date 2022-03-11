@@ -107,8 +107,8 @@ except:
     num_agents_per_obs = config.hyperparameters.num_agents_per_obs
     config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
-    config.dataset.split = "train"
-    config.dataset.split_percentage = 0.01 # To generate the final results, must be 1 (whole split test)
+    config.dataset.split = "val"
+    config.dataset.split_percentage = 1.0 # To generate the final results, must be 1 (whole split test)
     config.dataset.start_from_percentage = 0.0
     config.dataset.batch_size = 1 # Better to build the h5 results file
     config.dataset.num_workers = 0
@@ -147,6 +147,7 @@ except:
         else:
             file_id_list = file_id_list[start_from:start_from+n_files]
 
+        data_images_folder = config.dataset.path + config.dataset.split + "/data_images"
         for i, file_id in enumerate(file_id_list):
             print(f"File {file_id} -> {i}/{len(file_id_list)}")
             path = os.path.join(root_file_name,str(file_id)+".csv")
@@ -160,7 +161,7 @@ except:
                                     avm,
                                     city_name,
                                     show=False,
-                                    root_folder = "data/datasets/argoverse/motion-forecasting/train/data_images_5")
+                                    root_folder=data_images_folder)
 
             plt.close("all")
 
