@@ -58,16 +58,8 @@ logger = logging.getLogger(__name__)
 def renderize_image(fig_plot, new_shape=(600,600),normalize=True):
     fig_plot.canvas.draw()
 
-    img_cv2 = cv2.cvtColor(np.asarray(fig_plot.canvas.buffer_rgba()), cv2.COLOR_RGBA2RGB)
-    # img_rsz = cv2.resize(img_cv2, new_shape)#.astype(np.float32)
-
-    # gray = cv2.cvtColor(img_rsz.astype(np.float32), cv2.COLOR_BGR2GRAY)
-    gray = cv2.cvtColor(img_cv2.astype(np.float32), cv2.COLOR_BGR2GRAY)
-    rows,columns = np.where(gray != 0)
-    img_cv2 = img_cv2[rows.min():rows.max(),
-                      columns.min():columns.max(),
-                      :] # Remove padding
-    img_rsz = cv2.resize(img_cv2, new_shape)#.astype(np.float32)                  
+    img_cv = cv2.cvtColor(np.asarray(fig_plot.canvas.buffer_rgba()), cv2.COLOR_RGBA2BGR)
+    img_rsz = cv2.resize(img_cv, new_shape)                
     
     if normalize:
         img_rsz = img_rsz / 255.0 # Normalize from 0 to 1
@@ -117,62 +109,6 @@ def draw_lane_polygons(
         else:
             ax.plot(polygon[:, 0], polygon[:, 1], color=color, linewidth=linewidth, alpha=1.0, zorder=1)
 
-def fill_driveable_area(img_render):
-    """
-    """
-
-    img = img_render * 255.0
-
-    # Find limits of the driveable area
-
-    gray = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_BGR2GRAY)
-    rows,columns = np.where(gray != 0)
-    gray = gray[rows.min():rows.max(),
-                columns.min():columns.max()] # Remove padding
-    gray = cv2.resize(gray, (600,600))#.astype(np.float32)  
-
-    _,gray = cv2.threshold(gray, 0, 255, 
-                                cv2.THRESH_BINARY)
-    rows,columns = np.where(gray != 0)
-    thickness = 1
-    row_top_edge_points = np.where(rows == 0)[0]
-    min_,max_ = row_top_edge_points[0], row_top_edge_points[-1]
-    gray = cv2.line(gray,(columns[min_],0),(columns[max_],0),(255,255,255),thickness)
-
-    row_bottom_edge_points = np.where(rows == (gray.shape[0]-1))[0]
-    min_,max_ = row_bottom_edge_points[0], row_bottom_edge_points[-1]
-    gray = cv2.line(gray,(columns[min_],gray.shape[0]-1),(columns[max_],gray.shape[0]-1),(255,255,255),thickness)
-
-    column_left_edge_points = np.where(columns == 0)[0]
-    min_,max_ = column_left_edge_points[0], column_left_edge_points[-1]
-    gray = cv2.line(gray,(0,rows[min_]),(0,rows[max_]),(255,255,255),thickness)
-
-    column_right_edge_points = np.where(columns == (gray.shape[1]-1))[0]
-    min_, max_ = column_right_edge_points[0], column_right_edge_points[-1]
-    gray = cv2.line(gray,(gray.shape[1]-1,rows[min_]),(gray.shape[1]-1,rows[max_]),(255,255,255),thickness)
-
-    # Find contours
-
-    _,threshold = cv2.threshold(gray, 0, 255, 
-                                cv2.THRESH_BINARY)
-    threshold = threshold.astype(np.uint8)
-    contours,_= cv2.findContours(threshold, cv2.RETR_TREE,
-                                cv2.CHAIN_APPROX_SIMPLE)
-    # Fill driveable area
-
-    filled_img = 255 * np.ones((*gray.shape,3))
-
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
-    
-        # Shortlisting the regions based on there area.
-        if area > 400: 
-            approx = cv2.approxPolyDP(cnt, 0.009 * cv2.arcLength(cnt, True), True)
-        # cv2.fillPoly(filled_img, pts=[cnt], color=(255, 255, 255))
-        cv2.fillPoly(filled_img, pts=[cnt], color=(0, 0, 0))
-
-    return filled_img
-
 # Main function for map generation
 
 def map_generator(curr_num_seq,
@@ -180,9 +116,14 @@ def map_generator(curr_num_seq,
                   offset,
                   avm,
                   city_name,
-                  show: bool = True) -> None:
+                  show: bool = False,
+                  root_folder = "data/datasets/argoverse/motion-forecasting/train/data_images") -> None:
     """
     """
+
+    if not os.path.exists(root_folder):
+        print("Create experiment path: ", root_folder)
+        os.mkdir(root_folder)
 
     plot_centerlines = True
     plot_local_das = True
@@ -246,7 +187,7 @@ def map_generator(curr_num_seq,
     fig, ax = plt.subplots(figsize=(6,6), facecolor="black")
     plt.xlim(x_min, x_max)
     plt.ylim(y_min, y_max)
-    plt.axis("off") # Uncomment if you want to generate images with x|y-labels
+    plt.axis("off") # Comment if you want to generate images without x|y-labels
     
     ## Plot nearby segments
 
@@ -268,22 +209,24 @@ def map_generator(curr_num_seq,
     # draw_lane_polygons(ax, local_das, "tab:pink", linewidth=1.5, fill=False)
     # filled_img = fill_driveable_area(img_cv) # Not test for complex polygons
 
-    # ax.clear()
-    # ax.set_facecolor((0.0,0.0,0.0))
-
     # draw_lane_polygons(ax, local_lane_polygons, "tab:red", linewidth=1.5, fill=False)
 
-    full_img_cv = renderize_image(fig,new_shape=(224,224),normalize=False)
-    # full_img_cv = cv2.bitwise_not(full_img_cv)
+    # Save image
+
+    filename = root_folder + "/" + str(curr_num_seq) + ".png"
+
+    # img_map = renderize_image(fig,new_shape=(224,224),normalize=False)
+    # cv2.imwrite(filename,img_map)
 
     if show:
-        cv2.imshow("full_img",full_img_cv)
+        plt.show()
+        cv2.imshow("img_map",img_map)
+        pdb.set_trace()
 
-    root_folder = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train/data_images"
-    filename = root_folder + "/" + str(curr_num_seq) + ".png"
-    cv2.imwrite(filename,full_img_cv)
+    # Save PLT canvas -> png to automatically remove padding
 
-    return full_img_cv
+    plt.savefig(filename, bbox_inches='tight', facecolor=fig.get_facecolor(), 
+                edgecolor='none', pad_inches=0)
 
 def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_list,offset,\
                       rotation_angle=0,obs_len=None,smoothen=False,show=False):
