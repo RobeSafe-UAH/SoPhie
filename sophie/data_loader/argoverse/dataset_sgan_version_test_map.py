@@ -37,6 +37,8 @@ from argoverse.map_representation.map_api import ArgoverseMap
 import sophie.data_loader.argoverse.map_utils as map_utils
 import sophie.data_loader.argoverse.dataset_utils as dataset_utils
 
+data_imgs_folder = None
+
 frames_path = None
 avm = ArgoverseMap()
 dist_around = 40
@@ -134,12 +136,8 @@ def load_images(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rast
                                                      
         start = time.time()
 
-        # TODO: Load here the image and then plot the trajectories
+        filename = data_imgs_folder + "/" + str(curr_num_seq) + ".png"
 
-        # img_map = map_utils.map_generator(curr_num_seq,curr_ego_origin, dist_rasterized_map, avm, 
-        #                                   city_name, show=False, smoothen=True)
-        root_folder = "/home/robesafe/tesis/SoPhie/data/datasets/argoverse/motion-forecasting/train/data_images"
-        filename = root_folder + "/" + str(curr_num_seq) + ".png"
 
         img = map_utils.plot_trajectories(filename, curr_obs_seq_data, curr_first_obs, 
                                           curr_ego_origin, object_class_id, dist_rasterized_map,
@@ -619,6 +617,8 @@ class ArgoverseMotionForecastingDataset(Dataset):
         return self.num_seq
 
     def __getitem__(self, index):
+        global data_imgs_folder
+        data_imgs_folder = self.root_folder + self.split + "/data_images/"
         if self.class_balance >= 0.0:
             if self.cont_seqs % self.batch_size == 0: # Get a new batch
                 self.cont_straight_traj = []

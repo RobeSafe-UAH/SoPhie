@@ -132,14 +132,14 @@
     * ADE: 1.90
     * FDE: 4.25
 
-# Experimento G trans 2 - x
+# Experimento G trans (E) 2 - x -> multi - multi
     * 10% dataset
     * mse_w+nll
     * lr: 1.0e-3
     * ade: 1.56
     * fde: 3.34
 
-# Experimento G trans 3 - x
+# Experimento G trans (E) 3 - x -> multi - single
     * 25% dataset
     * mse_w+nll
     * lr: 1.0e-3
@@ -147,10 +147,16 @@
     * ade: 2.59
     * fde: 5.71
 
-# Experimento G trans 4 - x
+# Experimento G trans (E) 4 - x -> multi - single
     * 50% dataset
     * mse_w+nll
     * lr: 1.0e-3
     * load g trans 2
     * ade: 2.82
     * fde: 5.97
+
+# Experimento G trans (E+D) 5 - x -> multi - single
+    * 25%
+
+# Experimento G trans (E+D) 6 - x -> multi - single
+    * 50%
