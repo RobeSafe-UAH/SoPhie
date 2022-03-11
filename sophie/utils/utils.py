@@ -42,3 +42,11 @@ def create_weights(batch, vmin, vmax, w_len=30, w_type="linear"):
 
     w = torch.repeat_interleave(w.unsqueeze(0), batch, dim=0)
     return w
+
+def freeze_model(model, no_freeze_list=[]):
+    for name, child in model.named_children():
+        if name not in no_freeze_list:
+            for param in child.parameters():
+                param.requires_grad = False
+
+    return model

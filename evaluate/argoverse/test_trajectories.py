@@ -109,7 +109,7 @@ except:
 
     config.dataset.split = "train"
     config.dataset.split_percentage = 1.0 # To generate the final results, must be 1 (whole split test)
-    config.dataset.start_from_percentage = 0.0
+    config.dataset.start_from_percentage = 0.75
     config.dataset.batch_size = 1 # Better to build the h5 results file
     config.dataset.num_workers = 0
     config.dataset.class_balance = -1.0 # Do not consider class balance in the split val

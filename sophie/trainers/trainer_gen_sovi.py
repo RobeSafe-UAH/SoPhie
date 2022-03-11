@@ -1,4 +1,5 @@
 import argparse
+from email.policy import strict
 import gc
 import logging
 import os
@@ -19,7 +20,7 @@ from sophie.models.mp_sovi import TrajectoryGenerator
 from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_weighted
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
-from sophie.utils.utils import relative_to_abs_sgan, create_weights
+from sophie.utils.utils import relative_to_abs_sgan, create_weights, freeze_model
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -153,6 +154,10 @@ def model_trainer(config, logger):
     logger.info('Generator model:')
     logger.info(generator)
 
+    if hyperparameters.freeze_model:
+        logger.info("Freezing model")
+        generator = freeze_model(generator, ["img_features", "vattn", "fattn"])
+
     # optimizer, scheduler and loss functions
 
     if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
@@ -169,7 +174,12 @@ def model_trainer(config, logger):
 
     w_loss = create_weights(config.dataset.batch_size, 1, 8).cuda()
 
-    optimizer_g = optim.Adam(generator.parameters(), lr=optim_parameters.g_learning_rate, weight_decay=optim_parameters.g_weight_decay)
+    optimizer_g = optim.Adam(
+        filter(lambda p: p.requires_grad, generator.parameters()),
+        lr=optim_parameters.g_learning_rate,
+        weight_decay=optim_parameters.g_weight_decay
+    )
+
     if hyperparameters.lr_schduler:
         # scheduler_g = lrs.ExponentialLR(optimizer_g, gamma=hyperparameters.lr_scheduler_gamma_g)
         scheduler_g = lrs.ReduceLROnPlateau(optimizer_g, "min", min_lr=1e-7, verbose=True, factor=0.05)
@@ -181,12 +191,13 @@ def model_trainer(config, logger):
         restore_path = os.path.join(hyperparameters.output_dir,
                                     '%s_with_model.pt' % hyperparameters.checkpoint_name)
 
-
     if restore_path is not None and os.path.isfile(restore_path):
         logger.info('Restoring from checkpoint {}'.format(restore_path))
         checkpoint = torch.load(restore_path)
-        generator.load_state_dict(checkpoint.config_cp['g_best_state'])
-        optimizer_g.load_state_dict(checkpoint.config_cp['g_optim_state'])
+        pdb.set_trace()
+        generator.load_state_dict(checkpoint.config_cp['g_best_state'], strict=False)
+        if not hyperparameters.freeze_model:
+            optimizer_g.load_state_dict(checkpoint.config_cp['g_optim_state'])
         t = checkpoint.config_cp['counters']['t']
         epoch = checkpoint.config_cp['counters']['epoch']
         checkpoint.config_cp['restore_ts'].append(t)

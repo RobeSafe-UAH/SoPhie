@@ -99,7 +99,7 @@ class TrajectoryGenerator(nn.Module):
         visual = self.img_features(frames) # (b,128,28,28)
         b,c,w,h = visual.shape
         visual = visual.view(b,c,-1) # (b,c,w*h)
-        visual = self.vattn(visual,visual,visual,None) # (b,128,32)
+        visual = self.vattn(visual,visual,visual,None) # (b,128,32) # visual attention
 
         ## Encode trajectory
         final_encoder_h = self.encoder(obs_traj_rel) # batchx32
@@ -113,8 +113,8 @@ class TrajectoryGenerator(nn.Module):
         for i, (start, end) in enumerate(start_end_seq.data):
             attn_s_batch = self.sattn(
                 final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], final_encoder_h[:,start:end,:], None
-            ) # 8x10x32 # multi head self attention (b,peds,32)
-            attn_s_batch = self.fattn(attn_s_batch, visual[i].unsqueeze(0), visual[i].unsqueeze(0), None)
+            ) # 8x10x32 # multi head self attention (b,peds,32) social attention 
+            attn_s_batch = self.fattn(attn_s_batch, visual[i].unsqueeze(0), visual[i].unsqueeze(0), None) # cross attention
             attn_s.append(attn_s_batch)
         attn_s = torch.cat(attn_s, 1)
         

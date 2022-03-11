@@ -1491,6 +1491,45 @@ def test_gen_sovi():
     output = m(obs, rel, frames, se, idx)
     print(output)
 
+def test_gen_sovi_freeze():
+    from sophie.models.mp_sovi import TrajectoryGenerator
+    import pdb
+
+    restore_path = "./save/argoverse/gen_exp/exp9/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    checkpoint = torch.load(restore_path)
+    m = TrajectoryGenerator()
+
+    layers_name = ["img_features", "vattn", "fattn"]
+    print("Model set requires_grad to False, before state_dict")
+    for name, child in m.named_children():
+        print(name)
+        if name not in layers_name:
+            for param in child.parameters():
+                param.requires_grad = False
+
+    m.cuda()
+    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    print("Load state_dict")
+    m.load_state_dict(checkpoint.config_cp['g_best_state'], strict=False)
+
+    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    print("Requires-grad state after state_dict")
+    for param in m.parameters():
+        print(param.requires_grad)
+
+    for name, child in m.named_children():
+        print(child)
+        for param in child.parameters():
+            print(name, param.requires_grad)
+
+    obs = torch.randn(20,3,2).cuda()
+    rel = torch.randn(20,3,2).cuda()
+    frames = torch.randn(1,3,224,224).cuda()
+    se = torch.tensor([[0,3]]).cuda()
+    idx = torch.tensor([1]).cuda()
+    output = m(obs, rel, frames, se, idx)
+    print(output.shape)
+
     
 if __name__ == "__main__":
     # test_read_file()
@@ -1539,4 +1578,5 @@ if __name__ == "__main__":
     # test_mp_so_g()
     # test_home_model()
     # test_visual_extractor()
-    test_gen_sovi()
+    # test_gen_sovi()
+    test_gen_sovi_freeze()
