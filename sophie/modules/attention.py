@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import pdb
 
 from sophie.modules.encoders import BaseEncoder
+from sophie.modules.decoders import BaseDecoder
 
 def transpose_qkv(X, num_heads):
     """Transposition for parallel computation of multiple attention heads.
@@ -85,10 +86,6 @@ class SATAttentionModule(nn.Module):
 
         # Feature decode processing
 
-        # feature_decoder = feature_decoder.contiguous().view(-1,feature_decoder.size(2)) # 3D -> 2D
-        # print("Feature decoder: ", feature_decoder.shape)
-        # Feature 1 processing
-
         batch = feature_decoder.size(1) # num_agents x batch_size
         batch_size = int(batch/num_agents)
 
@@ -121,12 +118,11 @@ class SATAttentionModule(nn.Module):
                 context_vector = torch.matmul(alpha, linear_feature1_output)
                 list_context_vector = torch.cat((list_context_vector,context_vector), 0)
         
-        # print("List context: ", list_context_vector.shape)
         return alpha, list_context_vector
 
 
 ####################################################################
-####################### Transformer encoder ########################
+####################### Transformer  ###############################
 ####################################################################
 
 class PositionalEncoding(nn.Module):
@@ -311,8 +307,94 @@ class TransformerEncoder(BaseEncoder):
 
     def forward(self, X, valid_lens, *args):
         X = self.pos_encoding(self.embedding(X)*math.sqrt(self.num_hiddens))
-        self.attention_weights = [None] * len(self.blks)
         for i, blk in enumerate(self.blks):
             X = blk(X, valid_lens)
-            self.attention_weights[i] = blk.attention.attention.attention_weights
         return X
+
+
+class DecoderBlock(nn.Module):
+    """
+    Transformer decoder block.
+        - Masked Self-Attention Multi-Head Attention
+        - AddNorm
+        - Multi-Head Attention (encoder hidden states as key and value)
+        - AddNorm
+        - PositionwiseFFN
+        - AddNorm
+    """
+
+    def __init__(
+        self, key_size, query_size, value_size, num_hiddens,
+        norm_shape, ffn_num_input, ffn_num_hiddens, num_heads,
+        dropout, i, **kwargs
+    ):
+        super().__init__()
+        self.i = i
+        self.attention1 = MultiHeadAttention(
+            key_size, query_size, value_size, num_hiddens, num_heads, dropout
+        )
+        self.addnorm1 = AddNorm(norm_shape, dropout)
+        self.attention2 = MultiHeadAttention(
+            key_size, query_size, value_size, num_hiddens, num_heads, dropout
+        )
+        self.addnorm2 = AddNorm(norm_shape, dropout)
+        self.ffn = PositionWiseFFN(
+            ffn_num_input, ffn_num_hiddens,num_hiddens
+        )
+        self.addnorm3 = AddNorm(norm_shape, dropout)
+
+    def forward(self, X, state):
+        enc_outputs, enc_valid_lens = state[0], state[1]
+        if state[2][self.i] is None:
+            key_values = X
+        else:
+            key_values = torch.cat((state[2][self.i], X), axis=1)
+        state[2][self.i] = key_values
+        if self.training:
+            batch_size, num_steps, _ = X.shape
+            # Shape of `dec_valid_lens`: (`batch_size`, `num_steps`), where
+            # every row is [1, 2, ..., `num_steps`]
+            dec_valid_lens = torch.arange(
+                1, num_steps + 1, device=X.device).repeat(batch_size, 1)
+        else:
+            dec_valid_lens = None
+        # Self-attention
+        X2 = self.attention1(X, key_values, key_values, dec_valid_lens)
+        Y = self.addnorm1(X, X2)
+        # Encoder-decoder attention. Shape of `enc_outputs`:
+        # (`batch_size`, `num_steps`, `num_hiddens`)
+        Y2 = self.attention2(Y, enc_outputs, enc_outputs, enc_valid_lens)
+        Z = self.addnorm2(Y, Y2)
+        return self.addnorm3(Z, self.ffn(Z)), state
+
+class TransformerDecoder(BaseDecoder):
+
+    def __init__(self, traj_size, key_size, query_size, value_size,
+        num_hiddens, norm_shape, ffn_num_input, ffn_num_hiddens,
+        num_heads, num_layers, dropout, **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.num_hiddens = num_hiddens
+        self.num_layers = num_layers
+        self.embedding = nn.Linear(traj_size, num_hiddens)
+        self.pos_encoding = PositionalEncoding(num_hiddens, dropout)
+        self.blks = nn.Sequential()
+        for i in range(num_layers):
+            self.blks.add_module(
+                "block"+str(i),
+                DecoderBlock(key_size, query_size, value_size, num_hiddens,
+                norm_shape, ffn_num_input, ffn_num_hiddens,
+                num_heads, dropout, i)
+            )
+        self.dense = nn.Linear(num_hiddens, num_hiddens)
+
+    def init_state(self, enc_outputs, enc_valid_lens, *args):
+        return [enc_outputs, enc_valid_lens, [None] * self.num_layers]
+
+    def forward(self, X, state):
+        # encoding
+        X = self.pos_encoding(self.embedding(X) * math.sqrt(self.num_hiddens))
+        for i, blk in enumerate(self.blks):
+            # blocks -> each block is decoder transformer
+            X, state = blk(X, state)
+        return self.dense(X), state

@@ -107,7 +107,9 @@ def model_trainer(config, logger):
                                                    shuffle=config.dataset.shuffle,
                                                    batch_size=config.dataset.batch_size,
                                                    class_balance=config.dataset.class_balance,
-                                                   obs_origin=config.hyperparameters.obs_origin)
+                                                   obs_origin=config.hyperparameters.obs_origin,
+                                                   v_data=True
+                                                   )
 
     train_loader = DataLoader(data_train,
                               batch_size=config.dataset.batch_size,
@@ -126,7 +128,9 @@ def model_trainer(config, logger):
                                                  split_percentage=config.dataset.split_percentage,
                                                  shuffle=config.dataset.shuffle,
                                                  class_balance=config.dataset.class_balance,
-                                                 obs_origin=config.hyperparameters.obs_origin)
+                                                 obs_origin=config.hyperparameters.obs_origin,
+                                                 v_data=True
+                                                 )
     val_loader = DataLoader(data_val,
                             batch_size=config.dataset.batch_size,
                             shuffle=config.dataset.shuffle,
@@ -194,7 +198,6 @@ def model_trainer(config, logger):
     if restore_path is not None and os.path.isfile(restore_path):
         logger.info('Restoring from checkpoint {}'.format(restore_path))
         checkpoint = torch.load(restore_path)
-        pdb.set_trace()
         generator.load_state_dict(checkpoint.config_cp['g_best_state'], strict=False)
         if not hyperparameters.freeze_model:
             optimizer_g.load_state_dict(checkpoint.config_cp['g_optim_state'])
@@ -222,9 +225,11 @@ def model_trainer(config, logger):
         epoch += 1
         logger.info('Starting epoch {}'.format(epoch))
         for batch in train_loader: # bottleneck
-
+            
+            t0 = time.time()
             losses_g = generator_step(hyperparameters, batch, generator,
                                         optimizer_g, loss_f, w_loss)
+
             checkpoint.config_cp["norm_g"].append(
                 get_total_norm(generator.parameters())
             )

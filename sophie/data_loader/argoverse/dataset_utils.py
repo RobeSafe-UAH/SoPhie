@@ -87,7 +87,7 @@ def get_non_linear(file_id, curr_seq, idx=0, obj_kind=2, threshold=2, debug_traj
     # Fit a RANSAC regressor  
 
     ransac = linear_model.RANSACRegressor(residual_threshold=threshold, 
-                                          max_trials=200, 
+                                          max_trials=30, 
                                           min_samples=round(0.6*num_points))
     ransac.fit(agent_x,agent_y)
 

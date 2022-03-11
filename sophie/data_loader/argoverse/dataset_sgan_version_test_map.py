@@ -38,6 +38,7 @@ import sophie.data_loader.argoverse.map_utils as map_utils
 import sophie.data_loader.argoverse.dataset_utils as dataset_utils
 
 data_imgs_folder = None
+visual_data = False
 
 frames_path = None
 avm = ArgoverseMap()
@@ -206,9 +207,11 @@ def seq_collate(data): # 2.58 seconds - batch 8
 
     first_obs = obs_traj[0,:,:] # 1 x agents · batch_size x 2
 
-    frames = load_images(num_seq_list, obs_traj_rel, first_obs, city_id, ego_vehicle_origin,    # Return batch_size x 600 x 600 x 3
-                         dist_rasterized_map, object_class_id_list, debug_images=False)
-    # frames = np.random.randn(1,1,1,1)
+    if visual_data:
+        frames = load_images(num_seq_list, obs_traj_rel, first_obs, city_id, ego_vehicle_origin,    # Return batch_size x 600 x 600 x 3
+                            dist_rasterized_map, object_class_id_list, debug_images=False)
+    else:
+        frames = np.random.randn(1,1,1,1)
     end = time.time()
     # print(f"Time consumed by load_images function: {end-start}\n")
     # pdb.set_trace()
@@ -442,7 +445,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
     """Dataloder for the Trajectory datasets"""
     def __init__(self, dataset_name, root_folder, obs_len=20, pred_len=30, skip=1, threshold=0.002, distance_threshold=30,
                  min_objs=0, windows_frames=None, split='train', num_agents_per_obs=10, split_percentage=0.1, start_from_percentage=0.0,
-                 shuffle=False, batch_size=16, class_balance=-1.0, obs_origin=1):
+                 shuffle=False, batch_size=16, class_balance=-1.0, obs_origin=1, v_data=False):
         super(ArgoverseMotionForecastingDataset, self).__init__()
 
         self.root_folder = root_folder
@@ -463,6 +466,8 @@ class ArgoverseMotionForecastingDataset(Dataset):
         self.min_ped = 2
         self.ego_vehicle_origin = []
         self.cont_seqs = 0
+        global visual_data
+        visual_data = v_data
 
         folder = root_folder + split + "/data/"
         files, num_files = load_list_from_folder(folder)

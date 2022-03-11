@@ -8,7 +8,7 @@ dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
     batch_size: 128
-    split_percentage: 0.25
+    split_percentage: 0.05
     shuffle: True # False to check the input data, always set to True
     class_balance: 0.7 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
@@ -32,7 +32,7 @@ hyperparameters:
     g_steps: 1
     print_every: 10
     checkpoint_every: 500
-    output_dir: "save/argoverse/gen_exp_trans/exp3"
+    output_dir: "save/argoverse/test" # "save/argoverse/gen_exp/exp3"
     exp_description: "gen_exp_trans, 50%dataset"
     checkpoint_name: "0"
     checkpoint_start_from: #"save/argoverse/gen_exp_trans/exp2/argoverse_motion_forecasting_dataset_0_with_model.pt"
@@ -58,8 +58,7 @@ hyperparameters:
 
 sophie:
     generator: 
-        
-
+        test: "test"
     discriminator:
         # Encoder
         encoder:

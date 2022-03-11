@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import pdb
 import math
 import torchvision.transforms.functional as TF
-from sophie.modules.attention import TransformerEncoder
+from sophie.modules.attention import TransformerEncoder, TransformerDecoder
 
 def make_mlp(dim_list):
     layers = []
@@ -30,22 +30,29 @@ class TrajectoryGenerator(nn.Module):
         self.noise_dim = noise_dim
         self.n_agents = n_agents
 
+        self.num_heads = 8
+        self.num_blocks = 2
+
         ## Transformer encoder
         self.encoder = TransformerEncoder(
             2, h_dim, h_dim, h_dim, h_dim, h_dim,
-            h_dim, h_dim*2, 8, 2, .5
+            h_dim, h_dim*2, self.num_heads, self.num_blocks, .5
         )
 
         self.ln1 = nn.LayerNorm(self.h_dim)
 
         ## Transformer decoder
+        self.decoder = TransformerDecoder(
+            2, h_dim, h_dim, h_dim, h_dim,
+            h_dim, h_dim, h_dim*2, self.num_heads, self.num_blocks, .5
+        )
 
         ## Trajectory regressor
         self.regressor_input = self.h_dim*self.obs_len
         self.regressor_output = self.pred_len*2
         self.regressor = nn.Linear(self.regressor_input, self.regressor_output)
 
-    def forward(self, obs_traj_rel, start_end_seq, agent_idx=None):
+    def forward(self, obs_traj, obs_traj_rel, start_end_seq, agent_idx=None):
         """
             n: objects in seq
             b: batch
@@ -72,10 +79,15 @@ class TrajectoryGenerator(nn.Module):
                 y,
                 None
             )) # (1, obs*n, h_dim)
-            y = y.view(n,t,self.h_dim) # (n, obs, h_dim)
+            ## decoder ->
+            q = obs_traj[:,start:end,:].contiguous().permute(1,0,2)
+            q = q.contiguous().view(1, -1, p)
+            z = [None for i in range (self.num_blocks)]
+            state = [y, None, z]
+            y, state = self.decoder(q, state)
+            y = y.view(n,t,-1) # (n, obs, 2)
             x.append(y)
         x = torch.cat(x, 0) # (n*b, obs, h_dim)
-
         ## Decode trajectory
         x = self.regressor(x.view(nb,-1)).view(nb,self.pred_len,-1)
         return x.permute(1,0,2)

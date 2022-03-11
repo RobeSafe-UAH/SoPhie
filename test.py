@@ -1435,14 +1435,16 @@ def test_transformer_encoder():
 def test_transso():
     from sophie.models.mp_trans_so import TrajectoryGenerator
     import time
+    import pdb
 
     m = TrajectoryGenerator()
     m.cuda()
     t1 = time.time()
-    a = torch.randn(20,10,2).cuda()
+    a1 = torch.randn(20,10,2).cuda()
     b = torch.tensor([[0,3], [3,6], [6,10]]).cuda()
     t2 = time.time()
-    output = m(None, a,b)
+    output = m(a1, a1,b)
+    pdb.set_trace()
     t3 = time.time()
     print("time ", t3 - t1, t3-t2)
 
@@ -1574,9 +1576,9 @@ if __name__ == "__main__":
     # test_mse_custom()
     # test_create_weights()
     # test_transformer_encoder()
-    # test_transso()
+    test_transso()
     # test_mp_so_g()
     # test_home_model()
     # test_visual_extractor()
     # test_gen_sovi()
-    test_gen_sovi_freeze()
+    # test_gen_sovi_freeze()

@@ -40,12 +40,16 @@ if __name__ == "__main__":
     trainer = None
     if args.trainer == "so":
         from sophie.trainers.trainer_gen_so import model_trainer
+        config_path = "./configs/mp_so.yml"
     elif args.trainer == "sovi":
         from sophie.trainers.trainer_gen_sovi import model_trainer
+        config_path = "./configs/mp_sovi.yml"
     elif args.trainer == "trans_so":
         from sophie.trainers.trainer_gen_trans_so import model_trainer
+        config_path = "./configs/mp_trans_so.yml"
     elif args.trainer == "trans_sovi":
         from sophie.trainers.trainer_gen_trans_sovi import model_trainer
+        config_path = "./configs/mp_trans_sovi.yml"
     else:
         assert 1==0, "Error"
 
@@ -55,15 +59,12 @@ if __name__ == "__main__":
 
     print("BASE_DIR: ", BASE_DIR)
 
-    with open(r'./configs/sophie_argoverse.yml') as config_file:
+    # with open(r'./configs/sophie_argoverse.yml') as config_file:
+    with open(config_path) as config_file:
         config_file = yaml.safe_load(config_file)
 
         # Fill some additional dimensions
 
-        past_observations = config_file["hyperparameters"]["obs_len"]
-        num_agents_per_obs = config_file["hyperparameters"]["num_agents_per_obs"]
-        config_file["sophie"]["generator"]["social_attention"]["linear_decoder"]["out_features"] = past_observations * num_agents_per_obs
-        
         config_file["base_dir"] = BASE_DIR
         exp_path = os.path.join(config_file["base_dir"], config_file["hyperparameters"]["output_dir"])   
         route_path = exp_path + "/config_file.yml"
@@ -81,5 +82,6 @@ if __name__ == "__main__":
     time = now.strftime("%H:%M:%S")
 
     logger = create_logger(os.path.join(exp_path, f"{config_file.dataset_name}_{time}.log"))
+    logger.info("Config file: {}".format(config_path))
     
     trainer(config_file, logger)

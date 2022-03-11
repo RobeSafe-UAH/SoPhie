@@ -76,3 +76,16 @@ class TemporalDecoderLSTM(nn.Module):
 
         pred_traj_fake_rel = torch.stack(pred_traj_fake_rel, dim=0)
         return pred_traj_fake_rel
+
+class BaseDecoder(nn.Module):
+    """The base decoder interface for the encoder-decoder architecture.
+    Defined in :numref:`sec_encoder-decoder`"""
+    
+    def __init__(self, **kwargs):
+        super().__init__()
+    
+    def init_state(self, enc_outputs, *args):
+        raise NotImplementedError
+    
+    def forward(self, X, state):
+        raise NotImplementedError

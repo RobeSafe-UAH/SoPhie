@@ -13,7 +13,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as lrs
 
-from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
+from sophie.data_loader.argoverse.dataset_sgan_version_test_map import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.models.mp_trans_so import TrajectoryGenerator
 from sophie.modules.losses import pytorch_neg_multi_log_likelihood_batch, mse_weighted, l2_loss
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
@@ -133,16 +133,11 @@ def model_trainer(config, logger):
     hyperparameters = config.hyperparameters
     optim_parameters = config.optim_parameters
 
-    if not hyperparameters.classic_trainer:
-        iterations_per_epoch = len(data_train) / config.dataset.batch_size
-        if hyperparameters.num_epochs:
-            hyperparameters.num_iterations = int(iterations_per_epoch * hyperparameters.num_epochs)
-            hyperparameters.num_iterations = hyperparameters.num_iterations if hyperparameters.num_iterations != 0 else 1
-    else:
-        iterations_per_epoch = len(data_train) / config.dataset.batch_size
-        # select stop condition: epoch or iterations
-        if (hyperparameters.num_iterations > hyperparameters.num_epochs* iterations_per_epoch) and (hyperparameters.num_epochs != 0):
-            hyperparameters.num_iterations = hyperparameters.num_epochs* iterations_per_epoch
+
+    iterations_per_epoch = len(data_train) / config.dataset.batch_size
+    if hyperparameters.num_epochs:
+        hyperparameters.num_iterations = int(iterations_per_epoch * hyperparameters.num_epochs)
+        hyperparameters.num_iterations = hyperparameters.num_iterations if hyperparameters.num_iterations != 0 else 1
 
     logger.info(
         'There are {} iterations per epoch'.format(hyperparameters.num_iterations)
@@ -392,7 +387,7 @@ def generator_step(
 
     # forward
     generator_out = generator(
-        obs_traj_rel, seq_start_end, agent_idx
+        obs_traj, obs_traj_rel, seq_start_end, agent_idx
     )
 
     pred_traj_fake_rel = generator_out
@@ -479,7 +474,7 @@ def check_accuracy(
 
             ## forward
             pred_traj_fake_rel = generator(
-                obs_traj_rel, seq_start_end, agent_idx
+                obs_traj, obs_traj_rel, seq_start_end, agent_idx
             )
             # rel to abs
             pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
