@@ -107,8 +107,8 @@ except:
     num_agents_per_obs = config.hyperparameters.num_agents_per_obs
     config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
-    config.dataset.split = "val"
-    config.dataset.split_percentage = 0.0002 # To generate the final results, must be 1 (whole split test)
+    config.dataset.split = "train"
+    config.dataset.split_percentage = 0.01 # To generate the final results, must be 1 (whole split test)
     config.dataset.start_from_percentage = 0.0
     config.dataset.batch_size = 1 # Better to build the h5 results file
     config.dataset.num_workers = 0
@@ -154,13 +154,13 @@ except:
 
             origin_pos, city_name = get_origin_and_city(data,20)
 
-            img = map_utils.map_generator(file_id,
+            map_utils.map_generator(file_id,
                                     origin_pos,
                                     dist_rasterized_map,
                                     avm,
                                     city_name,
                                     show=False,
-                                    root_folder="data/datasets/argoverse/motion-forecasting/train/data_images_val")
+                                    root_folder = "data/datasets/argoverse/motion-forecasting/train/data_images_5")
 
             plt.close("all")
 
