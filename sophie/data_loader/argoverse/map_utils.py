@@ -73,7 +73,7 @@ def renderize_image(fig_plot, new_shape=(600,600),normalize=True):
         img_rsz = img_rsz / 255.0 # Normalize from 0 to 1
     return img_rsz
 
-_ZORDER = {"AGENT": 15, "AV": 10, "OTHERS": 5}
+_ZORDER = {"AGENT": 15, "AV": 10, "OTHER": 5}
 
 def interpolate_polyline(polyline: np.ndarray, num_points: int) -> np.ndarray:
     duplicates = []
@@ -94,7 +94,7 @@ def translate_object_type(int_id):
     elif int_id == 1:
         return "AGENT"
     else:
-        return "OTHERS"
+        return "OTHER"
 
 def draw_lane_polygons(
     ax: plt.Axes,
@@ -180,9 +180,14 @@ def map_generator(curr_num_seq,
                   offset,
                   avm,
                   city_name,
-                  show: bool = True) -> None:
+                  show: bool = True,
+                  root_folder = "data/datasets/argoverse/motion-forecasting/train/data_images") -> None:
     """
     """
+
+    if not os.path.exists(root_folder):
+        print("Create experiment path: ", root_folder)
+        os.mkdir(root_folder)
 
     plot_centerlines = True
     plot_local_das = True
@@ -279,7 +284,6 @@ def map_generator(curr_num_seq,
     if show:
         cv2.imshow("full_img",full_img_cv)
 
-    root_folder = "/home/robesafe/libraries/SoPhie/data/datasets/argoverse/motion-forecasting/train/data_images"
     filename = root_folder + "/" + str(curr_num_seq) + ".png"
     cv2.imwrite(filename,full_img_cv)
 
@@ -310,11 +314,11 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
 
     color_dict = {"AGENT": (0.0,0.0,1.0,1.0), # BGR
                   "AV": (1.0,0.0,0.0,1.0), 
-                  "OTHERS": (0.37,0.37,0.37,1.0)} 
+                  "OTHER": (0.0,1.0,0.0,1.0)} 
     object_type_tracker: Dict[int, int] = defaultdict(int)
 
     obs_seq_list = []
-    
+
     for i in range(len(object_class_id_list)):
         obs_ = obs_seq[:,i,:].view(-1,2) # 20 x 2 (rel-rel)
         curr_first_obs = first_obs[i,:].view(-1)
@@ -331,6 +335,22 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
 
         object_type = translate_object_type(object_type)
 
+        if object_type == "AGENT":
+            marker_type = "*"
+            marker_size = 15
+            linewidth = 6
+            c = "b" # blue in rgb (final image)
+        elif object_type == "OTHER":
+            marker_type = "o"
+            marker_size = 10
+            linewidth = 4
+            c = "g"
+        elif object_type == "AV":
+            marker_type = "o"
+            marker_size = 10
+            linewidth = 4
+            c = "r" # blue in rgb (final image)
+
         cor_x = seq_rel[:,0] + xcenter #+ width/2
         cor_y = seq_rel[:,1] + ycenter #+ height/2
 
@@ -346,32 +366,24 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
                 cor_x,
                 cor_y,
                 "-",
-                color=color_dict[object_type],
+                # color=color_dict[object_type],
+                color=c,
                 label=object_type if not object_type_tracker[object_type] else "",
                 alpha=1,
-                linewidth=2.5,
+                linewidth=linewidth,
                 zorder=_ZORDER[object_type],
             )
 
         final_x = cor_x[-1]
         final_y = cor_y[-1]
 
-        if object_type == "AGENT":
-            marker_type = "o"
-            marker_size = 8
-        elif object_type == "OTHERS":
-            marker_type = "o"
-            marker_size = 8
-        elif object_type == "AV":
-            marker_type = "o"
-            marker_size = 8
-
         if plot_object_heads:
             plt.plot(
                 final_x,
                 final_y,
                 marker_type,
-                color=color_dict[object_type],
+                # color=color_dict[object_type],
+                color=c,
                 label=object_type if not object_type_tracker[object_type] else "",
                 alpha=1,
                 markersize=marker_size,
@@ -394,6 +406,7 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
 
     mask_inv = cv2.bitwise_not(mask)
     img_map = cv2.imread(filename)
+    img_map = cv2.resize(img_map,(224,224))
     # img_map = cv2.rotate(img_map, cv2.ROTATE_90_CLOCKWISE)#ROTATE_180)
 
     img1_bg = cv2.bitwise_and(img_map,img_map,mask=mask_inv)
@@ -401,10 +414,15 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     ## Merge
 
     full_img_cv = cv2.add(img1_bg,img2_fg)
+    resized_full_img_cv = cv2.resize(full_img_cv,(600,600))
+    curr_seq = filename.split('/')[-1].split('.')[0]
+    filename2 = "/home/robesafe/tesis/test_images/" + curr_seq +".png"
+    cv2.imwrite(filename2,resized_full_img_cv)
 
     if show:
         cv2.imshow("full_img",full_img_cv)
 
     norm_full_img_cv = full_img_cv / 255.0
+    # norm_full_img_cv = img_lanes / 255.0
 
     return norm_full_img_cv

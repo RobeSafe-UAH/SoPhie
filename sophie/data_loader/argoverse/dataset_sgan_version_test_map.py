@@ -106,7 +106,6 @@ def load_images(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rast
 
     batch_size = len(object_class_id_list)
     frames_list = []
-    # pdb.set_trace()
 
     # rasterized_start = time.time()
     t0_idx = 0
@@ -114,12 +113,15 @@ def load_images(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rast
         
         curr_num_seq = int(num_seq[i].cpu().data.numpy())
         object_class_id = object_class_id_list[i].cpu().data.numpy()
+         
 
         t1_idx = len(object_class_id_list[i]) + t0_idx
         if i < batch_size - 1:
             curr_obs_seq_data = obs_seq_data[:,t0_idx:t1_idx,:]
         else:
             curr_obs_seq_data = obs_seq_data[:,t0_idx:,:]
+        curr_first_obs = first_obs[t0_idx:t1_idx,:]
+
         obs_len = curr_obs_seq_data.shape[0]
 
         curr_city = round(city_id[i])
@@ -139,7 +141,7 @@ def load_images(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rast
         root_folder = "/home/robesafe/tesis/SoPhie/data/datasets/argoverse/motion-forecasting/train/data_images"
         filename = root_folder + "/" + str(curr_num_seq) + ".png"
 
-        img = map_utils.plot_trajectories(filename, curr_obs_seq_data, first_obs, 
+        img = map_utils.plot_trajectories(filename, curr_obs_seq_data, curr_first_obs, 
                                           curr_ego_origin, object_class_id, dist_rasterized_map,
                                           rotation_angle=0,obs_len=obs_len, smoothen=True, show=False)
 
@@ -204,7 +206,7 @@ def seq_collate(data): # 2.58 seconds - batch 8
     start = time.time()
     # pdb.set_trace()
 
-    first_obs = obs_traj[0,:,:] # 1 x agents x 2
+    first_obs = obs_traj[0,:,:] # 1 x agents · batch_size x 2
 
     frames = load_images(num_seq_list, obs_traj_rel, first_obs, city_id, ego_vehicle_origin,    # Return batch_size x 600 x 600 x 3
                          dist_rasterized_map, object_class_id_list, debug_images=False)
@@ -334,9 +336,9 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
     #     availables_angles = [90,180,270]
     #     rotation_angle = availables_angles[np.random.randint(3,size=1).item()]
 
+    rotate_seq = 0
     rotation_angle = 0
-    rotate_seq = 1
-
+    
     for index, ped_id in enumerate(peds_in_curr_seq):
         curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]
 
@@ -369,9 +371,10 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
 
         # Get x-y data (w.r.t the sequence origin, so they are absolute 
         # coordinates but in the local frame, not map (global) frame)
-
+        
         curr_ped_seq = np.transpose(curr_ped_seq[:, 3:5])
         curr_ped_seq = curr_ped_seq - ego_origin[0].reshape(-1,1)
+        first_obs = curr_ped_seq[:,0].reshape(-1,1)
 
         # Rotation (If the image is rotated, all trajectories must be rotated)
 
@@ -402,8 +405,6 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
 
         rel_curr_ped_seq = np.zeros(curr_ped_seq.shape) 
         rel_curr_ped_seq[:, 1:] = curr_ped_seq[:, 1:] - curr_ped_seq[:, :-1] # Get displacements between consecutive steps
-        
-        # pdb.set_trace()
         
         _idx = num_objs_considered
         curr_seq[_idx, :, pad_front:pad_end] = curr_ped_seq
