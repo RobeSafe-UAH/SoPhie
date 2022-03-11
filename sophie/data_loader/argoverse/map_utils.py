@@ -229,7 +229,7 @@ def map_generator(curr_num_seq,
                 edgecolor='none', pad_inches=0)
 
 def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_list,offset,\
-                      rotation_angle=0,obs_len=None,smoothen=False,show=False):
+                      rot_angle=-1,obs_len=None,smoothen=False,show=False):
     """
     Plot until plot_len points per trajectory. If plot_len != None, we
     must distinguish between observation (color with a marker) and prediction (same color with another marker)
@@ -257,6 +257,14 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     object_type_tracker: Dict[int, int] = defaultdict(int)
 
     obs_seq_list = []
+    
+    # Filter objects if you are debugging (not running the whole dataloader)
+    # Probably you will have 0s in obj class list, in addition to the first 0 (which represents
+    # the AV)
+
+    if len(np.where(object_class_id_list == 0)[0]) > 0:
+        start_dummy = np.where(object_class_id_list == 0)[0][1]
+        object_class_id_list = object_class_id_list[:start_dummy]
 
     for i in range(len(object_class_id_list)):
         obs_ = obs_seq[:,i,:].view(-1,2) # 20 x 2 (rel-rel)
@@ -334,9 +342,22 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
 
     # Merge local driveable information and trajectories information
 
+    ## Read map
+
+    img_map = cv2.imread(filename)
+    if rot_angle == 90:
+        img_map = cv2.rotate(img_map, cv2.ROTATE_90_CLOCKWISE)
+    elif rot_angle == 180:
+        img_map = cv2.rotate(img_map, cv2.ROTATE_180)
+    elif rot_angle == 270:
+        img_map = cv2.rotate(img_map, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    else: # -1 (default)
+        rot_angle = 0
+    height, width = img_map.shape[:-1]
+
     ## Foreground
 
-    img_lanes = renderize_image(fig,new_shape=(224,224),normalize=False)
+    img_lanes = renderize_image(fig,new_shape=(width,height),normalize=False)
     img2gray = cv2.cvtColor(img_lanes,cv2.COLOR_BGR2GRAY)
     ret,mask = cv2.threshold(img2gray,127,255,cv2.THRESH_BINARY_INV)
     img2_fg = cv2.bitwise_and(img_lanes,img_lanes,mask=mask)
@@ -344,24 +365,21 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     ## Background
 
     mask_inv = cv2.bitwise_not(mask)
-    img_map = cv2.imread(filename)
-    img_map = cv2.resize(img_map,(224,224))
-    # img_map = cv2.rotate(img_map, cv2.ROTATE_90_CLOCKWISE)#ROTATE_180)
 
     img1_bg = cv2.bitwise_and(img_map,img_map,mask=mask_inv)
 
     ## Merge
 
     full_img_cv = cv2.add(img1_bg,img2_fg)
-    resized_full_img_cv = cv2.resize(full_img_cv,(600,600))
+  
     curr_seq = filename.split('/')[-1].split('.')[0]
-    filename2 = "/home/robesafe/tesis/test_images/" + curr_seq +".png"
-    cv2.imwrite(filename2,resized_full_img_cv)
+    filename2 = "data/datasets/argoverse/motion-forecasting/train/data_images_augs/" + curr_seq + "_" + str(rot_angle) + ".png"
+    cv2.imwrite(filename2,full_img_cv)
 
     if show:
         cv2.imshow("full_img",full_img_cv)
 
-    norm_full_img_cv = full_img_cv / 255.0
-    # norm_full_img_cv = img_lanes / 255.0
+    resized_full_img_cv = cv2.resize(full_img_cv,(224,224))
+    norm_resized_full_img_cv = resized_full_img_cv / 255.0
 
-    return norm_full_img_cv
+    return norm_resized_full_img_cv
