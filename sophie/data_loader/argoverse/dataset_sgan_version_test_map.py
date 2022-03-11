@@ -276,7 +276,8 @@ def poly_fit(traj, traj_len, threshold):
 
 # @jit(nopython=True)
 def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, 
-                            threshold, file_id, split, obs_origin, skip=1):
+                            threshold, file_id, split, obs_origin, skip=1, 
+                            rot_angle=-1):
     """
     Input:
         idx (int): AV id
@@ -331,13 +332,14 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
 
     # Iterate over all unique objects
 
-    # rotate_seq = np.random.randint(2,size=1) # Rotate the sequence (so, the image) if 1
-    # if rotate_seq:
-    #     availables_angles = [90,180,270]
-    #     rotation_angle = availables_angles[np.random.randint(3,size=1).item()]
-
-    rotate_seq = 0
-    rotation_angle = 0
+    if rot_angle == -1:
+        rotate_seq = np.random.randint(2,size=1) # Rotate the sequence (so, the image) if 1
+        if rotate_seq:
+            availables_angles = [90,180,270]
+            rotation_angle = availables_angles[np.random.randint(3,size=1).item()]
+    else:
+        rotate_seq = 1
+        rotation_angle = rot_angle
     
     for index, ped_id in enumerate(peds_in_curr_seq):
         curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]
