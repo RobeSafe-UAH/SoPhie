@@ -10,7 +10,7 @@ dataset:
     batch_size: 128
     start_from_percentage: 0.0 # By default, 0. If you want to analize a particular bunch of files (e.g. from 25 % to 50 %)
                   # then write here 0.25 and in split_percentage 0.25
-    split_percentage: 0.0005 # % of the dataset (0-1)
+    split_percentage: 0.25 # % of the dataset (0-1)
     shuffle: True # False to check the input data, always set to True
     class_balance: 0.7 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
@@ -31,14 +31,14 @@ hyperparameters:
     output_single_agent: True
     tensorboard_active: True
     num_iterations: 20000 #1608 #20000
-    num_epochs: 500000000 #75
+    num_epochs: 5000 #75
     d_steps: 2
     g_steps: 1
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 10
     checkpoint_every: 500
-    output_dir:  "save/argoverse/test" # "save/argoverse/gen_exp/exp8" #   
-    exp_description: "test sovi frames"
+    output_dir: "save/argoverse/gen_exp/exp12" # "save/argoverse/test"  
+    exp_description: "25% dataset. sovi. exp12. no data aug"
     checkpoint_name: "0"
     checkpoint_start_from: "save/argoverse/gen_exp/exp9/argoverse_motion_forecasting_dataset_0_with_model.pt" #"save/argoverse/gen_exp_trans/exp2/argoverse_motion_forecasting_dataset_0_with_model.pt"
     restore_from_checkpoint: 

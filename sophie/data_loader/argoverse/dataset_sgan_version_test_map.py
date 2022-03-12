@@ -142,7 +142,7 @@ def load_images(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rast
 
         img = map_utils.plot_trajectories(filename, curr_obs_seq_data, curr_first_obs, 
                                           curr_ego_origin, object_class_id, dist_rasterized_map,
-                                          rotation_angle=0,obs_len=obs_len, smoothen=True, show=False)
+                                          rot_angle=0,obs_len=obs_len, smoothen=True, show=False)
 
         # cv2.imshow("img_map",img_map)
         # pdb.set_trace()
@@ -522,7 +522,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         for i, file_id in enumerate(self.file_id_list):
             # file_id = int(path.split("/")[-1].split(".")[0])
             t1 = time.time()
-            print(f"File {file_id} -> {i}/{len(self.file_id_list)}")
+            # print(f"File {file_id} -> {i}/{len(self.file_id_list)}")
             num_seq_list.append(file_id)
             path = os.path.join(root_file_name,str(file_id)+".csv")
             data = read_file(path) 

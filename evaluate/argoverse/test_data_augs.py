@@ -15,7 +15,7 @@ from skimage.measure import LineModelND, ransac
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-BASE_DIR = "/home/robesafe/libraries/SoPhie"
+BASE_DIR = "/home/robesafe/tesis/SoPhie"
 sys.path.append(BASE_DIR)
 
 from sophie.utils.utils import relative_to_abs_sgan

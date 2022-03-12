@@ -261,10 +261,12 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     # Filter objects if you are debugging (not running the whole dataloader)
     # Probably you will have 0s in obj class list, in addition to the first 0 (which represents
     # the AV)
-
-    if len(np.where(object_class_id_list == 0)[0]) > 0:
-        start_dummy = np.where(object_class_id_list == 0)[0][1]
-        object_class_id_list = object_class_id_list[:start_dummy]
+    try:
+        if len(np.where(object_class_id_list == 0)[0]) > 1:
+            start_dummy = np.where(object_class_id_list == 0)[0][1]
+            object_class_id_list = object_class_id_list[:start_dummy]
+    except Exception as e:
+        pdb.set_trace()
 
     for i in range(len(object_class_id_list)):
         obs_ = obs_seq[:,i,:].view(-1,2) # 20 x 2 (rel-rel)
@@ -371,13 +373,12 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     ## Merge
 
     full_img_cv = cv2.add(img1_bg,img2_fg)
-  
-    curr_seq = filename.split('/')[-1].split('.')[0]
-    filename2 = "data/datasets/argoverse/motion-forecasting/train/data_images_augs/" + curr_seq + "_" + str(rot_angle) + ".png"
-    cv2.imwrite(filename2,full_img_cv)
 
     if show:
-        cv2.imshow("full_img",full_img_cv)
+        # cv2.imshow("full_img",full_img_cv)
+        curr_seq = filename.split('/')[-1].split('.')[0]
+        filename2 = os.path.join(*filename.split('/')[:-2]) + "/data_images_augs/" + curr_seq + "_" + str(rot_angle) + ".png"
+        cv2.imwrite(filename2,full_img_cv)
 
     resized_full_img_cv = cv2.resize(full_img_cv,(224,224))
     norm_resized_full_img_cv = resized_full_img_cv / 255.0
