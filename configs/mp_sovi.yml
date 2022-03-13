@@ -37,10 +37,10 @@ hyperparameters:
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 10
     checkpoint_every: 500
-    output_dir: "save/argoverse/gen_exp/exp12" # "save/argoverse/test"  
-    exp_description: "25% dataset. sovi. exp12. no data aug"
+    output_dir: "save/argoverse/sovi_exp1" # "save/argoverse/test"  
+    exp_description: "25% dataset. sovi. no data aug"
     checkpoint_name: "0"
-    checkpoint_start_from: "save/argoverse/gen_exp/exp9/argoverse_motion_forecasting_dataset_0_with_model.pt" #"save/argoverse/gen_exp_trans/exp2/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    checkpoint_start_from: "save/argoverse/gen_exp/exp9/so_exp9_argoverse_motion_forecasting_dataset_0_with_model.pt" #"save/argoverse/gen_exp_trans/exp2/argoverse_motion_forecasting_dataset_0_with_model.pt"
     restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 1.1

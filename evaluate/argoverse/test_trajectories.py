@@ -107,9 +107,9 @@ except:
     num_agents_per_obs = config.hyperparameters.num_agents_per_obs
     config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
-    config.dataset.split = "train"
-    config.dataset.split_percentage = 1.0 # To generate the final results, must be 1 (whole split test)
-    config.dataset.start_from_percentage = 0.75
+    config.dataset.split = "val"
+    config.dataset.split_percentage = 0.05 # To generate the final results, must be 1 (whole split test)
+    config.dataset.start_from_percentage = 0.0
     config.dataset.batch_size = 1 # Better to build the h5 results file
     config.dataset.num_workers = 0
     config.dataset.class_balance = -1.0 # Do not consider class balance in the split val
@@ -117,7 +117,7 @@ except:
 
     config.hyperparameters.pred_len = 30 # In test, we do not have the gt (prediction points)
 
-    MAP_GENERATION = True
+    MAP_GENERATION = False
 
     if MAP_GENERATION:
         # Only load the city and x|y center to generate the background
@@ -186,7 +186,7 @@ except:
                             num_workers=config.dataset.num_workers,
                             collate_fn=seq_collate)
 
-        exp_name = "exp11" #"gen_exp/exp7"
+        exp_name = "gen_exp/exp9" #"gen_exp/exp7"
         model_path = BASE_DIR + "/save/argoverse/" + exp_name + "/argoverse_motion_forecasting_dataset_0_with_model.pt"
         checkpoint = torch.load(model_path)
         generator = TrajectoryGenerator(config.sophie.generator)
@@ -213,9 +213,6 @@ except:
                 
                 (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
                 loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq,_) = batch
-
-                if MAP_GENERATION:
-                    continue 
             
                 predicted_traj = []
                 agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
