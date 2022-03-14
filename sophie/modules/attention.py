@@ -6,6 +6,7 @@ import pdb
 
 from sophie.modules.encoders import BaseEncoder
 from sophie.modules.decoders import BaseDecoder
+from sophie.modules.backbones import CNN
 
 def transpose_qkv(X, num_heads):
     """Transposition for parallel computation of multiple attention heads.
@@ -398,3 +399,119 @@ class TransformerDecoder(BaseDecoder):
             # blocks -> each block is decoder transformer
             X, state = blk(X, state)
         return self.dense(X), state
+
+####################################################################
+####################### Goal Module  ###############################
+####################################################################
+
+class VisualNetwork(nn.Module):
+    """VisualNetwork is the parent class for the attention and goal networks generating the CNN"""
+
+    def __init__(self,
+                 decoder_h_dim=128,
+                 dropout=0.0,
+                 batch_norm=False,
+                 mlp_dim=32,
+                 img_scaling=0.25,
+                 final_embedding_dim=4,
+                 grid_size_in=16,
+                 grid_size_out=16,
+                 num_layers=1,
+                 batch_norm_cnn=True,
+                 non_lin_cnn="relu",
+                 img_type="local_image",
+                 skip_connection=False,
+                 channels_cnn=4,
+                 social_pooling=False,
+                 **kwargs):
+
+        super(VisualNetwork, self).__init__()
+        self.__dict__.update(locals())
+
+    def init_cnn(self):
+        self.CNN = CNN(social_pooling=self.social_pooling,
+                       channels_cnn=self.channels_cnn,
+                       encoder_h_dim=self.decoder_h_dim,
+                       mlp=self.mlp_dim,
+                       insert_trajectory=True,
+                       need_decoder=self.need_decoder,
+                       PhysFeature=self.PhysFeature,
+                       grid_size_in=self.grid_size_in,
+                       grid_size_out=self.grid_size_out,
+                       dropout=self.dropout,
+                       batch_norm=self.batch_norm_cnn,
+                       non_lin_cnn=self.non_lin_cnn,
+                       num_layers=self.num_layers,
+                       in_channels=4,
+                       skip_connection=self.skip_connection
+                       )
+
+class GumbelSampler(nn.Module):
+
+    def __init__(self,
+                 temp=1,
+                 grid_size_out=16,
+                 scaling=0.5,
+                 force_hard=True,
+                 ):
+        super(GumbelSampler, self).__init__()
+        self.temp = temp
+        self.grid_size_out = grid_size_out
+        self.scaling = scaling
+        self.gumbelsoftmax = GumbelSoftmax(temp=self.temp)
+        self.gumbel_map = get_gumbel_map(grid_size=self.grid_size_out)
+        self.force_hard = force_hard
+
+    def forward(self, cnn_out):
+        """
+        :param cnn_out:
+        :type cnn_out:
+        :return:
+            final_pos: Tensor with probability for each position
+            final_pos_map: final_pos tensor reshaped
+            y_softmax_gumbel: tensor with gumbel probabilities
+            y_softmax: tensor with probabilites
+        :rtype:
+        """
+
+        batch_size, c, hh, w = cnn_out["PosMap"].size()
+
+        gumbel_map = self.gumbel_map(batch_size).to(cnn_out["PosMap"])
+        y_scores = cnn_out["PosMap"].view(batch_size, -1)
+
+        final_pos_map, y_softmax_gumbel, y_softmax = self.gumbelsoftmax(y_scores, force_hard=self.force_hard)
+
+        final_pos = torch.sum(gumbel_map * final_pos_map.unsqueeze(2), 1).unsqueeze(0)
+
+        final_pos_map = final_pos_map.view(batch_size, c, hh, w)
+        y_softmax_gumbel = y_softmax_gumbel.view(batch_size, c, hh, w)
+        y_softmax = y_softmax.view(batch_size, c, hh, w)
+        final_pos = final_pos * self.scaling
+
+        return final_pos, final_pos_map, y_softmax_gumbel, y_softmax, y_scores
+
+class GoalGlobal(VisualNetwork):
+
+    def __init__(self,
+                 temperature=1, # temperature of the gumbel sampling
+                 force_hard=True, # mode of the gumbel sampling
+                 **kwargs):
+
+        super(GoalGlobal, self).__init__()
+        VisualNetwork.__init__(self, **kwargs)
+        self.__dict__.update(locals())
+
+        self.PhysFeature = False
+        self.need_decoder = True
+
+        self.init_cnn()
+        self.gumbelsampler = GumbelSampler(
+            temp=self.temperature,
+            grid_size_out=self.grid_size_out,
+            force_hard=force_hard,
+            scaling=self.img_scaling)
+    def forward(self, features, h, pool_h=torch.empty(1)):
+        cnn_out = self.CNN(features, h, pool_h)
+
+        final_pos, final_pos_map_decoder, final_pos_map, y_softmax, y_scores = self.gumbelsampler(cnn_out)
+        return final_pos, final_pos_map_decoder, final_pos_map, y_softmax, y_scores
