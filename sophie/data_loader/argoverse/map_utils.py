@@ -311,16 +311,22 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
             cor_y = smooth_polyline[:, 1]
 
         if plot_object_trajectories:
-            plt.plot(
+            # plt.plot(
+            #     cor_x,
+            #     cor_y,
+            #     "-",
+            #     # color=color_dict[object_type],
+            #     color=c,
+            #     label=object_type if not object_type_tracker[object_type] else "",
+            #     alpha=1,
+            #     linewidth=linewidth,
+            #     zorder=_ZORDER[object_type],
+            # )
+            pdb.set_trace()
+            plt.scatter(
                 cor_x,
                 cor_y,
-                "-",
-                # color=color_dict[object_type],
-                color=c,
-                label=object_type if not object_type_tracker[object_type] else "",
-                alpha=1,
-                linewidth=linewidth,
-                zorder=_ZORDER[object_type],
+                color=c,     
             )
 
         final_x = cor_x[-1]

@@ -68,6 +68,25 @@ def mse_weighted(gt, pred, weights):
         pdb.set_trace()
     return l2
 
+def mse_custom(gt, pred):
+    """
+        With t = predicted points
+        gt: (t, b, 2)
+        pred: (t, b, 2)
+        weights: (b, t)
+    """
+    try:
+        l2 = gt.permute(1, 0, 2) - pred.permute(1, 0, 2) # b,t,2
+        l2 = l2**2 # b, t, 2
+        l2 = torch.sum(l2, axis=2) # b, t
+        l2 = torch.sqrt(l2) # b, t
+        l2 = torch.mean(l2, axis=1) # b
+        l2 = torch.mean(l2) # single value
+    except Exception as e:
+        print(e)
+        pdb.set_trace()
+    return l2
+
 def pytorch_neg_multi_log_likelihood_batch(
     gt: Tensor,
     pred: Tensor,
@@ -174,3 +193,47 @@ def pytorch_neg_multi_log_likelihood_single(
     return pytorch_neg_multi_log_likelihood_batch(
         gt, pred.unsqueeze(1), confidences, avails
     )
+
+def evaluate_feasible_area_prediction(pred_traj_fake_abs, distance_threshold, origin_pos, filename):
+    """
+    Get feasible_area_loss. If a prediction point (in pixel coordinates) is in the drivable (feasible)
+    area, is weighted with 1. Otherwise, it is weighted with 0. Theoretically, all points must be
+    in the prediction area for the AGENT in Argoverse
+
+    Input:
+        pred_traj_fake_abs: Torch.tensor -> pred_len x 2 (x|y) in global (map) coordinates
+        filename: Image filename to read
+    Output:
+        feasible_area_loss: min = 0 (num_points · 1), max = pred_len (num_points · 1)
+    """
+
+    img_map = cv2.imread(filename)
+    img_map_gray = cv2.cvtColor(img_map,cv2.COLOR_BGR2GRAY)
+    height, width = img_map.shape
+
+    xcenter, ycenter = origin_pos[0][0], origin_pos[0][1]
+    x_min = xcenter + offset[0]
+    x_max = xcenter + offset[1]
+    y_min = ycenter + offset[2]
+    y_max = ycenter + offset[3]
+
+    # Transform global point to pixel
+
+    m_x = float(width / (x_max - x_min)) # slope
+    m_y = float(height / (y_max - y_min))
+
+    i_x = float(-m_x * x_min) # intercept
+    i_y = float(-m_y * y_min)
+
+    feasible_area_loss = []
+
+    for i in range(pred_traj_fake_abs.shape[0]): # pred_len
+        pix_x = pt[i,0] * m_x + i_x
+        pix_y = pt[i,1] * m_y + i_y
+
+        if img_map[pix_y,pix_x] == 255.0:
+            feasible_area_loss.append(1)
+        else:
+            feasible_area_loss.append(0)
+
+    return feasible_area_loss
