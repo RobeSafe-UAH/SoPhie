@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 
 from argoverse.evaluation.competition_util import generate_forecasting_h5
 
-BASE_DIR = "/home/robesafe/tesis/SoPhie"
+BASE_DIR = "/home/robesafe/libraries/SoPhie"
 sys.path.append(BASE_DIR)
 
 from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
@@ -80,13 +80,18 @@ def evaluate(loader, generator, num_samples, pred_len, split, results_path):
             file_list.remove(key)
 
         # add sequences not loaded in dataset
- 
+        file_list = []
+        try:
+            print("No processed files: {}".format(len(file_list.keys())))
+        except:
+            print("All files have been processed")
+
         for key in file_list:
             output_all[key] = np.zeros((num_samples, 30, 2))
 
         # Generate H5 file for Argoverse Motion-Forecasting competition
-        generate_forecasting_h5(output_all, results_path)
         pdb.set_trace()
+        generate_forecasting_h5(output_all, results_path)
 
     return output_all
 
@@ -95,8 +100,8 @@ def evaluate(loader, generator, num_samples, pred_len, split, results_path):
 def get_generator(checkpoint, config):
     """
     """
-    generator = TrajectoryGenerator(config.sophie.generator)
-    generator.load_state_dict(checkpoint['g_state'])
+    generator = TrajectoryGenerator()
+    generator.load_state_dict(checkpoint['g_best_state'])
     generator.cuda() # Use GPU
     generator.eval()
     return generator      

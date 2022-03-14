@@ -278,7 +278,7 @@ def poly_fit(traj, traj_len, threshold):
 # @jit(nopython=True)
 def process_window_sequence(idx, frame_data, frames, seq_len, pred_len, 
                             threshold, file_id, split, obs_origin, skip=1, 
-                            rot_angle=-1):
+                            rot_angle=-1, augs=None):
     """
     Input:
         idx (int): AV id
@@ -383,11 +383,12 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
 
         if rotate_seq:
             curr_ped_seq = dataset_utils.rotate_traj(curr_ped_seq,rotation_angle)
-
-        if data_aug_flag:
+        print("augs: ", augs)
+        if data_aug_flag or not augs:
             # Add data augmentation
 
-            augs = dataset_utils.get_data_aug_combinations(3) # Available data augs: Swapping, Erasing, Gaussian noise
+            if not augs:
+                augs = dataset_utils.get_data_aug_combinations(3) # Available data augs: Swapping, Erasing, Gaussian noise
 
             ## 1. Swapping
 
@@ -397,6 +398,7 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
             ## 2. Erasing
 
             if augs[1]:
+                print("ERASING")
                 curr_ped_seq = dataset_utils.erase_points(curr_ped_seq,num_obs=obs_len)
 
             ## 3. Add Gaussian noise

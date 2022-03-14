@@ -10,7 +10,7 @@ from datetime import datetime
 from prodict import Prodict
 from pathlib import Path
 
-TRAINER_LIST = ["so", "sovi", "trans_so", "trans_sovi"]
+TRAINER_LIST = ["so", "sovi", "trans_so", "trans_sovi", "soconf"]
 
 def create_logger(file_path):
     FORMAT = '[%(levelname)s: %(lineno)4d]: %(message)s'
@@ -41,6 +41,9 @@ if __name__ == "__main__":
     if args.trainer == "so":
         from sophie.trainers.trainer_gen_so import model_trainer
         config_path = "./configs/mp_so.yml"
+    elif args.trainer == "soconf":
+        from sophie.trainers.trainer_gen_soconf import model_trainer
+        config_path = "./configs/mp_soconf.yml"
     elif args.trainer == "sovi":
         from sophie.trainers.trainer_gen_sovi import model_trainer
         config_path = "./configs/mp_sovi.yml"

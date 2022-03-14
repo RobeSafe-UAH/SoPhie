@@ -1391,6 +1391,10 @@ def test_nll_loss():
     confidences = torch.ones(3,1).cuda() # 1 -> cancela el log en el error
     avails = torch.ones(3,30).cuda() # puede ser siempre 1 (?)
     pdb.set_trace()
+    # gt: (b, t, 2)
+    # pred: (b, m, t, 2)
+    # confidences (b, 1)
+    # avails (b, 30) 
     l = loss(gt, pred, confidences, avails)
     print(l)
 
@@ -1400,7 +1404,7 @@ def test_mse_custom():
     
     b = 8
     gt = torch.ones(30,b,2)
-    pred = torch.ones(30,b,2)*5
+    pred = torch.ones(b,3,30,2)*5
     weights = torch.tensor([
         1,1,1,1,1,1,1,1,1,1,
         1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5,
@@ -1532,6 +1536,19 @@ def test_gen_sovi_freeze():
     output = m(obs, rel, frames, se, idx)
     print(output.shape)
 
+def test_soviconf():
+    from sophie.models.mp_soconf import TrajectoryGenerator as TG
+    import pdb
+
+    m = TG()
+    m.train()
+    m.cuda()
+    obs = torch.randn(20,10,2).cuda()
+    obs_rel = torch.randn(20,10,2).cuda()
+    start_end_seq = torch.tensor([[0,3],[3,6], [6,10]]).cuda()
+    agent_idx = torch.tensor([0,3,6]).cuda()
+    pred_traj = m(obs, obs_rel, start_end_seq, agent_idx)
+
     
 if __name__ == "__main__":
     # test_read_file()
@@ -1576,7 +1593,10 @@ if __name__ == "__main__":
     # test_mse_custom()
     # test_create_weights()
     # test_transformer_encoder()
-    test_transso()
+    # test_transso()
+    # test_nll_loss()
+    # test_soviconf()
+    test_mse_custom()
     # test_mp_so_g()
     # test_home_model()
     # test_visual_extractor()

@@ -15,7 +15,7 @@ from skimage.measure import LineModelND, ransac
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-BASE_DIR = "/home/robesafe/tesis/SoPhie"
+BASE_DIR = "/home/robesafe/libraries/SoPhie"
 sys.path.append(BASE_DIR)
 
 from sophie.utils.utils import relative_to_abs_sgan
@@ -93,6 +93,9 @@ else:
     else:
         file_id_list = file_id_list[start_from:start_from+n_files]
 
+check_data_augs = [0,1,0] # swapping, dropout (erasing), gaussian noise
+check_rotations = False # rotations
+
 for i, file_id in enumerate(file_id_list):
     path = os.path.join(root_file_name,str(file_id)+".csv")
     data = read_file(path) 
@@ -103,36 +106,65 @@ for i, file_id in enumerate(file_id_list):
         frame_data.append(data[frame == data[:, 0], :]) # save info for each frame
 
     idx = 0
+    rot_angle = -1
 
-    rots_angles = [0,90,180,270]
+    num_objs_considered, _non_linear_obj, curr_loss_mask, curr_seq, \
+    curr_seq_rel, id_frame_list, object_class_list, city_id, ego_origin = \
+                process_window_sequence(idx, frame_data, frames, \
+                                        seq_len, config.hyperparameters.pred_len, threshold, 
+                                        file_id, config.dataset.split, config.hyperparameters.obs_origin,
+                                        rot_angle=rot_angle,augs=check_data_augs)
 
-    for rot_angle in rots_angles:
-        num_objs_considered, _non_linear_obj, curr_loss_mask, curr_seq, \
-        curr_seq_rel, id_frame_list, object_class_list, city_id, ego_origin = \
-            process_window_sequence(idx, frame_data, frames, \
-                                    seq_len, config.hyperparameters.pred_len, threshold, 
-                                    file_id, config.dataset.split, config.hyperparameters.obs_origin,
-                                    rot_angle=rot_angle)
+    curr_seq = torch.from_numpy(curr_seq).permute(2, 0, 1)
+    curr_seq_rel = torch.from_numpy(curr_seq_rel).permute(2, 0, 1)
 
-        curr_seq = torch.from_numpy(curr_seq).permute(2, 0, 1)
-        curr_seq_rel = torch.from_numpy(curr_seq_rel).permute(2, 0, 1)
+    first_obs = curr_seq[0,:,:]
 
-        first_obs = curr_seq[0,:,:]
+    curr_city = round(city_id)
+    if curr_city == 0:
+        city_name = "PIT"
+    else:
+        city_name = "MIA"
 
-        curr_city = round(city_id)
-        if curr_city == 0:
-            city_name = "PIT"
-        else:
-            city_name = "MIA"
+    filename = data_images_folder + "/" + str(file_id) + ".png"
 
-        filename = data_images_folder + "/" + str(file_id) + ".png"
+    img = map_utils.plot_trajectories(filename, curr_seq_rel, first_obs, 
+                                        ego_origin, object_class_list, dist_rasterized_map,
+                                        rot_angle=rot_angle,obs_len=config.hyperparameters.obs_len, 
+                                        smoothen=True, show=True)
 
-        img = map_utils.plot_trajectories(filename, curr_seq_rel, first_obs, 
-                                            ego_origin, object_class_list, dist_rasterized_map,
-                                            rot_angle=rot_angle,obs_len=config.hyperparameters.obs_len, 
-                                            smoothen=True, show=False)
+    plt.close("all")
 
-        plt.close("all")
+    if check_rotations: # check rotations
+        rots_angles = [0,90,180,270]
+
+        for rot_angle in rots_angles:
+            num_objs_considered, _non_linear_obj, curr_loss_mask, curr_seq, \
+            curr_seq_rel, id_frame_list, object_class_list, city_id, ego_origin = \
+                process_window_sequence(idx, frame_data, frames, \
+                                        seq_len, config.hyperparameters.pred_len, threshold, 
+                                        file_id, config.dataset.split, config.hyperparameters.obs_origin,
+                                        rot_angle=rot_angle,augs=None)
+
+            curr_seq = torch.from_numpy(curr_seq).permute(2, 0, 1)
+            curr_seq_rel = torch.from_numpy(curr_seq_rel).permute(2, 0, 1)
+
+            first_obs = curr_seq[0,:,:]
+
+            curr_city = round(city_id)
+            if curr_city == 0:
+                city_name = "PIT"
+            else:
+                city_name = "MIA"
+
+            filename = data_images_folder + "/" + str(file_id) + ".png"
+
+            img = map_utils.plot_trajectories(filename, curr_seq_rel, first_obs, 
+                                                ego_origin, object_class_list, dist_rasterized_map,
+                                                rot_angle=rot_angle,obs_len=config.hyperparameters.obs_len, 
+                                                smoothen=True, show=True)
+
+            plt.close("all")
 
     if i == 9:
         break
