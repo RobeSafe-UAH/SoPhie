@@ -15,7 +15,7 @@ import torch.optim.lr_scheduler as lrs
 
 from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.models.mp_soconf import TrajectoryGenerator
-from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_weighted
+from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_custom
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
 from sophie.utils.utils import relative_to_abs_sgan, create_weights
@@ -72,13 +72,32 @@ def calculate_nll_loss(gt, pred, loss_f, conf):
     )
     return loss
 
-def calculate_mse_loss(gt, pred, loss_f, l_type, w_loss=None):
-    if "mse_w" in l_type:
-        loss = loss_f(pred, gt, w_loss)
-    else:
-        loss = loss_f(pred, gt)
-
+def calculate_mse_loss(gt, pred, loss_f):
+    _,m,_ ,_ = pred.shape
+    for i in range (m):
+        loss = loss_f(
+            pred[:,i,:,:].permute(1,0,2), 
+            gt
+        )
+    loss /= m
     return loss
+
+def calculate_mse_loss_2(gt, pred, loss_f):
+    _,m,_ ,_ = pred.shape
+    for i in range (m):
+        loss_1 = loss_f(
+            pred[:,i,:,:].permute(1,0,2), 
+            gt
+        )
+        loss_2 = loss_f(
+            pred[:,i,:,:].permute(1,0,2)[-1].unsqueeze(0),
+            gt[-1].unsqueeze(0)
+        )
+        loss_1 += loss_1
+        loss_2 += loss_2
+    loss_1 /= m
+    print("loss_1", loss_1)
+    print("loss_2", loss_2)
 
 def model_trainer(config, logger):
     """
@@ -152,17 +171,10 @@ def model_trainer(config, logger):
 
     # optimizer, scheduler and loss functions
 
-    if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
-        loss_f = mse_weighted if "w" in hyperparameters.loss_type_g else nn.MSELoss()
-    elif hyperparameters.loss_type_g == "nll":
-        loss_f = pytorch_neg_multi_log_likelihood_batch
-    elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
-        loss_f = {
-            "mse": mse_weighted if "w" in hyperparameters.loss_type_g else nn.MSELoss(),
+    loss_f = {
+            "mse": mse_custom,
             "nll": pytorch_neg_multi_log_likelihood_batch
         }
-    else:
-        assert 1 == 0, "loss_type_g is not correct"
 
     w_loss = create_weights(config.dataset.batch_size, 1, 8).cuda()
 
@@ -210,7 +222,7 @@ def model_trainer(config, logger):
         for batch in train_loader: # bottleneck
 
             losses_g = generator_step(hyperparameters, batch, generator,
-                                        optimizer_g, loss_f, w_loss)
+                                        optimizer_g, loss_f)
             checkpoint.config_cp["norm_g"].append(
                 get_total_norm(generator.parameters())
             )
@@ -367,7 +379,7 @@ def model_trainer(config, logger):
 
 
 def generator_step(
-    hyperparameters, batch, generator, optimizer_g, loss_f, w_loss=None
+    hyperparameters, batch, generator, optimizer_g, loss_f
 ):
     batch = [tensor.cuda() for tensor in batch]
 
@@ -393,8 +405,6 @@ def generator_step(
     )
 
     pred_traj_fake_rel = generator_out
-    max_idx = conf.detach().max(dim=1)[1].cpu().numpy()
-    pred_traj_fake_rel_best = generator_out[:,max_idx,:,:][:,0,:,:].permute(1,0,2)
 
     # handle single agent output
     if hyperparameters.output_single_agent:
@@ -407,17 +417,14 @@ def generator_step(
     # traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
     if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
-        _,b,_ = pred_traj_fake_rel_best.shape
-        w_loss = w_loss[:b, :]
-        loss = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel_best, loss_f, hyperparameters.loss_type_g, w_loss)
+        loss = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"])
         losses["G_mse_loss"] = loss.item()
     elif hyperparameters.loss_type_g == "nll":
-        loss = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f, conf)
+        calculate_mse_loss_2(pred_traj_gt_rel.detach(), pred_traj_fake_rel.detach(), loss_f["mse"])
+        loss = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"], conf)
         losses["G_nll_loss"] = loss.item()
     elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
-        _,b,_ = pred_traj_fake_rel_best.shape
-        w_loss = w_loss[:b, :]
-        loss_mse = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel_best, loss_f["mse"], hyperparameters.loss_type_g, w_loss)
+        loss_mse = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"])
         loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"], conf)
         loss = loss_mse + loss_nll # ponderado
         losses["G_mse_loss"] = loss_mse.item()

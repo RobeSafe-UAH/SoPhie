@@ -8,7 +8,7 @@ dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
     batch_size: 128
-    split_percentage: 0.5
+    split_percentage: 0.1
     shuffle: True # False to check the input data, always set to True
     class_balance: 0.7 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
@@ -20,7 +20,7 @@ optim_parameters:
     d_learning_rate: 1.0e-3
     d_weight_decay: 0
 hyperparameters:
-    loss_type_g: "mse_w+nll" # (mse|mse_w) nll (mse|mse_w)+nll
+    loss_type_g: "nll" # (mse|mse_w) nll (mse|mse_w)+nll
     lr_schduler: False # ExponentialLR
     lr_scheduler_gamma_g: 0.95
     lr_scheduler_gamma_d: 0.95
@@ -31,7 +31,7 @@ hyperparameters:
     d_steps: 2
     g_steps: 1
     print_every: 10
-    checkpoint_every: 500
+    checkpoint_every: 200
     output_dir: "save/argoverse/gen_exp/exp_soconf_1" # "save/argoverse/gen_exp/exp3"
     exp_description: "single agent, social with confidences"
     checkpoint_name: "0"
