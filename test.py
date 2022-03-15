@@ -1584,7 +1584,7 @@ def count_models_parameters():
     with torch.cuda.device(0):
         m = TG_SO(h_dim=32)
         macs, params = get_model_complexity_info(
-            m, (3,100), as_strings=True, print_per_layer_stat=True, verbose=True
+            m, ((20,3,2), (20,3,2), (3,2), (3,2)), as_strings=True, print_per_layer_stat=True, verbose=True
         )
         print("Traj Generator SO 32: ", count_parameters(m))
 

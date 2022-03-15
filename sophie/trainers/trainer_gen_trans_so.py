@@ -175,7 +175,7 @@ def model_trainer(config, logger):
     if restore_path is not None and os.path.isfile(restore_path):
         logger.info('Restoring from checkpoint {}'.format(restore_path))
         checkpoint = torch.load(restore_path)
-        generator.load_state_dict(checkpoint.config_cp['g_best_state'], stric=False)
+        generator.load_state_dict(checkpoint.config_cp['g_best_state'], strict=False)
         optimizer_g.load_state_dict(checkpoint.config_cp['g_optim_state'])
         # t = checkpoint.config_cp['counters']['t']
         # epoch = checkpoint.config_cp['counters']['epoch']
@@ -362,68 +362,70 @@ def generator_step(
 
     # forward
     optimizer_g.zero_grad()
-    with autocast():
-        generator_out = generator(
-            obs_traj, obs_traj_rel, seq_start_end, agent_idx
-        )
-        # generator_out = generator( # multi-multi
-        #     obs_traj_rel, seq_start_end, agent_idx
-        # )
+    # with autocast():
+    generator_out = generator(
+        obs_traj, obs_traj_rel, seq_start_end, agent_idx
+    )
+    # generator_out = generator( # multi-multi
+    #     obs_traj_rel, seq_start_end, agent_idx
+    # )
 
-        pred_traj_fake_rel = generator_out
-        if hyperparameters.output_single_agent:
-            pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
-        else:
-            pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
+    pred_traj_fake_rel = generator_out
+    if hyperparameters.output_single_agent:
+        pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
+    else:
+        pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
 
-        # if hyperparameters.output_single_agent:
-        #     pred_traj_fake = pred_traj_fake[:, agent_idx,:]
-        #     pred_traj_fake_rel = pred_traj_fake_rel[:,agent_idx,:]
-            
-
-        # handle single agent output
-        if hyperparameters.output_single_agent:
-            obs_traj = obs_traj[:,agent_idx, :]
-            pred_traj_gt = pred_traj_gt[:,agent_idx, :]
-            obs_traj_rel = obs_traj_rel[:, agent_idx, :]
-
-        # calculate full traj
-        # traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-        # traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
-
-        if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
-            _,b,_ = pred_traj_gt_rel.shape
-            w_loss = w_loss[:b, :]
-            loss_ade, loss_fde = calculate_mse_loss(
-                pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"]
-            )
-            loss = loss_ade + loss_fde
-            losses["G_mse_ade_loss"] = loss_ade.item()
-            losses["G_mse_fde_loss"] = loss_fde.item()
-        elif hyperparameters.loss_type_g == "nll":
-            loss = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f)
-            losses["G_nll_loss"] = loss.item()
-        elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
-            _,b,_ = pred_traj_gt_rel.shape
-            loss_ade, loss_fde = calculate_mse_loss(
-                pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"]
-            )
-            loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"])
-            loss = loss_ade + loss_fde + loss_nll 
-            losses["G_mse_ade_loss"] = loss_ade.item()
-            losses["G_mse_fde_loss"] = loss_fde.item()
-            losses["G_nll_loss"] = loss_nll.item()
+    # if hyperparameters.output_single_agent:
+    #     pred_traj_fake = pred_traj_fake[:, agent_idx,:]
+    #     pred_traj_fake_rel = pred_traj_fake_rel[:,agent_idx,:]
         
-        losses['G_total_loss'] = loss.item()
+
+    # handle single agent output
+    if hyperparameters.output_single_agent:
+        obs_traj = obs_traj[:,agent_idx, :]
+        pred_traj_gt = pred_traj_gt[:,agent_idx, :]
+        obs_traj_rel = obs_traj_rel[:, agent_idx, :]
+
+    # calculate full traj
+    # traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
+    # traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
+
+    if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
+        _,b,_ = pred_traj_gt_rel.shape
+        w_loss = w_loss[:b, :]
+        loss_ade, loss_fde = calculate_mse_loss(
+            pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"]
+        )
+        loss = loss_ade + loss_fde
+        losses["G_mse_ade_loss"] = loss_ade.item()
+        losses["G_mse_fde_loss"] = loss_fde.item()
+    elif hyperparameters.loss_type_g == "nll":
+        loss = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f)
+        losses["G_nll_loss"] = loss.item()
+    elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
+        _,b,_ = pred_traj_gt_rel.shape
+        loss_ade, loss_fde = calculate_mse_loss(
+            pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"]
+        )
+        loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"])
+        loss = loss_ade + loss_fde + loss_nll 
+        losses["G_mse_ade_loss"] = loss_ade.item()
+        losses["G_mse_fde_loss"] = loss_fde.item()
+        losses["G_nll_loss"] = loss_nll.item()
+    
+    losses['G_total_loss'] = loss.item()
 
     
-    scaler.scale(loss).backward()
+    # scaler.scale(loss).backward()
+    loss.backward()
     if hyperparameters.clipping_threshold_g > 0:
         nn.utils.clip_grad_norm_(
             generator.parameters(), hyperparameters.clipping_threshold_g
         )
-    scaler.step(optimizer_g)
-    scaler.update()
+    # scaler.step(optimizer_g)
+    optimizer_g.step()
+    # scaler.update()
 
     return losses
 
