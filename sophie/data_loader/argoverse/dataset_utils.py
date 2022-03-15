@@ -220,7 +220,7 @@ def get_data_aug_combinations(num_augs):
     Tuple to enable (1) a given augmentation
     """
 
-    return np.random.randint(2,size=num_augs)
+    return np.random.randint(2,size=num_augs).tolist()
 
 def get_pairs(percentage,num_obs,start_from=1):
     """

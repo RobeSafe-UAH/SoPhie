@@ -108,7 +108,7 @@ except:
     config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
     config.dataset.split = "val"
-    config.dataset.split_percentage = 0.05 # To generate the final results, must be 1 (whole split test)
+    config.dataset.split_percentage = 0.0001 # To generate the final results, must be 1 (whole split test)
     config.dataset.start_from_percentage = 0.0
     config.dataset.batch_size = 1 # Better to build the h5 results file
     config.dataset.num_workers = 0
@@ -117,7 +117,7 @@ except:
 
     config.hyperparameters.pred_len = 30 # In test, we do not have the gt (prediction points)
 
-    MAP_GENERATION = False
+    MAP_GENERATION = True
 
     if MAP_GENERATION:
         # Only load the city and x|y center to generate the background
@@ -160,7 +160,7 @@ except:
                                     dist_rasterized_map,
                                     avm,
                                     city_name,
-                                    show=False,
+                                    show=True,
                                     root_folder=data_images_folder)
 
             plt.close("all")
@@ -187,7 +187,7 @@ except:
                             collate_fn=seq_collate)
 
         exp_name = "gen_exp/exp9" #"gen_exp/exp7"
-        model_path = BASE_DIR + "/save/argoverse/" + exp_name + "/argoverse_motion_forecasting_dataset_0_with_model.pt"
+        model_path = BASE_DIR + "/save/argoverse/" + exp_name + "/so_exp9_argoverse_motion_forecasting_dataset_0_with_model.pt"
         checkpoint = torch.load(model_path)
         generator = TrajectoryGenerator(config.sophie.generator)
 

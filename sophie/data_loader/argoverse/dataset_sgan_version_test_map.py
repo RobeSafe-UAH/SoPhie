@@ -361,7 +361,7 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
             data_aug_flag = np.random.randint(2)
         else:
             data_aug_flag = 0
-        data_aug_flag = 0
+
         # Get object class id
 
         object_class_list[num_objs_considered] = curr_ped_seq[0,2] # 0 == AV, 1 == AGENT, 2 == OTHER
@@ -383,8 +383,8 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
 
         if rotate_seq:
             curr_ped_seq = dataset_utils.rotate_traj(curr_ped_seq,rotation_angle)
-        print("augs: ", augs)
-        if data_aug_flag or not augs:
+
+        if split == "train" and (data_aug_flag == 1 or not augs):
             # Add data augmentation
 
             if not augs:
@@ -398,7 +398,6 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
             ## 2. Erasing
 
             if augs[1]:
-                print("ERASING")
                 curr_ped_seq = dataset_utils.erase_points(curr_ped_seq,num_obs=obs_len)
 
             ## 3. Add Gaussian noise

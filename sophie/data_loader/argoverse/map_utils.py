@@ -184,10 +184,10 @@ def map_generator(curr_num_seq,
 
     # Plot
 
-    fig, ax = plt.subplots(figsize=(6,6), facecolor="black")
+    fig, ax = plt.subplots(figsize=(6,6), facecolor="white") # facecolor="black")
     plt.xlim(x_min, x_max)
     plt.ylim(y_min, y_max)
-    plt.axis("off") # Comment if you want to generate images without x|y-labels
+    # plt.axis("off") # Comment if you want to generate images without x|y-labels
     
     ## Plot nearby segments
 
@@ -307,27 +307,43 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
             polyline = np.column_stack((cor_x, cor_y))
             num_points = cor_x.shape[0] * 3
             smooth_polyline = interpolate_polyline(polyline, num_points)
+
+            # index = 0
+            # dist = 50000
+
+            # for i, smooth_point in enumerate(smooth_polyline):
+            #     x = smooth_point[0]
+            #     y = smooth_point[1]
+
+            #     d = math.sqrt(pow(xcenter-x,2)+pow(ycenter-y,2))
+
+            #     if d < dist:
+            #         dist = d
+            #         index = i
+
             cor_x = smooth_polyline[:, 0]
             cor_y = smooth_polyline[:, 1]
 
-        if plot_object_trajectories:
-            # plt.plot(
-            #     cor_x,
-            #     cor_y,
-            #     "-",
-            #     # color=color_dict[object_type],
-            #     color=c,
-            #     label=object_type if not object_type_tracker[object_type] else "",
-            #     alpha=1,
-            #     linewidth=linewidth,
-            #     zorder=_ZORDER[object_type],
-            # )
+        if object_type == "AGENT":
             pdb.set_trace()
-            plt.scatter(
+        if plot_object_trajectories:
+            plt.plot(
                 cor_x,
                 cor_y,
-                color=c,     
+                "-",
+                # color=color_dict[object_type],
+                color=c,
+                label=object_type if not object_type_tracker[object_type] else "",
+                alpha=1,
+                linewidth=linewidth,
+                zorder=_ZORDER[object_type],
             )
+            # pdb.set_trace()
+            # plt.scatter(
+            #     cor_x,
+            #     cor_y,
+            #     color=c,     
+            # )
 
         final_x = cor_x[-1]
         final_y = cor_y[-1]
@@ -390,3 +406,14 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     norm_resized_full_img_cv = resized_full_img_cv / 255.0
 
     return norm_resized_full_img_cv
+
+"""
+sampling_points = np.where(resized_full_img_cv == 255.0)
+good_indeces = rng.choice(len(sampling_points[0]),size=512,replace=False)
+sp = np.vstack(sampling_points)
+good_points = sp[:,good_indeces]
+x,y = good_points[0,:], good_points[1,:]
+rgb_img = cv2.cvtColor(resized_full_img_cv, cv2.COLOR_GRAY2BGR)
+rgb_img[x,y] = (0,0,255)
+cv2.imwrite("/home/robesafe/shared_home/test_sampling.png", rgb_img)
+"""
