@@ -1573,13 +1573,20 @@ def test_soviconf():
     preds, conf = m(obs, obs_rel, start_end_seq, agent_idx)
     print(preds.shape, conf.shape)
 
+
 def count_models_parameters():
     from sophie.utils.utils import count_parameters
     from sophie.models.mp_so import TrajectoryGenerator as TG_SO
     from sophie.models.mp_trans_so import TrajectoryGenerator as TG_T
+    from ptflops import get_model_complexity_info
 
-    m = TG_SO(h_dim=32)
-    print("Traj Generator SO 32: ", count_parameters(m))
+    # obs_traj, obs_traj_rel, seq_start_end, agent_idx
+    with torch.cuda.device(0):
+        m = TG_SO(h_dim=32)
+        macs, params = get_model_complexity_info(
+            m, (3,100), as_strings=True, print_per_layer_stat=True, verbose=True
+        )
+        print("Traj Generator SO 32: ", count_parameters(m))
 
 
     m = TG_SO(h_dim=128)
