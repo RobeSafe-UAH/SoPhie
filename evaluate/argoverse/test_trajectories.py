@@ -108,16 +108,16 @@ except:
     config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
     config.dataset.split = "val"
-    config.dataset.split_percentage = 0.0001 # To generate the final results, must be 1 (whole split test)
+    config.dataset.split_percentage = 0.50 # To generate the final results, must be 1 (whole split test)
     config.dataset.start_from_percentage = 0.0
     config.dataset.batch_size = 1 # Better to build the h5 results file
     config.dataset.num_workers = 0
-    config.dataset.class_balance = -1.0 # Do not consider class balance in the split val
-    config.dataset.shuffle = False
+    config.dataset.class_balance = 0.7 # Do not consider class balance in the split val
+    config.dataset.shuffle = True
 
     config.hyperparameters.pred_len = 30 # In test, we do not have the gt (prediction points)
 
-    MAP_GENERATION = True
+    MAP_GENERATION = False
 
     if MAP_GENERATION:
         # Only load the city and x|y center to generate the background

@@ -325,6 +325,7 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
             cor_y = smooth_polyline[:, 1]
 
         if object_type == "AGENT":
+            print("filename: ", filename)
             pdb.set_trace()
         if plot_object_trajectories:
             plt.plot(
