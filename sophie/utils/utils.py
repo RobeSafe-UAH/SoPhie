@@ -65,3 +65,7 @@ def freeze_model(model, no_freeze_list=[]):
                 param.requires_grad = False
 
     return model
+
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters())

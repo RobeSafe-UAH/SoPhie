@@ -13,6 +13,7 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as lrs
 
 from types import SimpleNamespace
+from sophie.models.mp_so import TrajectoryGenerator
 # from sophie.models.mp_so import SoPhieDiscriminator, SoPhieGenerator
 from sophie.modules.layers import MLP
 from sophie.modules.backbones import VisualExtractor
@@ -1572,6 +1573,21 @@ def test_soviconf():
     preds, conf = m(obs, obs_rel, start_end_seq, agent_idx)
     print(preds.shape, conf.shape)
 
+def count_models_parameters():
+    from sophie.utils.utils import count_parameters
+    from sophie.models.mp_so import TrajectoryGenerator as TG_SO
+    from sophie.models.mp_trans_so import TrajectoryGenerator as TG_T
+
+    m = TG_SO(h_dim=32)
+    print("Traj Generator SO 32: ", count_parameters(m))
+
+
+    m = TG_SO(h_dim=128)
+    print("Traj Generator SO 128: ", count_parameters(m))
+
+    m = TG_T(h_dim=64)
+    print("Traj Generator Trans: ", count_parameters(m))
+
     
 if __name__ == "__main__":
     # test_read_file()
@@ -1616,7 +1632,7 @@ if __name__ == "__main__":
     # test_mse_custom()
     # test_create_weights()
     # test_transformer_encoder()
-    test_transso()
+    # test_transso()
     # test_nll_loss()
     # test_soviconf()
     # test_mse_custom()
@@ -1626,3 +1642,4 @@ if __name__ == "__main__":
     # test_gen_sovi()
     # test_gen_sovi_freeze()
     # test_so()
+    count_models_parameters()
