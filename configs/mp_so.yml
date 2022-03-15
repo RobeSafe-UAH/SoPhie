@@ -7,8 +7,8 @@ dataset_name: argoverse_motion_forecasting_dataset
 dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
-    batch_size: 128
-    split_percentage: 0.25
+    batch_size: 256
+    split_percentage: 0.01
     shuffle: True # False to check the input data, always set to True
     class_balance: 0.7 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
@@ -30,10 +30,10 @@ hyperparameters:
     g_steps: 1
     print_every: 10
     checkpoint_every: 500
-    output_dir: "save/argoverse/gen_exp/exp_multiloss_3" # "save/argoverse/test" 
+    output_dir: "save/argoverse/test"  #"save/argoverse/gen_exp/exp_multiloss_3" 
     exp_description: "multi loss + learning_rate scheduler"
     checkpoint_name: "0"
-    checkpoint_start_from: "save/argoverse/gen_exp/exp9/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    checkpoint_start_from: #"save/argoverse/gen_exp/exp9/argoverse_motion_forecasting_dataset_0_with_model.pt"
     restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 1.1
@@ -56,7 +56,7 @@ hyperparameters:
 
 sophie:
     generator: 
-        test: "test"
+        hdim: 32
     discriminator:
         # Encoder
         encoder:
