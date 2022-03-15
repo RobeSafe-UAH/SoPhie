@@ -220,7 +220,7 @@ def get_data_aug_combinations(num_augs):
     Tuple to enable (1) a given augmentation
     """
 
-    return np.random.randint(2,size=num_augs)
+    return np.random.randint(2,size=num_augs).tolist()
 
 def get_pairs(percentage,num_obs,start_from=1):
     """
@@ -294,7 +294,6 @@ def erase_points(traj,num_obs=20,percentage=0.2,post=False):
     erased_traj = copy.deepcopy(traj)
 
     erased_pairs = get_pairs(percentage,num_obs)
-    print("Get pairs: ", erased_pairs)
 
     for index_pair in erased_pairs:
         erased_traj[:,index_pair] = erased_traj[:,index_pair-1]
