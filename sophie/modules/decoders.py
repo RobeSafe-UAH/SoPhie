@@ -134,7 +134,7 @@ class TemporalDecoderLSTMConf(nn.Module):
 
 class TemporalDecoderLSTMConfSingle(nn.Module):
 
-    def __init__(self, seq_len=30, h_dim=64, embedding_dim=32, modes=3, obs_len=20):
+    def __init__(self, seq_len=30, h_dim=64, embedding_dim=32, modes=6, obs_len=20):
         super().__init__()
 
         self.seq_len = seq_len
@@ -146,7 +146,7 @@ class TemporalDecoderLSTMConfSingle(nn.Module):
         
         self.spatial_embedding = nn.Linear(self.traj_emb_dim, self.embedding_dim) # 20 obs * 2 points
         self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
-        self.trajconf = TrajConf(emb_dim=self.obs_len*h_dim)
+        self.trajconf = TrajConf(emb_dim=self.obs_len*h_dim, modes=self.modes)
 
     def forward(self, traj_abs, traj_rel, state_tuple):
         """

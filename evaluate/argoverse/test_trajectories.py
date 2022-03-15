@@ -14,7 +14,7 @@ from skimage.measure import LineModelND, ransac
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-BASE_DIR = "/home/robesafe/libraries/SoPhie"
+BASE_DIR = "/home/robesafe/tesis/SoPhie"
 sys.path.append(BASE_DIR)
 
 from sophie.utils.utils import relative_to_abs_sgan
@@ -108,8 +108,13 @@ except:
     config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
     config.dataset.split = "val"
+<<<<<<< HEAD
     config.dataset.split_percentage = 0.50 # To generate the final results, must be 1 (whole split test)
     config.dataset.start_from_percentage = 0.0
+=======
+    config.dataset.split_percentage = 0.0001 # To generate the final results, must be 1 (whole split test)
+    config.dataset.start_from_percentage = 0.75
+>>>>>>> feature/trainer
     config.dataset.batch_size = 1 # Better to build the h5 results file
     config.dataset.num_workers = 0
     config.dataset.class_balance = 0.7 # Do not consider class balance in the split val

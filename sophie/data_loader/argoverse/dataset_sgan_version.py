@@ -31,12 +31,12 @@ from torch.utils.data import Dataset
 
 from numba import jit
 
-from argoverse.map_representation.map_api import ArgoverseMap
-import sophie.data_loader.argoverse.map_utils as map_utils
+# from argoverse.map_representation.map_api import ArgoverseMap
+# import sophie.data_loader.argoverse.map_utils as map_utils
 import sophie.data_loader.argoverse.dataset_utils as dataset_utils
 
 frames_path = None
-avm = ArgoverseMap()
+# avm = ArgoverseMap()
 dist_around = 40
 dist_rasterized_map = [-dist_around, dist_around, -dist_around, dist_around]
 
@@ -341,7 +341,8 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
         # Determine if data aug will be applied or not
 
         if split == "train":
-            data_aug_flag = np.random.randint(2)
+            # data_aug_flag = np.random.randint(2)
+            data_aug_flag = 0
         else:
             data_aug_flag = 0
 

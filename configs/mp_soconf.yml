@@ -32,7 +32,7 @@ hyperparameters:
     g_steps: 1
     print_every: 10
     checkpoint_every: 200
-    output_dir: "save/argoverse/gen_exp/exp_soconf_1" # "save/argoverse/gen_exp/exp3"
+    output_dir: "save/argoverse/gen_exp/exp_soconf_1" #"save/argoverse/test" #
     exp_description: "single agent, social with confidences"
     checkpoint_name: "0"
     checkpoint_start_from: 

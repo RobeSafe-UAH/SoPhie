@@ -18,6 +18,21 @@ def relative_to_abs_sgan(rel_traj, start_pos):
     abs_traj = displacement + start_pos
     return abs_traj.permute(1, 0, 2)
 
+
+def relative_to_abs_sgan_multimodal(rel_traj, start_pos):
+    """
+    Inputs:
+    - rel_traj: pytorch tensor of shape (b, m, t, 2)
+    - start_pos: pytorch tensor of shape (batch, 2)
+    Outputs:
+    - abs_traj: pytorch tensor of shape (seq_len, batch, 2)
+    """
+    # batch, seq_len, 2
+    displacement = torch.cumsum(rel_traj, dim=2)
+    start_pos = torch.unsqueeze(torch.unsqueeze(start_pos, dim=1), dim=1)
+    abs_traj = displacement + start_pos
+    return abs_traj
+
 def relative_to_abs(rel_traj, start_pos):
     # TODO: Not used in the training stage. Nevertheless, rewrite using torch, not numpy
     """
@@ -50,3 +65,7 @@ def freeze_model(model, no_freeze_list=[]):
                 param.requires_grad = False
 
     return model
+
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters())

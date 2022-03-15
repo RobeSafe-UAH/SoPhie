@@ -12,10 +12,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as lrs
+from torch.cuda.amp import GradScaler, autocast 
 
-from sophie.data_loader.argoverse.dataset_sgan_version_test_map import ArgoverseMotionForecastingDataset, seq_collate
+from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.models.mp_so import TrajectoryGenerator
-from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_weighted
+from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_custom
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
 from sophie.utils.utils import relative_to_abs_sgan, create_weights
@@ -23,6 +24,7 @@ from sophie.utils.utils import relative_to_abs_sgan, create_weights
 from torch.utils.tensorboard import SummaryWriter
 
 torch.backends.cudnn.benchmark = True
+scaler = GradScaler()
 
 # single agent False -> does not work
 
@@ -74,13 +76,10 @@ def calculate_nll_loss(gt, pred, loss_f):
     )
     return loss
 
-def calculate_mse_loss(gt, pred, loss_f, l_type, w_loss=None):
-    if "mse_w" in l_type:
-        loss = loss_f(pred, gt, w_loss)
-    else:
-        loss = loss_f(pred, gt)
-
-    return loss
+def calculate_mse_loss(gt, pred, loss_f, l_type):
+    loss_ade = loss_f(pred, gt)
+    loss_fde = loss_f(pred[-1].unsqueeze(0), gt[-1].unsqueeze(0))
+    return loss_ade, loss_fde
 
 def model_trainer(config, logger):
     """
@@ -145,7 +144,8 @@ def model_trainer(config, logger):
         'There are {} iterations per epoch'.format(hyperparameters.num_iterations)
     )
 
-    generator = TrajectoryGenerator()
+    # generator = TrajectoryGenerator(h_dim=128)
+    generator = TrajectoryGenerator(h_dim=config.sophie.generator.hdim)
     generator.to(device)
     generator.apply(init_weights)
     generator.type(float_dtype).train()
@@ -155,12 +155,12 @@ def model_trainer(config, logger):
     # optimizer, scheduler and loss functions
 
     if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
-        loss_f = mse_weighted if "w" in hyperparameters.loss_type_g else nn.MSELoss()
+        loss_f = mse_custom
     elif hyperparameters.loss_type_g == "nll":
         loss_f = pytorch_neg_multi_log_likelihood_batch
     elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
         loss_f = {
-            "mse": mse_weighted if "w" in hyperparameters.loss_type_g else nn.MSELoss(),
+            "mse": mse_custom,
             "nll": pytorch_neg_multi_log_likelihood_batch
         }
     else:
@@ -171,7 +171,9 @@ def model_trainer(config, logger):
     optimizer_g = optim.Adam(generator.parameters(), lr=optim_parameters.g_learning_rate, weight_decay=optim_parameters.g_weight_decay)
     if hyperparameters.lr_schduler:
         # scheduler_g = lrs.ExponentialLR(optimizer_g, gamma=hyperparameters.lr_scheduler_gamma_g)
-        scheduler_g = lrs.ReduceLROnPlateau(optimizer_g, "min", min_lr=1e-7, verbose=True, factor=0.05)
+        scheduler_g = lrs.ReduceLROnPlateau(
+            optimizer_g, "min", min_lr=1e-6, verbose=True, factor=0.5, patience=7500,
+        )
 
     restore_path = None
     if hyperparameters.checkpoint_start_from is not None:
@@ -184,10 +186,11 @@ def model_trainer(config, logger):
     if restore_path is not None and os.path.isfile(restore_path):
         logger.info('Restoring from checkpoint {}'.format(restore_path))
         checkpoint = torch.load(restore_path)
-        generator.load_state_dict(checkpoint.config_cp['g_best_state'])
+        generator.load_state_dict(checkpoint.config_cp['g_best_state'], strict=False)
         optimizer_g.load_state_dict(checkpoint.config_cp['g_optim_state'])
-        t = checkpoint.config_cp['counters']['t']
-        epoch = checkpoint.config_cp['counters']['epoch']
+        # t = checkpoint.config_cp['counters']['t']
+        # epoch = checkpoint.config_cp['counters']['epoch']
+        t,epoch = 0,0
         checkpoint.config_cp['restore_ts'].append(t)
     else:
         # Starting from scratch, so initialize checkpoint data structure
@@ -233,27 +236,6 @@ def model_trainer(config, logger):
                 checkpoint.config_cp["counters"]["t"] = t
                 checkpoint.config_cp["counters"]["epoch"] = epoch
                 checkpoint.config_cp["sample_ts"].append(t)
-
-                # Check stats on the training set
-                logger.info('Checking stats on train ...')
-                # TODO add trainer metrics -> Compare for overfitting/underfitting
-                metrics_train = check_accuracy(
-                    hyperparameters, train_loader, generator
-                )
-
-                for k, v in sorted(metrics_train.items()):
-                    logger.info('  [train] {}: {:.3f}'.format(k, v))
-                    if hyperparameters.tensorboard_active:
-                        writer.add_scalar(k, v, t+1)
-                    if k not in checkpoint.config_cp["metrics_train"].keys():
-                        checkpoint.config_cp["metrics_train"][k] = []
-                    checkpoint.config_cp["metrics_train"][k].append(v)
-
-                min_ade = min(checkpoint.config_cp["metrics_train"]['ade'])
-                min_fde = min(checkpoint.config_cp["metrics_train"]['fde'])
-                min_ade_nl = min(checkpoint.config_cp["metrics_train"]['ade_nl'])
-                logger.info("Min train ADE: {}".format(min_ade))
-                logger.info("Min train FDE: {}".format(min_fde))
 
                 # Check stats on the validation set
                 logger.info('Checking stats on val ...')
@@ -319,11 +301,10 @@ def model_trainer(config, logger):
             if t >= hyperparameters.num_iterations:
                 break
         
-        if hyperparameters.lr_schduler and t > 2000:
-            scheduler_g.step()
-            g_lr = get_lr(optimizer_g)
-            logger.info("G: New lr: {}".format(g_lr))
-            writer.add_scalar("G_lr", g_lr, epoch+1)
+            if hyperparameters.lr_schduler:
+                scheduler_g.step(losses_g["G_total_loss"])
+                g_lr = get_lr(optimizer_g)
+                writer.add_scalar("G_lr", g_lr, epoch+1)
     ###
     logger.info("Training finished")
 
@@ -390,54 +371,59 @@ def generator_step(
         loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
     # forward
-    generator_out = generator(
-        obs_traj, obs_traj_rel, seq_start_end, agent_idx
-    )
-
-    pred_traj_fake_rel = generator_out
-    if hyperparameters.output_single_agent:
-        pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
-    else:
-        pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
-
-    # handle single agent output
-    if hyperparameters.output_single_agent:
-        obs_traj = obs_traj[:,agent_idx, :]
-        pred_traj_gt = pred_traj_gt[:,agent_idx, :]
-        obs_traj_rel = obs_traj_rel[:, agent_idx, :]
-
-    # calculate full traj
-    # traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-    # traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
-
-    # loss with relatives or abs (?) # TODO full trajectory vs pred trajectory
-    if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
-        _,b,_ = pred_traj_gt_rel.shape
-        w_loss = w_loss[:b, :]
-        loss = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f, hyperparameters.loss_type_g, w_loss)
-        losses["G_mse_loss"] = loss.item()
-    elif hyperparameters.loss_type_g == "nll":
-        loss = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f)
-        losses["G_nll_loss"] = loss.item()
-    elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
-        _,b,_ = pred_traj_gt_rel.shape
-        w_loss = w_loss[:b, :]
-        loss_mse = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"], hyperparameters.loss_type_g, w_loss)
-        loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"])
-        loss = loss_mse + loss_nll # ponderado
-        losses["G_mse_loss"] = loss_mse.item()
-        losses["G_nll_loss"] = loss_nll.item()
-    
-    losses['G_total_loss'] = loss.item()
-
     optimizer_g.zero_grad()
-    loss.backward()
+    with autocast():
+        generator_out = generator(
+            obs_traj, obs_traj_rel, seq_start_end, agent_idx
+        )
+
+        pred_traj_fake_rel = generator_out
+        if hyperparameters.output_single_agent:
+            pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
+        else:
+            pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
+
+        # handle single agent output
+        if hyperparameters.output_single_agent:
+            obs_traj = obs_traj[:,agent_idx, :]
+            pred_traj_gt = pred_traj_gt[:,agent_idx, :]
+            obs_traj_rel = obs_traj_rel[:, agent_idx, :]
+
+        # calculate full traj
+        # traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
+        # traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
+
+        # loss with relatives or abs (?) # TODO full trajectory vs pred trajectory
+        if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
+            _,b,_ = pred_traj_gt_rel.shape
+            w_loss = w_loss[:b, :]
+            loss_ade, loss_fde = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f, hyperparameters.loss_type_g)
+            loss = loss_ade + loss_fde
+            losses["G_mse_ade_loss"] = loss_ade.item()
+            losses["G_mse_fde_loss"] = loss_fde.item()
+        elif hyperparameters.loss_type_g == "nll":
+            loss = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f)
+            losses["G_nll_loss"] = loss.item()
+        elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
+            _,b,_ = pred_traj_gt_rel.shape
+            w_loss = w_loss[:b, :]
+            loss_ade, loss_fde = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"], hyperparameters.loss_type_g)
+            loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"])
+            loss = loss_ade + loss_fde + loss_nll 
+            losses["G_mse_ade_loss"] = loss_ade.item()
+            losses["G_mse_fde_loss"] = loss_fde.item()
+            losses["G_nll_loss"] = loss_nll.item()
+        
+        losses['G_total_loss'] = loss.item()
+
+    
+    scaler.scale(loss).backward()
     if hyperparameters.clipping_threshold_g > 0:
         nn.utils.clip_grad_norm_(
             generator.parameters(), hyperparameters.clipping_threshold_g
         )
-    optimizer_g.step()
-
+    scaler.step(optimizer_g)
+    scaler.update()
     return losses
 
 def check_accuracy(
