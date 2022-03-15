@@ -305,6 +305,8 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
 
         if smoothen:
             polyline = np.column_stack((cor_x, cor_y))
+            if object_type == "AGENT":
+                pdb.set_trace()
             num_points = cor_x.shape[0] * 3
             smooth_polyline = interpolate_polyline(polyline, num_points)
             cor_x = smooth_polyline[:, 0]
@@ -322,7 +324,7 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
             #     linewidth=linewidth,
             #     zorder=_ZORDER[object_type],
             # )
-            pdb.set_trace()
+            # pdb.set_trace()
             plt.scatter(
                 cor_x,
                 cor_y,

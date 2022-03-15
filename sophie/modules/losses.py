@@ -47,6 +47,19 @@ def l2_loss(pred_traj, pred_traj_gt, loss_mask, random=0, mode='average'):
     elif mode == 'raw':
         return loss.sum(dim=2).sum(dim=1)
 
+def l2_loss_multimodal(pred_traj, pred_traj_gt, random=0, mode='average'):
+    """
+    gt (b,t,2)
+    pred (b,m,t,2)
+    """
+    b,m,t,_ = pred_traj.size()
+    loss = (
+            (pred_traj_gt.unsqueeze(dim=1) - pred_traj)**2)
+    if mode == 'sum':
+        return torch.sum(loss)
+    elif mode == 'raw':
+        return loss.sum(dim=2).sum(dim=1)
+
 
 def mse_weighted(gt, pred, weights):
     """
@@ -193,6 +206,111 @@ def pytorch_neg_multi_log_likelihood_single(
     return pytorch_neg_multi_log_likelihood_batch(
         gt, pred.unsqueeze(1), confidences, avails
     )
+
+
+def _average_displacement_error(
+        ground_truth: np.ndarray, pred: np.ndarray, confidences: np.ndarray, avails: np.ndarray, mode: str
+) -> np.ndarray:
+    """
+    Returns the average displacement error (ADE), which is the average displacement over all timesteps.
+    During calculation, confidences are ignored, and two modes are available:
+        - oracle: only consider the best hypothesis
+        - mean: average over all hypotheses
+    Args:
+        ground_truth (np.ndarray): array of shape (time)x(2D coords)
+        pred (np.ndarray): array of shape (modes)x(time)x(2D coords)
+        confidences (np.ndarray): array of shape (modes) with a confidence for each mode in each sample
+        avails (np.ndarray): array of shape (time) with the availability for each gt timestep
+        mode (str): calculation mode - options are 'mean' (average over hypotheses) and 'oracle' (use best hypotheses)
+    Returns:
+        np.ndarray: average displacement error (ADE), a single float number
+    """
+
+    ground_truth = np.expand_dims(ground_truth, 0)  # add modes
+    avails = avails[np.newaxis, :, np.newaxis]  # add modes and cords
+
+    error = np.sum(((ground_truth - pred) * avails) ** 2, axis=-1)  # reduce coords and use availability
+    error = error ** 0.5  # calculate root of error (= L2 norm)
+    error = np.mean(error, axis=-1)  # average over timesteps
+
+    if mode == "oracle":
+        error = np.min(error)  # use best hypothesis
+    elif mode == "mean":
+        error = np.mean(error, axis=0)  # average over hypotheses
+    else:
+        raise ValueError(f"mode: {mode} not valid")
+
+    return error
+
+def _final_displacement_error(
+        ground_truth: np.ndarray, pred: np.ndarray, confidences: np.ndarray, avails: np.ndarray, mode: str
+) -> np.ndarray:
+    """
+    Returns the final displacement error (FDE), which is the displacement calculated at the last timestep.
+    During calculation, confidences are ignored, and two modes are available:
+        - oracle: only consider the best hypothesis
+        - mean: average over all hypotheses
+    Args:
+        ground_truth (np.ndarray): array of shape (time)x(2D coords)
+        pred (np.ndarray): array of shape (modes)x(time)x(2D coords)
+        confidences (np.ndarray): array of shape (modes) with a confidence for each mode in each sample
+        avails (np.ndarray): array of shape (time) with the availability for each gt timestep
+        mode (str): calculation mode - options are 'mean' (average over hypotheses) and 'oracle' (use best hypotheses)
+    Returns:
+        np.ndarray: final displacement error (FDE), a single float number
+    """
+
+    ground_truth = np.expand_dims(ground_truth, 0)  # add modes
+    avails = avails[np.newaxis, :, np.newaxis]  # add modes and cords
+
+    error = np.sum(((ground_truth - pred) * avails) ** 2, axis=-1)  # reduce coords and use availability
+    error = error ** 0.5  # calculate root of error (= L2 norm)
+    error = error[:, -1]  # use last timestep
+
+    if mode == "oracle":
+        error = np.min(error)  # use best hypothesis
+    elif mode == "mean":
+        error = np.mean(error, axis=0)  # average over hypotheses
+    else:
+        raise ValueError(f"mode: {mode} not valid")
+
+    return error
+
+def l2_error(pred: torch.Tensor, gt: torch.Tensor) -> torch.Tensor:
+    """A function that takes pred, gt tensor and computes their L2 distance.
+    :param pred: predicted tensor, size: [batch_size, num_dims]
+    :param gt: gt tensor, size: [batch_size, num_dims]
+    :return: l2 distance between the predicted and gt tensor, size: [batch_size,]
+    """
+    return torch.norm(pred - gt, p=2, dim=-1)
+
+
+def _assert_shapes(ground_truth: np.ndarray, pred: np.ndarray, confidences: np.ndarray, avails: np.ndarray) -> None:
+    """
+    Check the shapes of args required by metrics
+    Args:
+        ground_truth (np.ndarray): array of shape (timesteps)x(2D coords)
+        pred (np.ndarray): array of shape (modes)x(timesteps)x(2D coords)
+        confidences (np.ndarray): array of shape (modes) with a confidence for each mode in each sample
+        avails (np.ndarray): array of shape (timesteps) with the availability for each gt timesteps
+    Returns:
+    """
+    assert len(pred.shape) == 3, f"expected 3D (MxTxC) array for pred, got {pred.shape}"
+    num_modes, future_len, num_coords = pred.shape
+
+    assert ground_truth.shape == (
+        future_len,
+        num_coords,
+    ), f"expected 2D (Time x Coords) array for gt, got {ground_truth.shape}"
+    assert confidences.shape == (num_modes,), f"expected 1D (Modes) array for confidences, got {confidences.shape}"
+    assert np.allclose(np.sum(confidences), 1), "confidences should sum to 1"
+    assert avails.shape == (future_len,), f"expected 1D (Time) array for avails, got {avails.shape}"
+    # assert all data are valid
+    assert np.isfinite(pred).all(), "invalid value found in pred"
+    assert np.isfinite(ground_truth).all(), "invalid value found in gt"
+    assert np.isfinite(confidences).all(), "invalid value found in confidences"
+    assert np.isfinite(avails).all(), "invalid value found in avails"
+
 
 def evaluate_feasible_area_prediction(pred_traj_fake_abs, distance_threshold, origin_pos, filename):
     """

@@ -1435,8 +1435,32 @@ def test_transso():
     import time
     import pdb
 
-    m = TrajectoryGenerator()
+    # model_path = "save/argoverse/gen_exp_trans/exp2/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    # checkpoint = torch.load(model_path)
+
+    m = TrajectoryGenerator(h_dim=64)
+    # m.load_state_dict(checkpoint.config_cp['g_best_state'], strict=False)
     m.cuda()
+    m.eval()
+    t1 = time.time()
+    a1 = torch.randn(20,10,2).cuda()
+    b = torch.tensor([[0,3], [3,6], [6,10]]).cuda()
+    c = torch.tensor([0,3,6]).cuda()
+    t2 = time.time()
+    output = m(a1, a1, b, c)
+    pdb.set_trace()
+    t3 = time.time()
+    print("time ", t3 - t1, t3-t2)
+
+
+def test_so():
+    from sophie.models.mp_so import TrajectoryGenerator
+    import time
+    import pdb
+
+    m = TrajectoryGenerator(h_dim=128)
+    m.cuda()
+    m.eval()
     t1 = time.time()
     a1 = torch.randn(20,10,2).cuda()
     b = torch.tensor([[0,3], [3,6], [6,10]]).cuda()
@@ -1445,6 +1469,7 @@ def test_transso():
     pdb.set_trace()
     t3 = time.time()
     print("time ", t3 - t1, t3-t2)
+
 
 def test_mp_so_g():
     from sophie.models.mp_so import TrajectoryGenerator
@@ -1591,12 +1616,13 @@ if __name__ == "__main__":
     # test_mse_custom()
     # test_create_weights()
     # test_transformer_encoder()
-    # test_transso()
+    test_transso()
     # test_nll_loss()
     # test_soviconf()
-    test_mse_custom()
+    # test_mse_custom()
     # test_mp_so_g()
     # test_home_model()
     # test_visual_extractor()
     # test_gen_sovi()
     # test_gen_sovi_freeze()
+    # test_so()

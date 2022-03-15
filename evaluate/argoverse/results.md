@@ -160,3 +160,24 @@
 
 # Experimento G trans (E+D) 6 - x -> multi - single
     * 50%
+
+# mp_so | h_dim = 32 | gen_exp/exp_multiloss_1
+    * ADE: 1.89
+    * FDE: 4.22
+    * 5.0e-4
+    * 25% dataset
+    * lr scheduler
+        * 1.0e-3 | 7000 iters
+
+# mp_so | h_dim = 32 | gen_exp/exp_multiloss_2
+    * ADE: 
+    * FDE: 
+    * 1.0e-4
+    * 25% dataset
+    * lr scheduler
+        * 1.0e-4 | 7000 iters
+
+# mp_so | h_dim = 128 | gen_exp/exp_multiloss_128hdim_1
+    * 25% dataset
+    * lr scheduler
+        * 1.0e-3 | 7000 iters
