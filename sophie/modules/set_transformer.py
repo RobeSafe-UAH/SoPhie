@@ -1,5 +1,5 @@
 import math
-
+import pdb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,9 +10,9 @@ class MAB(nn.Module):
         super(MAB, self).__init__()
         self.dim_V = dim_V
         self.num_heads = num_heads
-        self.fc_q = nn.Linear(dim_Q, dim_V)
-        self.fc_k = nn.Linear(dim_K, dim_V)
-        self.fc_v = nn.Linear(dim_K, dim_V)
+        self.fc_q = nn.Linear(dim_Q, dim_V) # 64, 64
+        self.fc_k = nn.Linear(dim_K, dim_V) # 40, 64
+        self.fc_v = nn.Linear(dim_K, dim_V) # 40, 64
         if ln:
             self.ln0 = nn.LayerNorm(dim_V)
             self.ln1 = nn.LayerNorm(dim_V)
@@ -20,7 +20,7 @@ class MAB(nn.Module):
 
     def forward(self, Q, K):
         Q = self.fc_q(Q)
-        K, V = self.fc_k(K), self.fc_v(K)
+        K, V = self.fc_k(K), self.fc_v(K) # 
 
         dim_split = self.dim_V // self.num_heads
         Q_ = torch.cat(Q.split(dim_split, 2), 0)

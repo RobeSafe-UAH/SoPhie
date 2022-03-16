@@ -1,14 +1,19 @@
 import torch
 import torch.nn as nn
+import pdb
 
-# import config
 from sophie.modules.set_transformer import ISAB, PMA, SAB
 
+class TrajectoryGenerator(nn.Module):
+    def __init__(self, dim_input=20*2, num_outputs=3, dim_output=30 * 2,
+                 num_inds=8, dim_hidden=64, num_heads=4, ln=False, pred_len=30):
+    # def __init__(self, dim_input=20*2, num_outputs=3, dim_output=30 * 2,
+    #              num_inds=8, dim_hidden=64, num_heads=4, ln=False):
+        self.num_outputs = num_outputs
+        self.pred_len = pred_len
+        super(TrajectoryGenerator, self).__init__()
 
-class SetTransformer(nn.Module):
-    def __init__(self, dim_input=50 * 2 + 1, num_outputs=3, dim_output=50 * 2,
-                 num_inds=8, dim_hidden=64, num_heads=4, ln=False):
-        super(SetTransformer, self).__init__()
+        self.emb = nn.Linear(2, dim_hidden)
         self.enc = nn.Sequential(
                 ISAB(dim_input, dim_hidden, num_heads, num_inds, ln=ln),
                 ISAB(dim_hidden, dim_hidden, num_heads, num_inds, ln=ln))
@@ -18,17 +23,25 @@ class SetTransformer(nn.Module):
         self.regressor = nn.Linear(dim_hidden, dim_output)
         self.mode_confidences = nn.Linear(dim_hidden, 1)
 
-    def forward(self, X, input_confs):
-        input_confs = torch.log(input_confs.unsqueeze(-1))
-        X = torch.cat([X, input_confs], dim=-1)
-        
-        # Remove 16-mode from input
-        # X = X[:, :config.N_3_MODES, :]
+    def forward(self, X, start_end_seq): #
+        """
+            (1, n, t*2)
+            -> 64/40
+        """
+        # pdb.set_trace()
+        XX = []
+        for start, end in start_end_seq.data:
+            Y = X[:,start:end,:].contiguous().permute(1,0,2) # (obs,n,2)
+            n, t, p = Y.shape
+            Y = Y.contiguous().view(1, n, p*t) # (1, obs*n, 2)
+            # X = self.emb(X)
+            Y = self.dec(self.enc(Y)) # 1, n, 64
+            # Y = Y.view(n,t,-1) # (n, obs, h_dim)
+            XX.append(Y)
+        XX = torch.cat(XX, 0)
 
-        X = self.dec(self.enc(X))
-
-        coords = self.regressor(X).reshape(-1, 3, 50, 2)
-        confidences = torch.squeeze(self.mode_confidences(X), -1)
+        coords = self.regressor(XX).reshape(-1, self.num_outputs, self.pred_len, 2) # (b, m, t, 2)
+        confidences = torch.squeeze(self.mode_confidences(XX), -1) # (b, m)
         confidences = torch.softmax(confidences, dim=1)
 
         return coords, confidences

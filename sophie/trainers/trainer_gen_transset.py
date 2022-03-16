@@ -15,11 +15,11 @@ import torch.optim.lr_scheduler as lrs
 from torch.cuda.amp import GradScaler, autocast 
 
 from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
-from sophie.models.mp_trans_so import TrajectoryGenerator
-from sophie.modules.losses import pytorch_neg_multi_log_likelihood_batch, mse_custom, l2_loss
+from sophie.models.mp_trans_so_set import TrajectoryGenerator
+from sophie.modules.losses import pytorch_neg_multi_log_likelihood_batch, mse_custom, l2_loss, l2_loss_multimodal
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
-from sophie.utils.utils import relative_to_abs_sgan, create_weights
+from sophie.utils.utils import relative_to_abs_sgan_multimodal, create_weights
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -43,28 +43,9 @@ def get_dtypes(use_gpu):
         float_dtype = torch.cuda.FloatTensor
     return long_dtype, float_dtype
 
-def handle_batch(batch, is_single_agent_out):
-    # load batch in cuda
-    batch = [tensor.cuda() for tensor in batch]
-
-    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq_list) = batch
-    
-    # handle single agent 
-    agent_idx = None
-    if is_single_agent_out: # search agent idx
-        agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
-        pred_traj_gt = pred_traj_gt[:,agent_idx, :]
-        pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
-
-    return (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
-     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, num_seq_list)
-
-def calculate_nll_loss(gt, pred, loss_f):
-    time, bs, _ = pred.shape
+def calculate_nll_loss(gt, pred, loss_f, confidences):
+    time, bs, _ = gt.shape
     gt = gt.permute(1,0,2)
-    pred = pred.contiguous().unsqueeze(1).permute(2,1,0,3)
-    confidences = torch.ones(bs,1).cuda()
     avails = torch.ones(bs,time).cuda()
     loss = loss_f(
         gt, 
@@ -75,9 +56,17 @@ def calculate_nll_loss(gt, pred, loss_f):
     return loss
 
 def calculate_mse_loss(gt, pred, loss_f):
-    loss_ade = loss_f(pred, gt)
-    loss_fde = loss_f(pred[-1].unsqueeze(0), gt[-1].unsqueeze(0))
-    return loss_ade, loss_fde
+    """
+    pred: (b,m,t,2)
+    """
+    b,m,t,_ = pred.shape
+    pred = pred.permute(1,2,0,3) # (m,t,b,2)
+    loss_ade = torch.zeros(1).to(pred)
+    loss_fde = torch.zeros(1).to(pred)
+    for i in range(m):
+        loss_ade += loss_f(pred[i,:,:,:], gt)
+        loss_fde += loss_f(pred[i][-1].unsqueeze(0), gt[-1].unsqueeze(0))
+    return loss_ade/m, loss_fde/m
 
 
 def model_trainer(config, logger):
@@ -143,7 +132,7 @@ def model_trainer(config, logger):
         'There are {} iterations per epoch'.format(hyperparameters.num_iterations)
     )
 
-    generator = TrajectoryGenerator(h_dim=64)
+    generator = TrajectoryGenerator()
     generator.to(device)
     generator.apply(init_weights)
     generator.type(float_dtype).train()
@@ -293,7 +282,6 @@ def model_trainer(config, logger):
             if hyperparameters.lr_schduler:
                 scheduler_g.step(losses_g["G_total_loss"])
                 g_lr = get_lr(optimizer_g)
-                logger.info("G: New lr: {}".format(g_lr))
                 writer.add_scalar("G_lr", g_lr, epoch+1)
     ###
     logger.info("Training finished")
@@ -362,24 +350,15 @@ def generator_step(
 
     # forward
     optimizer_g.zero_grad()
-    # with autocast():
-    generator_out = generator(
-        obs_traj, obs_traj_rel, seq_start_end, agent_idx
+    generator_out, conf = generator(
+        obs_traj_rel, seq_start_end
     )
-    
-    # generator_out = generator( # multi-multi
-    #     obs_traj_rel, seq_start_end, agent_idx
-    # )
 
     pred_traj_fake_rel = generator_out
     if hyperparameters.output_single_agent:
-        pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
+        pred_traj_fake = relative_to_abs_sgan_multimodal(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
     else:
-        pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
-
-    # if hyperparameters.output_single_agent:
-    #     pred_traj_fake = pred_traj_fake[:, agent_idx,:]
-    #     pred_traj_fake_rel = pred_traj_fake_rel[:,agent_idx,:]
+        pred_traj_fake = relative_to_abs_sgan_multimodal(pred_traj_fake_rel, obs_traj[-1])
         
 
     # handle single agent output
@@ -387,10 +366,6 @@ def generator_step(
         obs_traj = obs_traj[:,agent_idx, :]
         pred_traj_gt = pred_traj_gt[:,agent_idx, :]
         obs_traj_rel = obs_traj_rel[:, agent_idx, :]
-
-    # calculate full traj
-    # traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-    # traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
 
     if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
         _,b,_ = pred_traj_gt_rel.shape
@@ -409,7 +384,7 @@ def generator_step(
         loss_ade, loss_fde = calculate_mse_loss(
             pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"]
         )
-        loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"])
+        loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"], conf)
         loss = loss_ade + loss_fde + loss_nll 
         losses["G_mse_ade_loss"] = loss_ade.item()
         losses["G_mse_fde_loss"] = loss_fde.item()
@@ -467,14 +442,14 @@ def check_accuracy(
                 linear_obj = 1 - non_linear_obj
 
             ## forward
-            pred_traj_fake_rel = generator(
-                obs_traj, obs_traj_rel, seq_start_end, agent_idx
+            pred_traj_fake_rel, conf = generator(
+                obs_traj_rel, seq_start_end
             )
             # rel to abs
             if hyperparameters.output_single_agent:
-                pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
+                pred_traj_fake = relative_to_abs_sgan_multimodal(pred_traj_fake_rel, obs_traj[-1,agent_idx, :])
             else:
-                pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
+                pred_traj_fake = relative_to_abs_sgan_multimodal(pred_traj_fake_rel, obs_traj[-1])
 
             # single agent trajectories
             if hyperparameters.output_single_agent:
@@ -487,27 +462,23 @@ def check_accuracy(
 
             # l2 loss
             g_l2_loss_abs, g_l2_loss_rel = cal_l2_losses(
-                pred_traj_gt, pred_traj_gt_rel, pred_traj_fake,
-                pred_traj_fake_rel, loss_mask
+                pred_traj_gt.permute(1,0,2), pred_traj_gt_rel.permute(1,0,2), pred_traj_fake,
+                pred_traj_fake_rel
             )
-            ade, ade_l, ade_nl = cal_ade(
+            ade, ade_min = cal_ade(
                 pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj,
                 mask if not hyperparameters.output_single_agent else None
             )
 
-            fde, fde_l, fde_nl = cal_fde(
+            fde, fde_min = cal_fde(
                 pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj,
                 mask if not hyperparameters.output_single_agent else None
             )
 
             g_l2_losses_abs.append(g_l2_loss_abs.item())
             g_l2_losses_rel.append(g_l2_loss_rel.item())
-            disp_error.append(ade.item())
-            disp_error_l.append(ade_l.item())
-            disp_error_nl.append(ade_nl.item())
-            f_disp_error.append(fde.item())
-            f_disp_error_l.append(fde_l.item())
-            f_disp_error_nl.append(fde_nl.item())
+            disp_error.append(ade_min.sum())
+            f_disp_error.append(fde_min.sum())
 
             loss_mask_sum += torch.numel(loss_mask.data)
             total_traj += pred_traj_gt.size(1)
@@ -538,31 +509,45 @@ def check_accuracy(
     return metrics
 
 def cal_l2_losses(
-    pred_traj_gt, pred_traj_gt_rel, pred_traj_fake, pred_traj_fake_rel,
-    loss_mask
+    pred_traj_gt, pred_traj_gt_rel, pred_traj_fake, pred_traj_fake_rel
 ):
-    g_l2_loss_abs = l2_loss(
-        pred_traj_fake, pred_traj_gt, loss_mask, mode='sum'
+    g_l2_loss_abs = l2_loss_multimodal(
+        pred_traj_fake, pred_traj_gt, mode='sum'
     )
-    g_l2_loss_rel = l2_loss(
-        pred_traj_fake_rel, pred_traj_gt_rel, loss_mask, mode='sum'
+    g_l2_loss_rel = l2_loss_multimodal(
+        pred_traj_fake_rel, pred_traj_gt_rel, mode='sum'
     )
     return g_l2_loss_abs, g_l2_loss_rel
 
 def cal_ade(pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, consider_ped):
-    ade = displacement_error(pred_traj_fake, pred_traj_gt, consider_ped)
-    ade_l = displacement_error(pred_traj_fake, pred_traj_gt, linear_obj)
-    ade_nl = displacement_error(pred_traj_fake, pred_traj_gt, non_linear_obj)
-    return ade, ade_l, ade_nl
+    b,m,t,_ = pred_traj_fake.shape
+    print("m", m)
+    ade = []
+    for i in range(b):
+        _ade = []
+        for j in range(m):
+            __ade = displacement_error(
+                pred_traj_fake[i,j,:,:].unsqueeze(0).permute(1,0,2), pred_traj_gt[:,i,:].unsqueeze(1), consider_ped
+            )
+            _ade.append(__ade.item())
+        ade.append(_ade)
+    ade = np.array(ade)
+    min_ade = np.min(ade, 1)
+    return ade, min_ade
 
 def cal_fde(
     pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, consider_ped
 ):
-    fde = final_displacement_error(pred_traj_fake[-1], pred_traj_gt[-1], consider_ped)
-    fde_l = final_displacement_error(
-        pred_traj_fake[-1], pred_traj_gt[-1], linear_obj
-    )
-    fde_nl = final_displacement_error(
-        pred_traj_fake[-1], pred_traj_gt[-1], non_linear_obj
-    )
-    return fde, fde_l, fde_nl
+    b,m,t,_ = pred_traj_fake.shape
+    fde = []
+    for i in range(b):
+        _fde = []
+        for j in range(m):
+            __fde = final_displacement_error(
+                pred_traj_fake[i,j,-1,:].unsqueeze(0), pred_traj_gt[-1,i].unsqueeze(0), consider_ped
+            )
+            _fde.append(__fde.item())
+        fde.append(_fde)
+    fde = np.array(fde)
+    min_fde = np.min(fde, 1)
+    return fde, min_fde
