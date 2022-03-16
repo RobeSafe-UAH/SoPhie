@@ -37,8 +37,11 @@ from argoverse.map_representation.map_api import ArgoverseMap
 import sophie.data_loader.argoverse.map_utils as map_utils
 import sophie.data_loader.argoverse.dataset_utils as dataset_utils
 
+from sophie.utils.utils import relative_to_abs
+
 data_imgs_folder = None
 visual_data = False
+goal_points = True
 
 frames_path = None
 avm = ArgoverseMap()
@@ -139,14 +142,9 @@ def load_images(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rast
 
         filename = data_imgs_folder + "/" + str(curr_num_seq) + ".png"
 
-
         img = map_utils.plot_trajectories(filename, curr_obs_seq_data, curr_first_obs, 
                                           curr_ego_origin, object_class_id, dist_rasterized_map,
                                           rot_angle=0,obs_len=obs_len, smoothen=True, show=False)
-
-        # cv2.imshow("img_map",img_map)
-        # pdb.set_trace()
-
 
         end = time.time()
         # print(f"Time consumed by map generation and render: {end-start}")
@@ -169,8 +167,50 @@ def load_images(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rast
     # print(f"Time consumed by rasterized image: {rasterized_end-rasterized_start}")
 
     frames_arr = np.array(frames_list)
-    # pdb.set_trace()
     return frames_arr
+
+def load_goal_points(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist_rasterized_map, 
+                    object_class_id_list,debug_images=False):
+    """
+    Get the corresponding rasterized map
+    """
+
+    batch_size = len(object_class_id_list)
+    goal_points_list = []
+
+    t0_idx = 0
+    for i in range(batch_size):
+        
+        curr_num_seq = int(num_seq[i].cpu().data.numpy())
+        object_class_id = object_class_id_list[i].cpu().data.numpy()
+         
+        t1_idx = len(object_class_id_list[i]) + t0_idx
+        if i < batch_size - 1:
+            curr_obs_seq_data = obs_seq_data[:,t0_idx:t1_idx,:]
+        else:
+            curr_obs_seq_data = obs_seq_data[:,t0_idx:,:]
+        curr_first_obs = first_obs[t0_idx:t1_idx,:]
+
+        obs_len = curr_obs_seq_data.shape[0]
+        origin_pos = ego_origin[i][0]#.reshape(1,-1)
+                                                     
+        filename = data_imgs_folder + str(curr_num_seq) + ".png"
+        
+        agent_index = np.where(object_class_id == 1)[0].item()
+        agent_obs_seq = curr_obs_seq_data[:,agent_index,:] # 20 x 2
+        agent_first_obs = curr_first_obs[agent_index,:] # 1 x 2
+
+        agent_obs_seq_abs = relative_to_abs(agent_obs_seq, agent_first_obs) # "abs" (around 0)
+        agent_obs_seq_global = agent_obs_seq_abs + origin_pos # abs (hdmap coordinates)
+
+        goal_points = dataset_utils.get_goal_points(filename, agent_obs_seq_global, origin_pos, dist_around)
+
+        goal_points_list.append(goal_points)
+        t0_idx = t1_idx
+
+    goal_points_array = np.array(goal_points_list)
+    pdb.set_trace()
+    return goal_points_list
 
 def seq_collate(data): # 2.58 seconds - batch 8
     """
@@ -208,7 +248,10 @@ def seq_collate(data): # 2.58 seconds - batch 8
     first_obs = obs_traj[0,:,:] # 1 x agents · batch_size x 2
 
     if visual_data:
-        frames = load_images(num_seq_list, obs_traj_rel, first_obs, city_id, ego_vehicle_origin,    # Return batch_size x 600 x 600 x 3
+        frames = load_images(num_seq_list, obs_traj_rel, first_obs, city_id, ego_vehicle_origin,
+                            dist_rasterized_map, object_class_id_list, debug_images=False)
+    elif goal_points:
+        frames = load_goal_points(num_seq_list, obs_traj_rel, first_obs, city_id, ego_vehicle_origin,
                             dist_rasterized_map, object_class_id_list, debug_images=False)
     else:
         frames = np.random.randn(1,1,1,1)
@@ -471,7 +514,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         global visual_data
         visual_data = v_data
 
-        GENERATE_NPY = True
+        GENERATE_NPY = False
 
         if GENERATE_NPY:
             folder = root_folder + split + "/data/"
@@ -645,6 +688,9 @@ class ArgoverseMotionForecastingDataset(Dataset):
             filename = root_folder + split + "/data_processed/" + "norm" + ".npy"
             with open(filename, 'wb') as my_file: np.save(my_file, norm)
 
+            filename = root_folder + split + "/data_processed/" + "city_id" + ".npy"
+            with open(filename, 'wb') as my_file: np.save(my_file, self.city_ids)
+
         else:
             print("Loading .npy files ...")
 
@@ -677,6 +723,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
             filename = root_folder + split + "/data_processed/" + "num_seq_list" + ".npy"
             with open(filename, 'rb') as my_file: num_seq_list = np.load(my_file)
+            self.num_seq = len(num_seq_list)
 
             filename = root_folder + split + "/data_processed/" + "straight_trajectories_list" + ".npy"
             with open(filename, 'rb') as my_file: straight_trajectories_list = np.load(my_file)
@@ -687,7 +734,11 @@ class ArgoverseMotionForecastingDataset(Dataset):
             filename = root_folder + split + "/data_processed/" + "norm" + ".npy"
             with open(filename, 'rb') as my_file: norm = np.load(my_file)
 
-        ## create torch data
+            filename = root_folder + split + "/data_processed/" + "city_ids" + ".npy"
+            with open(filename, 'rb') as my_file: self.city_ids = np.load(my_file)
+
+        ## Create torch data
+
         self.obs_traj = torch.from_numpy(seq_list[:, :, :self.obs_len]).type(torch.float)
         self.pred_traj_gt = torch.from_numpy(seq_list[:, :, self.obs_len:]).type(torch.float)
         self.obs_traj_rel = torch.from_numpy(seq_list_rel[:, :, :self.obs_len]).type(torch.float)

@@ -398,36 +398,24 @@ def get_points(img, car_px, rad=100, color=255, N=1024, sample_car=True, max_sam
     return px_y, px_x
 
 # N.B. In PLT, points must be specified as standard cartesian frames (x from left to right, y from bottom to top)
-def plot_fepoints (img, filename, px_x, px_y, car, radius=None):
-    assert len(img.shape) == 3
-    
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    plt.scatter(px_x, px_y, c='r', s=10)
-    plt.scatter(car[0], car[1], c="blue", s=50)
-    plt.imshow(img)
-
-    if radius:
-      circ_car = plt.Circle((car[0], car[1]), radius, color='b', fill=False)
-      ax.add_patch(circ_car)
-
-    plt.title(filename) 
-    plt.show()
-
-def plot_fepoints_final(img, filename, px_x, px_y, obs_px_x, obs_px_y, car_px, radius=None):
+# def plot_fepoints (img, filename, px_x, px_y, car, radius=None):
+def plot_fepoints(img, filename, final_samples_px, obs_px_points, car_px, radius=None):
     assert len(img.shape) == 3
     
     fig, ax = plt.subplots(figsize=(8, 8))
 
-    plt.scatter(obs_px_x, obs_px_y, c='c', s=10) # Past trajectory
-    plt.scatter(car_px[0], car_px[1], c="b", s=50) # Last observation point
-    plt.scatter(px_x, px_y, c='r', s=10) # Goal points
-
+    # plt.plot(obs_px_points[:,0], obs_px_points[:,1], c='c')
+    plt.plot(obs_px_points[:,1], obs_px_points[:,0], c='c')
+    plt.scatter(car_px[0], car_px[1], c="b", s=50)
+    # plt.scatter(final_samples_px[:,0], final_samples_px[:,1], c='r', s=10)
+    plt.scatter(final_samples_px[:,1], final_samples_px[:,0], c='r', s=10)
     plt.imshow(img)
 
     if radius:
       circ_car = plt.Circle((car_px[0], car_px[1]), radius, color='m', fill=False)
       ax.add_patch(circ_car)
+
+    plt.set_cmap("gist_rainbow") 
 
     plt.title(filename) 
     plt.show()
@@ -474,29 +462,8 @@ def get_agent_yaw(obs_seq, num_obs=5):
         curr_yaw = math.atan2(delta_y, delta_x)
 
         yaw[i-1] = curr_yaw
-    
-    print("yaw 1: ", yaw, yaw.mean(), yaw.std())
 
-    yaw = yaw[np.where(yaw != 0)]
-    if len(yaw) == 0: # All angles were 0
-        yaw = np.zeros((1))
-
-    tolerance = 0.1
-    num_positives = len(np.where(yaw > 0)[0])
-    num_negatives = len(yaw) - num_positives
-    final_yaw = yaw.mean()
-    print("yaw 2: ", yaw, yaw.mean(), yaw.std())
-    if (yaw.std() > 1.5): # and ((yaw.mean() > math.pi * (1 - tolerance) and yaw.mean() < - math.pi * (1 - tolerance)) # Around pi
-                         #  or (yaw.mean() > -math.pi/12 * (1 - tolerance) and yaw.mean() < math.pi/12 * (1 - tolerance)))): # Around 0
-        yaw = np.absolute(yaw)
-
-        if num_negatives > num_positives:
-            final_yaw = -yaw.mean()
-        else:
-            final_yaw = yaw.mean()
-
-    print("FINAL MEAN: ", final_yaw)
-    return final_yaw
+    return yaw.mean()
 
 def transform_px2real_world(px_points, origin_pos, real_world_offset, img_size):
   """
@@ -560,6 +527,7 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
 
     # 0. Load image and get past observations
 
+    print("filename: ", filename)
     img = cv2.imread(filename)
     img = cv2.resize(img, dsize=(600,600))
     height, width = img.shape[:2]
@@ -600,10 +568,7 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
 
     mean_yaw = get_agent_yaw(torch.transpose(obs_seq,0,1)) # radians
 
-    if mean_yaw > 0.0:
-        angle = math.pi/2 - mean_yaw
-    elif mean_yaw < 0.0:
-        angle = -(math.pi / 2 + (math.pi - abs(mean_yaw)))
+    angle = math.pi/2 - mean_yaw
 
     c, s = np.cos(angle), np.sin(angle)
     R = np.array([[c,-s], [s, c]])
@@ -616,12 +581,6 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
 
     fe_x_rot = close_pts_rotated[:,0] + cx
     fe_y_rot = close_pts_rotated[:,1] + cy
-    print("mean yaw: ", mean_yaw)
-    print("fina angle: ", angle)
-
-    # if filename == "data/datasets/argoverse/motion-forecasting/train/data_images/185626.png":
-    #     plot_fepoints(img, filename, fe_x_rot, fe_y_rot, car_px)
-    plot_fepoints(img, filename, fe_x_rot, fe_y_rot, car_px)
 
     filtered_fe_x = fe_x[np.where(fe_y_rot < cy)[0]]
     filtered_fe_y = fe_y[np.where(fe_y_rot < cy)[0]]
@@ -640,9 +599,10 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     furthest_indeces
 
     final_samples_x, final_samples_y = filtered_fe_x[furthest_indeces], filtered_fe_y[furthest_indeces]
-    # if filename == "data/datasets/argoverse/motion-forecasting/train/data_images/185626.png":
-    #     plot_fepoints_final(img, filename, final_samples_x, final_samples_y, rec_obs_x, rec_obs_y, car_px, radius=radius_px)
-    plot_fepoints_final(img, filename, final_samples_x, final_samples_y, rec_obs_x, rec_obs_y, car_px, radius=radius_px)
+    final_samples_px = np.hstack((final_samples_y.reshape(-1,1), final_samples_x.reshape(-1,1))) # rows, columns
+
+    # plot_fepoints(img, filename, final_samples_x, final_samples_y, car_px, radius=radius_px)
+    plot_fepoints(img, filename, final_samples_px, obs_px_points, car_px, radius=radius_px)
 
     # 3. Transform pixels to real-world coordinates
 
