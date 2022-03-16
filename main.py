@@ -55,7 +55,7 @@ if __name__ == "__main__":
         config_path = "./configs/mp_trans_sovi.yml"
     elif args.trainer == "settrans":
         from sophie.trainers.trainer_gen_transset import model_trainer
-        config_path = "./configs/mp_trans_so.yml"
+        config_path = "./configs/mp_settrans.yml"
     else:
         assert 1==0, "Error"
 
