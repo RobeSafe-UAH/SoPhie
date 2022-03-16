@@ -361,7 +361,7 @@ def rotate_traj(traj,angle,output_shape=(20,2)):
 
 # Goal points functions
 
-FINAL_SAMPLES = 16
+NUM_GOAL_POINTS = 16
 
 def get_points(img, car_px, rad=100, color=255, N=1024, sample_car=True, max_samples=None):
     """
@@ -398,7 +398,7 @@ def get_points(img, car_px, rad=100, color=255, N=1024, sample_car=True, max_sam
     return px_y, px_x
 
 # N.B. In PLT, points must be specified as standard cartesian frames (x from left to right, y from bottom to top)
-def plot_fepoints (img, filename, px_x, px_y, car, radius=None):
+def plot_fepoints(img, filename, px_x, px_y, car, radius=None):
     assert len(img.shape) == 3
     
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -475,7 +475,7 @@ def get_agent_yaw(obs_seq, num_obs=5):
 
         yaw[i-1] = curr_yaw
     
-    print("yaw 1: ", yaw, yaw.mean(), yaw.std())
+    # print("yaw 1: ", yaw, yaw.mean(), yaw.std())
 
     yaw = yaw[np.where(yaw != 0)]
     if len(yaw) == 0: # All angles were 0
@@ -485,7 +485,9 @@ def get_agent_yaw(obs_seq, num_obs=5):
     num_positives = len(np.where(yaw > 0)[0])
     num_negatives = len(yaw) - num_positives
     final_yaw = yaw.mean()
-    print("yaw 2: ", yaw, yaw.mean(), yaw.std())
+
+    # print("yaw 2: ", yaw, yaw.mean(), yaw.std())
+
     if (yaw.std() > 1.5): # and ((yaw.mean() > math.pi * (1 - tolerance) and yaw.mean() < - math.pi * (1 - tolerance)) # Around pi
                          #  or (yaw.mean() > -math.pi/12 * (1 - tolerance) and yaw.mean() < math.pi/12 * (1 - tolerance)))): # Around 0
         yaw = np.absolute(yaw)
@@ -495,64 +497,65 @@ def get_agent_yaw(obs_seq, num_obs=5):
         else:
             final_yaw = yaw.mean()
 
-    print("FINAL MEAN: ", final_yaw)
+    # print("FINAL YAW: ", final_yaw)
+
     return final_yaw
 
 def transform_px2real_world(px_points, origin_pos, real_world_offset, img_size):
-  """
-  It is assumed squared image (e.g. 600 x 600 -> img_size = 600) and the same offset 
-  in all directions (top, bottom, left, right) to facilitate the transformation.
-  """
+    """
+    It is assumed squared image (e.g. 600 x 600 -> img_size = 600) and the same offset 
+    in all directions (top, bottom, left, right) to facilitate the transformation.
+    """
 
-  xcenter, ycenter = origin_pos[0], origin_pos[1]
-  x_min = xcenter - real_world_offset
-  x_max = xcenter + real_world_offset
-  y_min = ycenter - real_world_offset
-  y_max = ycenter + real_world_offset
+    xcenter, ycenter = origin_pos[0], origin_pos[1]
+    x_min = xcenter - real_world_offset
+    x_max = xcenter + real_world_offset
+    y_min = ycenter - real_world_offset
+    y_max = ycenter + real_world_offset
 
-  m_x = float((2 * real_world_offset) / img_size) # slope
-  m_y = float(-(2 * real_world_offset) / img_size) # slope
+    m_x = float((2 * real_world_offset) / img_size) # slope
+    m_y = float(-(2 * real_world_offset) / img_size) # slope
 
-  i_x = x_min # intersection
-  i_y = y_max
+    i_x = x_min # intersection
+    i_y = y_max
 
-  rw_points = []
+    rw_points = []
 
-  for px_point in px_points:
-    x = m_x * px_point[1] + i_x # Get x-real_world from columns
-    y = m_y * px_point[0] + i_y # Get y-real_world from rows
-    rw_point = [x,y]
-    rw_points.append(rw_point)
+    for px_point in px_points:
+        x = m_x * px_point[1] + i_x # Get x-real_world from columns
+        y = m_y * px_point[0] + i_y # Get y-real_world from rows
+        rw_point = [x,y]
+        rw_points.append(rw_point)
 
-  return np.array(rw_points)
+    return np.array(rw_points)
 
 def transform_real_world2px(rw_points, origin_pos, real_world_offset, img_size):
-  """
-  It is assumed squared image (e.g. 600 x 600 -> img_size = 600) and the same offset 
-  in all directions (top, bottom, left, right) to facilitate the transformation.
-  """
+    """
+    It is assumed squared image (e.g. 600 x 600 -> img_size = 600) and the same offset 
+    in all directions (top, bottom, left, right) to facilitate the transformation.
+    """
 
-  xcenter, ycenter = origin_pos[0], origin_pos[1]
-  x_min = xcenter - real_world_offset
-  x_max = xcenter + real_world_offset
-  y_min = ycenter - real_world_offset
-  y_max = ycenter + real_world_offset
+    xcenter, ycenter = origin_pos[0], origin_pos[1]
+    x_min = xcenter - real_world_offset
+    x_max = xcenter + real_world_offset
+    y_min = ycenter - real_world_offset
+    y_max = ycenter + real_world_offset
 
-  m_x = float(img_size / (2 * real_world_offset)) # slope
-  m_y = float(-img_size / (2 * real_world_offset))
+    m_x = float(img_size / (2 * real_world_offset)) # slope
+    m_y = float(-img_size / (2 * real_world_offset))
 
-  i_x = float(-(img_size / (2 * real_world_offset)) * x_min) # intercept
-  i_y = float((img_size / (2 * real_world_offset)) * y_max)
+    i_x = float(-(img_size / (2 * real_world_offset)) * x_min) # intercept
+    i_y = float((img_size / (2 * real_world_offset)) * y_max)
 
-  px_points = []
+    px_points = []
 
-  for rw_point in rw_points:
-    x = m_x * rw_point[0] + i_x
-    y = m_y * rw_point[1] + i_y
-    px_point = [x,y] 
-    px_points.append(px_point)
+    for rw_point in rw_points:
+        x = m_x * rw_point[0] + i_x
+        y = m_y * rw_point[1] + i_y
+        px_point = [x,y] 
+        px_points.append(px_point)
 
-  return np.array(px_points)
+    return np.array(px_points)
 
 def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     """
@@ -579,7 +582,7 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     obs_x = obs_seq[:,0]
     obs_y = obs_seq[:,1]
 
-    print("obs: ", obs_seq)
+    # print("obs: ", obs_seq)
 
     obs_px_points = transform_real_world2px(obs_seq, origin_pos, real_world_offset, img_size)
     rec_obs_x, rec_obs_y = obs_px_points[:,0], obs_px_points[:,1]
@@ -616,12 +619,10 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
 
     fe_x_rot = close_pts_rotated[:,0] + cx
     fe_y_rot = close_pts_rotated[:,1] + cy
-    print("mean yaw: ", mean_yaw)
-    print("fina angle: ", angle)
 
     # if filename == "data/datasets/argoverse/motion-forecasting/train/data_images/185626.png":
     #     plot_fepoints(img, filename, fe_x_rot, fe_y_rot, car_px)
-    plot_fepoints(img, filename, fe_x_rot, fe_y_rot, car_px)
+    # plot_fepoints(img, filename, fe_x_rot, fe_y_rot, car_px)
 
     filtered_fe_x = fe_x[np.where(fe_y_rot < cy)[0]]
     filtered_fe_y = fe_y[np.where(fe_y_rot < cy)[0]]
@@ -636,14 +637,21 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     dist = np.array(dist)
 
     np.argsort(dist)
-    furthest_indeces = np.argsort(dist)[-FINAL_SAMPLES:]
+    furthest_indeces = np.argsort(dist)[-NUM_GOAL_POINTS:]
     furthest_indeces
 
     final_samples_x, final_samples_y = filtered_fe_x[furthest_indeces], filtered_fe_y[furthest_indeces]
-    # if filename == "data/datasets/argoverse/motion-forecasting/train/data_images/185626.png":
-    #     plot_fepoints_final(img, filename, final_samples_x, final_samples_y, rec_obs_x, rec_obs_y, car_px, radius=radius_px)
-    plot_fepoints_final(img, filename, final_samples_x, final_samples_y, rec_obs_x, rec_obs_y, car_px, radius=radius_px)
 
+    # print("filename: ", filename)
+    
+    diff_points = NUM_GOAL_POINTS - len(final_samples_x)
+    final_samples_x = np.hstack((final_samples_x, final_samples_x[0]+0.2 * np.random.randn(diff_points)))
+    final_samples_y = np.hstack((final_samples_y, final_samples_y[0]+0.2 * np.random.randn(diff_points)))
+
+    if len(final_samples_x) != NUM_GOAL_POINTS:
+        plot_fepoints_final(img, filename, final_samples_x, final_samples_y, rec_obs_x, rec_obs_y, car_px, radius=radius_px)
+    
+    # assert len(final_samples_x) == NUM_GOAL_POINTS
     # 3. Transform pixels to real-world coordinates
 
     final_samples_px = np.hstack((final_samples_y.reshape(-1,1), final_samples_x.reshape(-1,1))) # rows, columns

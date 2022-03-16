@@ -209,8 +209,8 @@ def load_goal_points(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist
         t0_idx = t1_idx
 
     goal_points_array = np.array(goal_points_list)
-    pdb.set_trace()
-    return goal_points_list
+
+    return goal_points_array
 
 def seq_collate(data): # 2.58 seconds - batch 8
     """
@@ -243,29 +243,31 @@ def seq_collate(data): # 2.58 seconds - batch 8
     id_frame = torch.cat(seq_id_list, dim=0).permute(2, 0, 1) # seq_len - objs_in_curr_seq - 3
 
     start = time.time()
-    # pdb.set_trace()
 
     first_obs = obs_traj[0,:,:] # 1 x agents · batch_size x 2
 
-    if visual_data:
+    if visual_data: # batch_size x channels x height x width
         frames = load_images(num_seq_list, obs_traj_rel, first_obs, city_id, ego_vehicle_origin,
                             dist_rasterized_map, object_class_id_list, debug_images=False)
-    elif goal_points:
+        frames = torch.from_numpy(frames).type(torch.float32)
+        frames = frames.permute(0, 3, 1, 2)
+    elif goal_points: # batch_size x num_goal_points x 2 (x|y)
         frames = load_goal_points(num_seq_list, obs_traj_rel, first_obs, city_id, ego_vehicle_origin,
                             dist_rasterized_map, object_class_id_list, debug_images=False)
+        frames = torch.from_numpy(frames).type(torch.float32)
     else:
         frames = np.random.randn(1,1,1,1)
+        frames = torch.from_numpy(frames).type(torch.float32)
+
     end = time.time()
     # print(f"Time consumed by load_images function: {end-start}\n")
-    # pdb.set_trace()
-    frames = torch.from_numpy(frames).type(torch.float32)
-    frames = frames.permute(0, 3, 1, 2)
+
     object_cls = torch.cat(object_class_id_list, dim=0)
     obj_id = torch.cat(object_id_list, dim=0)
     ego_vehicle_origin = torch.stack(ego_vehicle_origin)
     num_seq_list = torch.stack(num_seq_list)
     norm = torch.stack(norm)
-
+    pdb.set_trace()
     out = [obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
            loss_mask, seq_start_end, frames, object_cls, obj_id, ego_vehicle_origin, num_seq_list, norm]
 
