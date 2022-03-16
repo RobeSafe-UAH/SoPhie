@@ -10,7 +10,7 @@ dataset:
     batch_size: 256
     start_from_percentage: 0.0 # By default, 0. If you want to analize a particular bunch of files (e.g. from 25 % to 50 %)
                   # then write here 0.25 and in split_percentage 0.25
-    split_percentage: 0.05 # % of the dataset (0-1)
+    split_percentage: 0.0001 # % of the dataset (0-1)
     shuffle: True # False to check the input data, always set to True
     class_balance: 0.7 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
