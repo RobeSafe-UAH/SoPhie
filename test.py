@@ -1577,23 +1577,29 @@ def test_soviconf():
 def count_models_parameters():
     from sophie.utils.utils import count_parameters
     from sophie.models.mp_so import TrajectoryGenerator as TG_SO
-    from sophie.models.mp_trans_so import TrajectoryGenerator as TG_T
+    from sophie.models.mp_trans_so_set import TrajectoryGenerator as TG_T
     from ptflops import get_model_complexity_info
 
     # obs_traj, obs_traj_rel, seq_start_end, agent_idx
-    with torch.cuda.device(0):
-        m = TG_SO(h_dim=32)
-        macs, params = get_model_complexity_info(
-            m, ((20,3,2), (20,3,2), (3,2), (3,2)), as_strings=True, print_per_layer_stat=True, verbose=True
-        )
-        print("Traj Generator SO 32: ", count_parameters(m))
+    # with torch.cuda.device(0):
+    #     m = TG_SO(h_dim=32)
+    #     macs, params = get_model_complexity_info(
+    #         m, ((20,3,2), (20,3,2), (3,2), (3,2)), as_strings=True, print_per_layer_stat=True, verbose=True
+    #     )
+    #     print("Traj Generator SO 32: ", count_parameters(m))
 
 
-    m = TG_SO(h_dim=128)
-    print("Traj Generator SO 128: ", count_parameters(m))
+    # m = TG_SO(h_dim=128)
+    # print("Traj Generator SO 128: ", count_parameters(m))
 
-    m = TG_T(h_dim=64)
+    m = TG_T().train()
+    print(m)
+    params = 0
+    for name, child in m.named_children():
+        for param in child.parameters():
+            print(name, param.shape)
     print("Traj Generator Trans: ", count_parameters(m))
+    print(params)
 
 def test_set_transformer():
     from sophie.models.mp_trans_so_set import TrajectoryGenerator
@@ -1659,5 +1665,5 @@ if __name__ == "__main__":
     # test_gen_sovi()
     # test_gen_sovi_freeze()
     # test_so()
-    # count_models_parameters()
-    test_set_transformer()
+    count_models_parameters()
+    # test_set_transformer()

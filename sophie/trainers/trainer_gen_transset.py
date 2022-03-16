@@ -150,7 +150,7 @@ def model_trainer(config, logger):
     if hyperparameters.lr_schduler:
         # scheduler_g = lrs.ExponentialLR(optimizer_g, gamma=hyperparameters.lr_scheduler_gamma_g)
         scheduler_g = lrs.ReduceLROnPlateau(
-            optimizer_g, "min", min_lr=1e-6, verbose=True, factor=0.5, patience=7500,
+            optimizer_g, "min", min_lr=1e-6, verbose=True, factor=0.5, patience=1500,
         )
 
     restore_path = None
@@ -521,7 +521,6 @@ def cal_l2_losses(
 
 def cal_ade(pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, consider_ped):
     b,m,t,_ = pred_traj_fake.shape
-    print("m", m)
     ade = []
     for i in range(b):
         _ade = []

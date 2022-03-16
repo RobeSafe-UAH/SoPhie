@@ -6,10 +6,11 @@ import torch.nn.functional as F
 
 
 class MAB(nn.Module):
-    def __init__(self, dim_Q, dim_K, dim_V, num_heads, ln=False):
+    def __init__(self, dim_Q, dim_K, dim_V, num_heads, do=0.1, ln=False):
         super(MAB, self).__init__()
         self.dim_V = dim_V
         self.num_heads = num_heads
+        self.d = nn.Dropout(do)
         self.fc_q = nn.Linear(dim_Q, dim_V) # 64, 64
         self.fc_k = nn.Linear(dim_K, dim_V) # 40, 64
         self.fc_v = nn.Linear(dim_K, dim_V) # 40, 64
@@ -19,8 +20,8 @@ class MAB(nn.Module):
         self.fc_o = nn.Linear(dim_V, dim_V)
 
     def forward(self, Q, K):
-        Q = self.fc_q(Q)
-        K, V = self.fc_k(K), self.fc_v(K) # 
+        Q = self.d(self.fc_q(Q))
+        K, V = self.d(self.fc_k(K)), self.d(self.fc_v(K)) # 
 
         dim_split = self.dim_V // self.num_heads
         Q_ = torch.cat(Q.split(dim_split, 2), 0)
