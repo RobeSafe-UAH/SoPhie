@@ -122,7 +122,7 @@ def model_trainer(config, logger):
                                                  num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
                                                  split_percentage=config.dataset.split_percentage,
                                                  shuffle=config.dataset.shuffle,
-                                                 class_balance=config.dataset.class_balance,
+                                                 class_balance=-1,
                                                  obs_origin=config.hyperparameters.obs_origin)
     val_loader = DataLoader(data_val,
                             batch_size=config.dataset.batch_size,

@@ -132,34 +132,14 @@ class TemporalDecoderLSTMConf(nn.Module):
         pred_traj_fake_rel = torch.stack(pred_traj_fake_rel, dim=0)
         return pred_traj_fake_rel
 
-class TemporalDecoderLSTMConfSingle(nn.Module):
+"""
+self.regressor = nn.Linear(dim_hidden, dim_output)
+self.mode_confidences = nn.Linear(dim_hidden, 1)
 
-    def __init__(self, seq_len=30, h_dim=64, embedding_dim=32, modes=6, obs_len=20):
-        super().__init__()
-
-        self.seq_len = seq_len
-        self.h_dim = h_dim
-        self.embedding_dim = embedding_dim
-        self.modes = modes
-        self.obs_len = 20
-        self.traj_emb_dim = 2
-        
-        self.spatial_embedding = nn.Linear(self.traj_emb_dim, self.embedding_dim) # 20 obs * 2 points
-        self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
-        self.trajconf = TrajConf(emb_dim=self.obs_len*h_dim, modes=self.modes)
-
-    def forward(self, traj_abs, traj_rel, state_tuple):
-        """
-        TODO no multi output
-        traj_abs (20, b, 2)
-        """
-        _, b, _ = traj_rel.shape
-        h, c = state_tuple
-        x = self.spatial_embedding(traj_rel.permute(1,0,2)) # (b,20,32)
-        x = x.permute(1,0,2)
-        x, st = self.decoder(x, state_tuple) # change for multi agent -> for loop start_end_seq
-        preds, conf = self.trajconf(x.view(b, -1))
-        return preds, conf
+coords = self.regressor(XX).reshape(-1, self.num_outputs, self.pred_len, 2) # (b, m, t, 2)
+confidences = torch.squeeze(self.mode_confidences(XX), -1) # (b, m)
+confidences = torch.softmax(confidences, dim=1)
+"""
 
 class BaseDecoder(nn.Module):
     """The base decoder interface for the encoder-decoder architecture.

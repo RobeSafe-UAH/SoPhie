@@ -1589,17 +1589,17 @@ def count_models_parameters():
     #     print("Traj Generator SO 32: ", count_parameters(m))
 
 
-    # m = TG_SO(h_dim=128)
-    # print("Traj Generator SO 128: ", count_parameters(m))
+    m = TG_SO(h_dim=32)
+    print("Traj Generator SO 32: ", count_parameters(m))
 
-    m = TG_T().train()
-    print(m)
-    params = 0
-    for name, child in m.named_children():
-        for param in child.parameters():
-            print(name, param.shape)
-    print("Traj Generator Trans: ", count_parameters(m))
-    print(params)
+    # m = TG_T().train()
+    # print(m)
+    # params = 0
+    # for name, child in m.named_children():
+    #     for param in child.parameters():
+    #         print(name, param.shape)
+    # print("Traj Generator Trans: ", count_parameters(m))
+    # print(params)
 
 def test_set_transformer():
     from sophie.models.mp_trans_so_set import TrajectoryGenerator

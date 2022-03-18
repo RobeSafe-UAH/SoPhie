@@ -17,13 +17,9 @@ class TrajectoryGenerator(nn.Module):
         self.enc = nn.Sequential(
                 ISAB(dim_input, dim_hidden, num_heads, num_inds, ln=ln),
                 ISAB(dim_hidden, dim_hidden, num_heads, num_inds, ln=ln),
-                ISAB(dim_hidden, dim_hidden, num_heads, num_inds, ln=ln),
-                ISAB(dim_hidden, dim_hidden, num_heads, num_inds, ln=ln)
             )
         self.dec = nn.Sequential(
                 PMA(dim_hidden, num_heads, num_outputs, ln=ln),
-                SAB(dim_hidden, dim_hidden, num_heads, ln=ln),
-                SAB(dim_hidden, dim_hidden, num_heads, ln=ln),
                 SAB(dim_hidden, dim_hidden, num_heads, ln=ln))
         self.regressor = nn.Linear(dim_hidden, dim_output)
         self.mode_confidences = nn.Linear(dim_hidden, 1)

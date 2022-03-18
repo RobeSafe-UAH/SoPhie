@@ -110,7 +110,7 @@ def model_trainer(config, logger):
                                                  num_agents_per_obs=config.hyperparameters.num_agents_per_obs,
                                                  split_percentage=config.dataset.split_percentage,
                                                  shuffle=config.dataset.shuffle,
-                                                 class_balance=config.dataset.class_balance,
+                                                 class_balance=-1,
                                                  obs_origin=config.hyperparameters.obs_origin)
     val_loader = DataLoader(data_val,
                             batch_size=config.dataset.batch_size,
@@ -150,7 +150,7 @@ def model_trainer(config, logger):
     if hyperparameters.lr_schduler:
         # scheduler_g = lrs.ExponentialLR(optimizer_g, gamma=hyperparameters.lr_scheduler_gamma_g)
         scheduler_g = lrs.ReduceLROnPlateau(
-            optimizer_g, "min", min_lr=1e-6, verbose=True, factor=0.5, patience=1500,
+            optimizer_g, "min", min_lr=1e-6, verbose=True, factor=0.5, patience=15000,
         )
 
     restore_path = None
@@ -385,7 +385,7 @@ def generator_step(
             pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"]
         )
         loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"], conf)
-        loss = loss_ade + loss_fde + loss_nll 
+        loss = loss_ade + loss_fde + loss_nll*0.75
         losses["G_mse_ade_loss"] = loss_ade.item()
         losses["G_mse_fde_loss"] = loss_fde.item()
         losses["G_nll_loss"] = loss_nll.item()
