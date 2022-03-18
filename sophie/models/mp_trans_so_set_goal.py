@@ -5,7 +5,7 @@ import pdb
 from sophie.modules.set_transformer import ISAB, PMA, SAB
 
 class TrajectoryGenerator(nn.Module): # 40 + 32
-    def __init__(self, dim_input=20*2 + 32, num_outputs=3, dim_output=30 * 2,
+    def __init__(self, dim_input=(20*2 + 32*2), num_outputs=3, dim_output=30 * 2,
                  num_inds=8, dim_hidden=64, num_heads=4, ln=False, pred_len=30):
     # def __init__(self, dim_input=20*2, num_outputs=3, dim_output=30 * 2,
     #              num_inds=8, dim_hidden=64, num_heads=4, ln=False):
@@ -30,6 +30,7 @@ class TrajectoryGenerator(nn.Module): # 40 + 32
             ()
             -> 64/40
         """
+        pdb.set_trace()
         XX = []
         for i, (start, end) in enumerate(start_end_seq.data):
             Y = X[:,start:end,:].contiguous().permute(1,0,2) # (obs,n,2)
@@ -48,7 +49,7 @@ class TrajectoryGenerator(nn.Module): # 40 + 32
             # Y = self.fc_emb(Y)
             XX.append(Y)
         XX = torch.cat(XX, 0)
-
+        pdb.set_trace()
         coords = self.regressor(XX).reshape(-1, self.num_outputs, self.pred_len, 2) # (b, m, t, 2)
         confidences = torch.squeeze(self.mode_confidences(XX), -1) # (b, m)
         confidences = torch.softmax(confidences, dim=1)

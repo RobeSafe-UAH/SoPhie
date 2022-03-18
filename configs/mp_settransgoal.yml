@@ -7,7 +7,7 @@ dataset_name: argoverse_motion_forecasting_dataset
 dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
-    batch_size: 256
+    batch_size: 32
     start_from_percentage: 0.0 # By default, 0. If you want to analize a particular bunch of files (e.g. from 25 % to 50 %)
                   # then write here 0.25 and in split_percentage 0.25
     split_percentage: 0.0002 # % of the dataset (0-1)
@@ -32,8 +32,8 @@ hyperparameters:
     g_steps: 1
     timing: 0 # Waits for all kernels in all streams on a CUDA device to complete.
     print_every: 10
-    checkpoint_every: 50 # "save/argoverse/set_trans_1"
-    output_dir:  "save/argoverse/test" #"save/argoverse/te_lstm_1" # "save/argoverse/gen_exp_trans/exp_te_lstm_1" #
+    checkpoint_every: 1000 # "save/argoverse/set_trans_1"
+    output_dir:  "save/argoverse/set_trans_goal_1" #"save/argoverse/te_lstm_1" # "save/argoverse/gen_exp_trans/exp_te_lstm_1" #
     exp_description: "50% dataset. et + lstm, scheduler"
     checkpoint_name: "0"
     checkpoint_start_from: ""

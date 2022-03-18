@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as lrs
 from torch.cuda.amp import GradScaler, autocast 
 
-from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
+from sophie.data_loader.argoverse.dataset_sgan_version_data_augs import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.models.mp_trans_so_set_goal import TrajectoryGenerator
 from sophie.modules.losses import pytorch_neg_multi_log_likelihood_batch, mse_custom, l2_loss, l2_loss_multimodal
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
@@ -349,8 +349,6 @@ def generator_step(
         loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
     # forward
-    b, _ = seq_start_end.shape
-    frames = torch.randn(b,16,2).cuda()
     optimizer_g.zero_grad()
     generator_out, conf = generator(
         obs_traj_rel, seq_start_end, frames
@@ -444,8 +442,6 @@ def check_accuracy(
                 linear_obj = 1 - non_linear_obj
 
             ## forward
-            b, _ = seq_start_end.shape
-            frames = torch.randn(b,16,2).cuda()
             pred_traj_fake_rel, conf = generator(
                 obs_traj_rel, seq_start_end, frames
             )
