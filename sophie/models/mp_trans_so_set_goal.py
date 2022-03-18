@@ -4,8 +4,8 @@ import pdb
 
 from sophie.modules.set_transformer import ISAB, PMA, SAB
 
-class TrajectoryGenerator(nn.Module):
-    def __init__(self, dim_input=20*2, num_outputs=3, dim_output=30 * 2,
+class TrajectoryGenerator(nn.Module): # 40 + 32
+    def __init__(self, dim_input=20*2 + 32, num_outputs=3, dim_output=30 * 2,
                  num_inds=8, dim_hidden=64, num_heads=4, ln=False, pred_len=30):
     # def __init__(self, dim_input=20*2, num_outputs=3, dim_output=30 * 2,
     #              num_inds=8, dim_hidden=64, num_heads=4, ln=False):
@@ -13,7 +13,6 @@ class TrajectoryGenerator(nn.Module):
         self.pred_len = pred_len
         super(TrajectoryGenerator, self).__init__()
 
-        self.emb = nn.Linear(2, dim_hidden)
         self.enc = nn.Sequential(
                 ISAB(dim_input, dim_hidden, num_heads, num_inds, ln=ln),
                 ISAB(dim_hidden, dim_hidden, num_heads, num_inds, ln=ln),
@@ -21,26 +20,33 @@ class TrajectoryGenerator(nn.Module):
         self.dec = nn.Sequential(
                 PMA(dim_hidden, num_heads, num_outputs, ln=ln),
                 SAB(dim_hidden, dim_hidden, num_heads, ln=ln))
+        self.fc_emb = nn.Linear(dim_hidden + 32, dim_hidden)
         self.regressor = nn.Linear(dim_hidden, dim_output)
         self.mode_confidences = nn.Linear(dim_hidden, 1)
 
-    def forward(self, X, start_end_seq): #
+    def forward(self, X, start_end_seq, goal): #
         """
             (20,b*n,2) -> relatives
             ()
             -> 64/40
         """
-        # pdb.set_trace()
         XX = []
-        for start, end in start_end_seq.data:
+        for i, (start, end) in enumerate(start_end_seq.data):
             Y = X[:,start:end,:].contiguous().permute(1,0,2) # (obs,n,2)
             n, t, p = Y.shape
             Y = Y.contiguous().view(1, n, p*t) # (1, obs*n, 2)
-            # X = self.emb(X)
-            Y = self.dec(self.enc(Y)) # 1, m, 64
-            # Y = Y.view(n,t,-1) # (n, obs, h_dim)
+
+            a_g = goal[i].unsqueeze(0).view(1,1,-1)
+            a_g = torch.repeat_interleave(a_g, n, dim=1)
+            Y = torch.cat([Y, a_g], dim=2)
+            # Y = self.fc_emb(Y)
+
+            Y = self.dec(self.enc(Y)) # 1, n, 64
+            # a_g = goal[i].unsqueeze(0).view(1,1,-1)
+            # a_g = torch.repeat_interleave(a_g, self.num_outputs, dim=1)
+            # Y = torch.cat([Y, a_g], dim=2)
+            # Y = self.fc_emb(Y)
             XX.append(Y)
-        pdb.set_trace()
         XX = torch.cat(XX, 0)
 
         coords = self.regressor(XX).reshape(-1, self.num_outputs, self.pred_len, 2) # (b, m, t, 2)
