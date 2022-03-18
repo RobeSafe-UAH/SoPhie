@@ -15,7 +15,7 @@ from skimage.measure import LineModelND, ransac
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-BASE_DIR = "/home/robesafe/tesis/SoPhie"
+BASE_DIR = "/home/robesafe/libraries/SoPhie"
 sys.path.append(BASE_DIR)
 
 from sophie.utils.utils import relative_to_abs_sgan
@@ -43,7 +43,7 @@ past_observations = config.hyperparameters.obs_len
 num_agents_per_obs = config.hyperparameters.num_agents_per_obs
 config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
-config.dataset.split = "val"
+config.dataset.split = "train"
 config.dataset.split_percentage = 0.0002 # To generate the final results, must be 1 (whole split test)
 config.dataset.start_from_percentage = 0.0
 config.dataset.batch_size = 1 # Better to build the h5 results file
@@ -93,7 +93,7 @@ else:
     else:
         file_id_list = file_id_list[start_from:start_from+n_files]
 
-check_data_augs = [0,0,0] # swapping, dropout (erasing), gaussian noise
+check_data_augs = [0,1,0] # swapping, dropout (erasing), gaussian noise
 check_rotations = False # rotations
 
 for i, file_id in enumerate(file_id_list):
@@ -131,7 +131,7 @@ for i, file_id in enumerate(file_id_list):
     img = map_utils.plot_trajectories(filename, curr_seq_rel, first_obs, 
                                         ego_origin, object_class_list, dist_rasterized_map,
                                         rot_angle=rot_angle,obs_len=config.hyperparameters.obs_len, 
-                                        smoothen=True, show=True)
+                                        smoothen=False, show=True)
 
     plt.close("all")
 

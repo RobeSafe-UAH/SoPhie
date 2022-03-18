@@ -7,11 +7,16 @@ Created on Sun Mar 06 23:47:19 2022
 """
 
 import numpy as np
-import random
-from sklearn import linear_model
-import matplotlib.pyplot as plt
-import math 
 import pdb
+import cv2
+from numpy.random import default_rng
+from sklearn import linear_model
+import math
+import random
+import pdb
+import matplotlib.pyplot as plt 
+from matplotlib.patches import Circle
+from random import sample
 import copy
 import torch
 
@@ -225,7 +230,9 @@ def get_data_aug_combinations(num_augs):
 def get_pairs(percentage,num_obs,start_from=1):
     """
     Return round(percentage*num_obs) non-consecutive indeces in the range(start_from,num_obs-1)
-
+    N.B. Considering this algorithm, the maximum number to calculate non-consecutive indeces
+    is 40 % (0.4)
+    
     Input:
         - percentage
         - num_obs
@@ -300,6 +307,40 @@ def erase_points(traj,num_obs=20,percentage=0.2,post=False):
 
     return erased_traj
 
+def erase_points_collate(traj,apply_dropout,num_obs=20,percentage=0.2,post=False):
+    """
+    Remove (x(i) and subsitute with x(i-1)) 
+    E.g. x(0), x(1), x(2) -> x(0), x(0), x(2)
+    Flag: Substitute with i-1 or i+1
+
+    Input:
+        - traj: 20 x num_agents x 2
+        - num_obs: Number of observations of the whole trajectory
+        - percentage: Ratio of pairs to be erased. Typically the number of pairs 
+          to be swapped will be 0.2. E.g. N=4 if num_observations is 20
+        - post: Flag to erase the current point and substitute with the next (x(i+1)) or 
+          previous (x(i-1)) point. By default: False (substitute with the previous point)
+    Output:
+        - erased_traj: Whole trajectory (20 x num_agents x 2) with erased non-consecutive points in
+          the range (1,num_obs-1)
+    """
+
+    erased_traj = copy.deepcopy(traj)
+    erased_traj_aux = torch.zeros((erased_traj.shape))
+
+    for i,app_dropout in enumerate(apply_dropout):
+        
+        _erased_traj = erased_traj[:,i,:]
+
+        if app_dropout:
+            erased_pairs = get_pairs(percentage,num_obs)
+            for index_pair in erased_pairs:
+                _erased_traj[index_pair,:] = _erased_traj[index_pair-1,:]
+
+        erased_traj_aux[:,i,:] = _erased_traj
+
+    return erased_traj_aux
+
 ## 3. Gaussian noise -> Add gaussian noise to the observation data
 
 def add_gaussian_noise(traj,num_obs=20,multi_point=True,mu=0,sigma=0.5):
@@ -315,12 +356,13 @@ def add_gaussian_noise(traj,num_obs=20,multi_point=True,mu=0,sigma=0.5):
     By default, multi_point = True since it is more challenging.
     """
 
+    noised_traj = copy.deepcopy(traj)
+
     if multi_point:
         size = num_obs
     else:
         size = 1
 
-    noised_traj = copy.deepcopy(traj)
     x_offset, y_offset = np.random.normal(mu,sigma,size=size), np.random.normal(mu,sigma,size=size)
 
     noised_traj[0,:num_obs] += x_offset
@@ -328,9 +370,40 @@ def add_gaussian_noise(traj,num_obs=20,multi_point=True,mu=0,sigma=0.5):
 
     return noised_traj
 
-## 4. High displacements in certain points??
+def add_gaussian_noise_collate(traj,apply_gaussian_noise,num_agents,num_obs=20,multi_point=True,mu=0,sigma=0.5):
+    """
+    Input:
+        - traj: 20 x num_agents x 2
+    Output: 
+        - noise_traj: 20 x num_agents x 2 with gaussian noise in the observation points
 
-## 5. Rotate trajectory
+    If multi_point = False, apply a single x|y offset to all observation points.
+    Otherwise, apply a particular x|y per observation point.
+
+    By default, multi_point = True since it is more challenging.
+    """
+
+    noised_traj = copy.deepcopy(traj)
+
+    if multi_point:
+        size = (num_obs,num_agents)
+    else:
+        size = (1,num_agents)
+    
+    x_offset, y_offset = np.random.normal(mu,sigma,size=size), np.random.normal(mu,sigma,size=size) # TODO: Do this with PyTorch
+
+    # Not apply in the following objects
+
+    indeces = np.where(apply_gaussian_noise == 0)
+    x_offset[:,indeces] = 0
+    y_offset[:,indeces] = 0
+
+    noised_traj[:,:,0] += x_offset
+    noised_traj[:,:,1] += y_offset
+
+    return noised_traj
+
+## 4. Rotate trajectory
 
 def rotate_traj(traj,angle,output_shape=(20,2)):
     """
@@ -356,4 +429,306 @@ def rotate_traj(traj,angle,output_shape=(20,2)):
 
     return rotated_traj
 
-## 6. Penalize coordinates that are out of the feasible area
+# Goal points functions
+
+NUM_GOAL_POINTS = 32
+
+def get_points(img, car_px, scale_x, rad=100, color=255, N=1024, sample_car=True, max_samples=None):
+    """
+    """
+
+    feasible_area = np.where(img == color)
+    sampling_points = np.vstack(feasible_area)
+
+    rng = default_rng()
+    num_samples = N
+    
+    points_feasible_area = len(feasible_area[0])
+    # num_samples = int(points_feasible_area/2)
+    sample_index = rng.choice(points_feasible_area, size=N, replace=False)
+
+    sampling_points = sampling_points[:,sample_index]
+    
+    px_y = sampling_points[0,:] # rows (pixels)
+    px_x = sampling_points[1,:] # columns (pixels)
+    
+    ## sample points in the car radius
+    
+    if sample_car:
+        final_points = [[a,b] for a,b in zip(px_y,px_x) if (math.sqrt(pow(a - car_px[0],2)+
+                                                                      pow(b - car_px[1],2)) < rad)]
+
+        if max_samples:               
+            final_points = sample(final_points,max_samples)
+            assert len(final_points) == max_samples
+          
+        final_points = np.array(final_points)
+
+        try:
+            px_y = final_points[:,0] # rows
+            px_x = final_points[:,1] # columns
+        except:
+            scale_y = scale_x
+            px_y = car_px[0] + scale_y*np.random.randn(num_samples) # columns
+            px_x = car_px[1] + scale_x*np.random.randn(num_samples) # rows
+                  
+    return px_y, px_x
+
+# N.B. In PLT, points must be specified as standard cartesian frames (x from left to right, y from bottom to top)
+def plot_fepoints(img, filename, px_x, px_y, car, radius=None):
+    assert len(img.shape) == 3
+    
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    plt.scatter(px_x, px_y, c='r', s=10)
+    plt.scatter(car[0], car[1], c="blue", s=50)
+    plt.imshow(img)
+
+    if radius:
+      circ_car = plt.Circle((car[0], car[1]), radius, color='b', fill=False)
+      ax.add_patch(circ_car)
+
+    plt.title(filename) 
+    plt.show()
+
+def plot_fepoints_final(img, filename, px_x, px_y, obs_px_x, obs_px_y, car_px, radius=None):
+    assert len(img.shape) == 3
+    
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    plt.scatter(obs_px_x, obs_px_y, c='c', s=10) # Past trajectory
+    plt.scatter(car_px[0], car_px[1], c="b", s=50) # Last observation point
+    plt.scatter(px_x, px_y, c='r', s=10) # Goal points
+
+    plt.imshow(img)
+
+    if radius:
+      circ_car = plt.Circle((car_px[0], car_px[1]), radius, color='m', fill=False)
+      ax.add_patch(circ_car)
+
+    plt.title(filename) 
+    plt.show()
+
+def get_agent_velocity(obs_seq, num_obs=5, period=0.1):
+    """
+    Consider the last num_obs points to calculate an average velocity of
+    the object in the last observation point
+
+    TODO: Consider an acceleration?
+    """
+
+    obs_seq_vel = obs_seq[:,-5:]
+
+    vel = np.zeros((num_obs-1))
+
+    for i in range(1,obs_seq_vel.shape[1]):
+        x_pre, y_pre = obs_seq_vel[:,i-1]
+        x_curr, y_curr = obs_seq_vel[:,i]
+
+        dist = math.sqrt(pow(x_curr-x_pre,2)+pow(y_curr-y_pre,2))
+
+        curr_vel = dist / period
+        vel[i-1] = curr_vel
+
+    return vel.mean()
+
+def get_agent_yaw(obs_seq, num_obs=5):
+    """
+    Consider the last num_obs points to calculate an average yaw of
+    the object in the last observation point
+    """
+
+    obs_seq_yaw = obs_seq[:,-5:]
+
+    yaw = np.zeros((num_obs-1))
+
+    for i in range(1,obs_seq_yaw.shape[1]):
+        x_pre, y_pre = obs_seq_yaw[:,i-1]
+        x_curr, y_curr = obs_seq_yaw[:,i]
+
+        delta_y = y_curr - y_pre
+        delta_x = x_curr - x_pre
+        curr_yaw = math.atan2(delta_y, delta_x)
+
+        yaw[i-1] = curr_yaw
+
+    yaw = yaw[np.where(yaw != 0)]
+    if len(yaw) == 0: # All angles were 0
+        yaw = np.zeros((1))
+
+    tolerance = 0.1
+    num_positives = len(np.where(yaw > 0)[0])
+    num_negatives = len(yaw) - num_positives
+    final_yaw = yaw.mean()
+
+    if (yaw.std() > 1.5): # and ((yaw.mean() > math.pi * (1 - tolerance) and yaw.mean() < - math.pi * (1 - tolerance)) # Around pi
+                         #  or (yaw.mean() > -math.pi/12 * (1 - tolerance) and yaw.mean() < math.pi/12 * (1 - tolerance)))): # Around 0
+        yaw = np.absolute(yaw)
+
+        if num_negatives > num_positives:
+            final_yaw = -yaw.mean()
+        else:
+            final_yaw = yaw.mean()
+
+    return final_yaw
+
+def transform_px2real_world(px_points, origin_pos, real_world_offset, img_size):
+    """
+    It is assumed squared image (e.g. 600 x 600 -> img_size = 600) and the same offset 
+    in all directions (top, bottom, left, right) to facilitate the transformation.
+    """
+
+    xcenter, ycenter = origin_pos[0], origin_pos[1]
+    x_min = xcenter - real_world_offset
+    x_max = xcenter + real_world_offset
+    y_min = ycenter - real_world_offset
+    y_max = ycenter + real_world_offset
+
+    m_x = float((2 * real_world_offset) / img_size) # slope
+    m_y = float(-(2 * real_world_offset) / img_size) # slope
+
+    i_x = x_min # intersection
+    i_y = y_max
+
+    rw_points = []
+
+    for px_point in px_points:
+        x = m_x * px_point[1] + i_x # Get x-real_world from columns
+        y = m_y * px_point[0] + i_y # Get y-real_world from rows
+        rw_point = [x,y]
+        rw_points.append(rw_point)
+
+    return np.array(rw_points)
+
+def transform_real_world2px(rw_points, origin_pos, real_world_offset, img_size):
+    """
+    It is assumed squared image (e.g. 600 x 600 -> img_size = 600) and the same offset 
+    in all directions (top, bottom, left, right) to facilitate the transformation.
+    """
+
+    xcenter, ycenter = origin_pos[0], origin_pos[1]
+    x_min = xcenter - real_world_offset
+    x_max = xcenter + real_world_offset
+    y_min = ycenter - real_world_offset
+    y_max = ycenter + real_world_offset
+
+    m_x = float(img_size / (2 * real_world_offset)) # slope
+    m_y = float(-img_size / (2 * real_world_offset))
+
+    i_x = float(-(img_size / (2 * real_world_offset)) * x_min) # intercept
+    i_y = float((img_size / (2 * real_world_offset)) * y_max)
+
+    px_points = []
+
+    for rw_point in rw_points:
+        x = m_x * rw_point[0] + i_x
+        y = m_y * rw_point[1] + i_y
+        px_point = [x,y] 
+        px_points.append(px_point)
+
+    return np.array(px_points)
+
+def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
+    """
+    """
+
+    # 0. Load image and get past observations
+
+    img = cv2.imread(filename)
+    img = cv2.resize(img, dsize=(600,600))
+    height, width = img.shape[:2]
+    img_size = height
+    scale_x = scale_y = float(height/(2*real_world_offset))
+
+    cx = int(width/2)
+    cy = int(height/2)
+    car_px = (cy,cx)
+
+    ori = obs_seq[-1, :]
+
+    # assert torch.eq(ori, origin_pos[0])
+
+    # 0. Plot obs traj
+
+    obs_x = obs_seq[:,0]
+    obs_y = obs_seq[:,1]
+
+    # print("obs: ", obs_seq)
+
+    obs_px_points = transform_real_world2px(obs_seq, origin_pos, real_world_offset, img_size)
+    rec_obs_x, rec_obs_y = obs_px_points[:,0], obs_px_points[:,1]
+    # plot_fepoints(img, filename, rec_obs_x, rec_obs_y, car_px)
+
+    # 1. Get feasible area points (N samples)
+    # 1.1. Filter using AGENT estimated velocity
+
+    mean_vel = get_agent_velocity(torch.transpose(obs_seq,0,1))
+    pred_seconds = 3 # instead of 3 s (prediction in ARGOVERSE)
+    radius = mean_vel * pred_seconds
+    radius_px = radius * scale_x	
+
+    fe_y, fe_x = get_points(img, car_px, scale_x, rad=radius_px, color=255, N=1024, 
+                                sample_car=True, max_samples=None) # return rows, columns
+    # plot_fepoints(img, filename, fe_x, fe_y, car_px)
+    # pdb.set_trace()
+
+    # 1.2. Filter points applying rotation
+
+    mean_yaw = get_agent_yaw(torch.transpose(obs_seq,0,1)) # radians
+
+    if mean_yaw >= 0.0:
+        angle = math.pi/2 - mean_yaw
+    elif mean_yaw < 0.0:
+        angle = -(math.pi / 2 + (math.pi - abs(mean_yaw)))
+
+    c, s = np.cos(angle), np.sin(angle)
+    R = np.array([[c,-s], [s, c]])
+
+    fe_x_trans = fe_x - cx # get px w.r.t. the center of the image to be rotated
+    fe_y_trans = fe_y - cy
+
+    close_pts = np.hstack((fe_x_trans.reshape(-1,1),fe_y_trans.reshape(-1,1)))
+    close_pts_rotated = np.matmul(close_pts,R).astype(np.int32)
+
+    fe_x_rot = close_pts_rotated[:,0] + cx
+    fe_y_rot = close_pts_rotated[:,1] + cy
+
+    # plot_fepoints(img, filename, fe_x_rot, fe_y_rot, car_px)
+
+    filtered_fe_x = fe_x[np.where(fe_y_rot < cy)[0]]
+    filtered_fe_y = fe_y[np.where(fe_y_rot < cy)[0]]
+
+    # 2. Get furthest N samples (closest the the hypothetical radius)
+
+    dist = []
+    for i in range(len(filtered_fe_x)):
+        d = math.sqrt(pow(filtered_fe_x[i] - car_px[0],2) + pow(filtered_fe_y[i] - car_px[1],2))
+        dist.append(d)
+
+    dist = np.array(dist)
+
+    np.argsort(dist)
+    furthest_indeces = np.argsort(dist)[-NUM_GOAL_POINTS:]
+    furthest_indeces
+
+    final_samples_x, final_samples_y = filtered_fe_x[furthest_indeces], filtered_fe_y[furthest_indeces]
+    
+    # print("filename: ", filename)
+    try:
+        diff_points = NUM_GOAL_POINTS - len(final_samples_x)
+        final_samples_x = np.hstack((final_samples_x, final_samples_x[0]+0.2 * np.random.randn(diff_points)))
+        final_samples_y = np.hstack((final_samples_y, final_samples_y[0]+0.2 * np.random.randn(diff_points)))
+    except:
+        final_samples_x = cx + scale_x*np.random.randn(NUM_GOAL_POINTS)
+        final_samples_y = cy + scale_y*np.random.randn(NUM_GOAL_POINTS)
+
+    if len(final_samples_x) != NUM_GOAL_POINTS:
+        plot_fepoints_final(img, filename, final_samples_x, final_samples_y, rec_obs_x, rec_obs_y, car_px, radius=radius_px)
+        pdb.set_trace()
+
+    # 3. Transform pixels to real-world coordinates
+
+    final_samples_px = np.hstack((final_samples_y.reshape(-1,1), final_samples_x.reshape(-1,1))) # rows, columns
+    rw_points = transform_px2real_world(final_samples_px, origin_pos, real_world_offset, img_size)
+
+    return rw_points

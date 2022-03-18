@@ -14,13 +14,13 @@ from skimage.measure import LineModelND, ransac
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-BASE_DIR = "/home/robesafe/tesis/SoPhie"
+BASE_DIR = "/home/robesafe/libraries/SoPhie"
 sys.path.append(BASE_DIR)
 
 from sophie.utils.utils import relative_to_abs_sgan
 # from sophie.models.sophie_adaptation import TrajectoryGenerator
 from sophie.models.mp_so import TrajectoryGenerator
-from sophie.data_loader.argoverse.dataset_sgan_version_test_map import ArgoverseMotionForecastingDataset, \
+from sophie.data_loader.argoverse.dataset_sgan_version_data_augs import ArgoverseMotionForecastingDataset, \
                                                                        seq_collate, load_list_from_folder, \
                                                                        read_file
 import sophie.data_loader.argoverse.map_utils as map_utils
@@ -107,8 +107,8 @@ except:
     num_agents_per_obs = config.hyperparameters.num_agents_per_obs
     config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
-    config.dataset.split = "val"
-    config.dataset.split_percentage = 0.50 # To generate the final results, must be 1 (whole split test)
+    config.dataset.split = "train"
+    config.dataset.split_percentage = 0.001 # To generate the final results, must be 1 (whole split test)
     config.dataset.start_from_percentage = 0.0
     config.dataset.batch_size = 1 # Better to build the h5 results file
     config.dataset.num_workers = 0
@@ -296,6 +296,14 @@ except:
                     pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :]) # 30,1,2
                     traj_fake = torch.cat([obs_traj[:,agent_idx, :], pred_traj_fake], dim=0) # 50,1,2
                     predicted_traj.append(traj_fake)
+
+                    pdb.set_trace()
+
+
+                    # PLOTEAR EN ESTE PUNTO -> OBS (20 X NUM_AGENTS X 2), PRED_GT (30,1,2), PRED_FAKE (30,1,2)
+
+
+
 
                     # Get metrics
                     agent_traj_gt = pred_traj_gt[:,agent_idx,:] # From Multi to Single (30 x bs x 2)

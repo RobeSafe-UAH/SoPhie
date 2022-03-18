@@ -41,14 +41,19 @@ from sophie.utils.utils import relative_to_abs
 
 data_imgs_folder = None
 visual_data = False
-goal_points = True
+goal_points = False
 
 # Data augmentation variables
 
-data_aug_flag = None
+APPLY_DATA_AUGMENTATION = True
 
-dropout_prob = [0.1,0.9]
-rotation_available_angles = [90,180,270]
+decision = [0,1] # Not apply/apply
+dropout_prob = [0.1,0.9] # Not applied/applied probability
+gaussian_noise_prob = [0.2,0.8]
+rotation_prob = [0.5,0.5]
+
+rotation_angles = [90,180,270]
+rotation_angles_prob = [0.33,0.33,0.34]
 
 frames_path = None
 avm = ArgoverseMap()
@@ -221,8 +226,6 @@ def load_goal_points(num_seq, obs_seq_data, first_obs, city_id, ego_origin, dist
 
 def seq_collate(data):
     """
-    This functions takes as input the dataset output (see __getitem__ function below) and transforms it to
-    a particular format to feed the Pytorch standard dataloader
     """
 
     start = time.time()
@@ -232,6 +235,8 @@ def seq_collate(data):
      object_id_list, city_id, ego_vehicle_origin, num_seq_list, norm) = zip(*data)
 
     batch_size = len(ego_vehicle_origin) # tuple of tensors
+
+    # pdb.set_trace()
 
     _len = [len(seq) for seq in obs_traj]
     cum_start_idx = [0] + np.cumsum(_len).tolist()
@@ -248,6 +253,36 @@ def seq_collate(data):
     loss_mask = torch.cat(loss_mask, dim=0)
     seq_start_end = torch.LongTensor(seq_start_end)
     id_frame = torch.cat(seq_id_list, dim=0).permute(2, 0, 1) # seq_len - objs_in_curr_seq - 3
+
+    ## Data augmentation
+
+    curr_split = data_imgs_folder.split('/')[-3]
+
+    if APPLY_DATA_AUGMENTATION and curr_split == "train":
+        num_obstacles = obs_traj.shape[1]
+        obs_len = obs_traj.shape[0]
+
+        apply_dropout = np.random.choice(decision,num_obstacles,p=dropout_prob)
+        apply_gaussian_noise = np.random.choice(decision,num_obstacles,p=gaussian_noise_prob)
+        apply_rotation = np.random.choice(decision,1,p=rotation_prob) # To the whole sequence
+        if apply_rotation:
+            angle = np.random.choice(rotation_angles,1,p=rotation_angles_prob)
+
+        obs_traj = dataset_utils.erase_points_collate(obs_traj,apply_dropout,num_obs=obs_len,percentage=0.3)
+        obs_traj = dataset_utils.add_gaussian_noise_collate(obs_traj,apply_gaussian_noise,num_obstacles,num_obs=obs_len,mu=0,sigma=0.5)
+
+        # Get new relatives
+
+        obs_traj_rel = torch.zeros((obs_traj.shape))
+
+        for i in range(num_obstacles): # TODO: Do this with a matricial operation
+            _obs_traj = obs_traj[:,i,:]
+            _obs_traj_rel = torch.zeros((_obs_traj.shape))
+            _obs_traj_rel[1:,:] = _obs_traj[1:,:] - _obs_traj[:-1,:]
+
+            obs_traj_rel[:,i,:] = _obs_traj_rel
+
+    ## Get physical information (image or goal points. Otherwise, use dummies)
 
     start = time.time()
 
@@ -391,20 +426,20 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
 
     # print(">>>>>>>>>>>>>>>>>>>>>> file id: ", file_id)
 
-    if split == "train":
-        if not rot_angle:
-            rotate_seq = 0
-        elif rot_angle in rotation_available_angles:
-            rotate_seq = 1
-            rotation_angle = rot_angle
-        elif rot_angle == -1:
-            rotate_seq = np.random.randint(2,size=1) # Rotate the sequence (so, the image) if 1
-            if rotate_seq:
-                availables_angles = [90,180,270]
-                rotation_angle = availables_angles[np.random.randint(3,size=1).item()]
+    # if split == "train":
+    #     if not rot_angle:
+    #         rotate_seq = 0
+    #     elif rot_angle in rotation_available_angles:
+    #         rotate_seq = 1
+    #         rotation_angle = rot_angle
+    #     elif rot_angle == -1:
+    #         rotate_seq = np.random.randint(2,size=1) # Rotate the sequence (so, the image) if 1
+    #         if rotate_seq:
+    #             availables_angles = [90,180,270]
+    #             rotation_angle = availables_angles[np.random.randint(3,size=1).item()]
 
-            rotate_seq = 1
-            rotation_angle = rot_angle
+    #         rotate_seq = 1
+    #         rotation_angle = rot_angle
     
     # print("num objs: ", len(peds_in_curr_seq))
 
@@ -420,13 +455,12 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
         if (pad_end - pad_front != seq_len) or (curr_ped_seq.shape[0] != seq_len): # If the object has less than "seq_len" observations,
                                                                                    # it is discarded
             continue
-        # print("shape obj: ", curr_ped_seq.shape)
         # Determine if data aug will be applied or not
 
-        if split == "train":
-            data_aug_flag = np.random.randint(2)
-        else:
-            data_aug_flag = 0
+        # if split == "train":
+        #     data_aug_flag = np.random.randint(2)
+        # else:
+        #     data_aug_flag = 0
 
         # Get object class id
 
@@ -447,37 +481,37 @@ def process_window_sequence(idx, frame_data, frames, seq_len, pred_len,
 
         # Rotation (If the image is rotated, all trajectories must be rotated)
 
-        rotate_seq = 0
+        # rotate_seq = 0
 
-        if rotate_seq:
-            curr_ped_seq = dataset_utils.rotate_traj(curr_ped_seq,rotation_angle)
+        # if rotate_seq:
+        #     curr_ped_seq = dataset_utils.rotate_traj(curr_ped_seq,rotation_angle)
 
-        data_aug_flag = 0
+        # data_aug_flag = 0
 
-        if split == "train" and (data_aug_flag == 1 or augs):
-            # Add data augmentation
+        # if split == "train" and (data_aug_flag == 1 or augs):
+        #     # Add data augmentation
 
-            if not augs:
-                print("Get comb")
-                augs = dataset_utils.get_data_aug_combinations(3) # Available data augs: Swapping, Erasing, Gaussian noise
+        #     if not augs:
+        #         print("Get comb")
+        #         augs = dataset_utils.get_data_aug_combinations(3) # Available data augs: Swapping, Erasing, Gaussian noise
 
-            ## 1. Swapping
+        #     ## 1. Swapping
 
-            if augs[0]:
-                print("Swapping")
-                curr_ped_seq = dataset_utils.swap_points(curr_ped_seq,num_obs=obs_len)
+        #     if augs[0]:
+        #         print("Swapping")
+        #         curr_ped_seq = dataset_utils.swap_points(curr_ped_seq,num_obs=obs_len)
 
-            ## 2. Erasing
+        #     ## 2. Erasing
 
-            if augs[1]:
-                print("Erasing")
-                curr_ped_seq = dataset_utils.erase_points(curr_ped_seq,num_obs=obs_len,percentage=0.3)
+        #     if augs[1]:
+        #         print("Erasing")
+        #         curr_ped_seq = dataset_utils.erase_points(curr_ped_seq,num_obs=obs_len,percentage=0.3)
 
-            ## 3. Add Gaussian noise
+        #     ## 3. Add Gaussian noise
 
-            if augs[2]:
-                print("Gaussian")
-                curr_ped_seq = dataset_utils.add_gaussian_noise(curr_ped_seq,num_obs=obs_len,mu=0,sigma=0.5)
+        #     if augs[2]:
+        #         print("Gaussian")
+        #         curr_ped_seq = dataset_utils.add_gaussian_noise(curr_ped_seq,num_obs=obs_len,mu=0,sigma=0.5)
 
         # Make coordinates relative (relative here means displacements between consecutive steps)
 
@@ -545,9 +579,10 @@ class ArgoverseMotionForecastingDataset(Dataset):
         global visual_data
         visual_data = v_data
 
-        GENERATE_NPY = False
+        GENERATE_SEQUENCES = True
+        SAVE_NPY = False
 
-        if GENERATE_NPY:
+        if GENERATE_SEQUENCES:
             folder = root_folder + split + "/data/"
             files, num_files = load_list_from_folder(folder)
 
@@ -673,56 +708,57 @@ class ArgoverseMotionForecastingDataset(Dataset):
             # seq_list_rel = (seq_list_rel - seq_list_rel.min()) / (seq_list_rel.max() - seq_list_rel.min())
             norm = (abs_norm, rel_norm)
 
-            # Save numpy objects as npy 
+            if SAVE_NPY:
+                # Save numpy objects as npy 
 
-            folder_data_processed = root_folder + split + "/data_processed/"
-            if not os.path.exists(folder_data_processed):
-                print("Create path: ", folder_data_processed)
-                os.mkdir(folder_data_processed)
-                
-            filename = root_folder + split + "/data_processed/" + "seq_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, seq_list)
+                folder_data_processed = root_folder + split + "/data_processed/"
+                if not os.path.exists(folder_data_processed):
+                    print("Create path: ", folder_data_processed)
+                    os.mkdir(folder_data_processed)
+                    
+                filename = root_folder + split + "/data_processed/" + "seq_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, seq_list)
 
-            filename = root_folder + split + "/data_processed/" + "seq_list_rel" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, seq_list_rel)
+                filename = root_folder + split + "/data_processed/" + "seq_list_rel" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, seq_list_rel)
 
-            filename = root_folder + split + "/data_processed/" + "loss_mask_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, loss_mask_list)
+                filename = root_folder + split + "/data_processed/" + "loss_mask_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, loss_mask_list)
 
-            filename = root_folder + split + "/data_processed/" + "non_linear_obj" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, non_linear_obj)
+                filename = root_folder + split + "/data_processed/" + "non_linear_obj" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, non_linear_obj)
 
-            filename = root_folder + split + "/data_processed/" + "num_objs_in_seq" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, num_objs_in_seq)
+                filename = root_folder + split + "/data_processed/" + "num_objs_in_seq" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, num_objs_in_seq)
 
-            filename = root_folder + split + "/data_processed/" + "seq_id_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, seq_id_list)
+                filename = root_folder + split + "/data_processed/" + "seq_id_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, seq_id_list)
 
-            filename = root_folder + split + "/data_processed/" + "object_class_id_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, object_class_id_list)
+                filename = root_folder + split + "/data_processed/" + "object_class_id_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, object_class_id_list)
 
-            filename = root_folder + split + "/data_processed/" + "object_id_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, object_id_list)
+                filename = root_folder + split + "/data_processed/" + "object_id_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, object_id_list)
 
-            filename = root_folder + split + "/data_processed/" + "ego_vehicle_origin" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, ego_vehicle_origin)
+                filename = root_folder + split + "/data_processed/" + "ego_vehicle_origin" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, ego_vehicle_origin)
 
-            filename = root_folder + split + "/data_processed/" + "num_seq_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, num_seq_list)
+                filename = root_folder + split + "/data_processed/" + "num_seq_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, num_seq_list)
 
-            filename = root_folder + split + "/data_processed/" + "straight_trajectories_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, straight_trajectories_list)
+                filename = root_folder + split + "/data_processed/" + "straight_trajectories_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, straight_trajectories_list)
 
-            filename = root_folder + split + "/data_processed/" + "curved_trajectories_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, curved_trajectories_list)
+                filename = root_folder + split + "/data_processed/" + "curved_trajectories_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, curved_trajectories_list)
 
-            filename = root_folder + split + "/data_processed/" + "norm" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, norm)
+                filename = root_folder + split + "/data_processed/" + "norm" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, norm)
 
-            filename = root_folder + split + "/data_processed/" + "city_id" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, self.city_ids)
+                filename = root_folder + split + "/data_processed/" + "city_id" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, self.city_ids)
 
-            assert 1 == 0
+                # assert 1 == 0
 
         else:
             print("Loading .npy files ...")

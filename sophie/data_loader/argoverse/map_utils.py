@@ -305,48 +305,28 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
 
         if smoothen:
             polyline = np.column_stack((cor_x, cor_y))
-            if object_type == "AGENT":
-                pdb.set_trace()
+
             num_points = cor_x.shape[0] * 3
             smooth_polyline = interpolate_polyline(polyline, num_points)
-
-            # index = 0
-            # dist = 50000
-
-            # for i, smooth_point in enumerate(smooth_polyline):
-            #     x = smooth_point[0]
-            #     y = smooth_point[1]
-
-            #     d = math.sqrt(pow(xcenter-x,2)+pow(ycenter-y,2))
-
-            #     if d < dist:
-            #         dist = d
-            #         index = i
 
             cor_x = smooth_polyline[:, 0]
             cor_y = smooth_polyline[:, 1]
 
-        if object_type == "AGENT":
-            print("filename: ", filename)
-            pdb.set_trace()
         if plot_object_trajectories:
-            plt.plot(
-                cor_x,
-                cor_y,
-                "-",
-                # color=color_dict[object_type],
-                color=c,
-                label=object_type if not object_type_tracker[object_type] else "",
-                alpha=1,
-                linewidth=linewidth,
-                zorder=_ZORDER[object_type],
-            )
-            # pdb.set_trace()
-            # plt.scatter(
-            #     cor_x,
-            #     cor_y,
-            #     color=c,     
-            # )
+            if smoothen:
+                plt.plot(
+                    cor_x,
+                    cor_y,
+                    "-",
+                    # color=color_dict[object_type],
+                    color=c,
+                    label=object_type if not object_type_tracker[object_type] else "",
+                    alpha=1,
+                    linewidth=linewidth,
+                    zorder=_ZORDER[object_type],
+                )
+            else:
+                plt.scatter(cor_x, cor_y, c=c, s=10)
 
         final_x = cor_x[-1]
         final_y = cor_y[-1]
@@ -402,7 +382,7 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     if show:
         # cv2.imshow("full_img",full_img_cv)
         curr_seq = filename.split('/')[-1].split('.')[0]
-        filename2 = os.path.join(*filename.split('/')[:-2]) + "/data_images_augs/" + curr_seq + "_" + str(rot_angle) + ".png"
+        filename2 = os.path.join(*filename.split('/')[:-2]) + "/data_images_augs_2/dropout/" + curr_seq + "_" + str(rot_angle) + ".png"
         cv2.imwrite(filename2,full_img_cv)
 
     resized_full_img_cv = cv2.resize(full_img_cv,(224,224))
@@ -410,13 +390,14 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
 
     return norm_resized_full_img_cv
 
-"""
-sampling_points = np.where(resized_full_img_cv == 255.0)
-good_indeces = rng.choice(len(sampling_points[0]),size=512,replace=False)
-sp = np.vstack(sampling_points)
-good_points = sp[:,good_indeces]
-x,y = good_points[0,:], good_points[1,:]
-rgb_img = cv2.cvtColor(resized_full_img_cv, cv2.COLOR_GRAY2BGR)
-rgb_img[x,y] = (0,0,255)
-cv2.imwrite("/home/robesafe/shared_home/test_sampling.png", rgb_img)
-"""
+def plot_qualitative_results(filename, pred_traj_fake, pred_traj_gt, obs_traj):
+    """
+    """
+
+    origin_pos
+
+    # Get goal points
+
+    goal_points = dataset_utils.get_goal_points(filename, agent_obs_seq_global, origin_pos, dist_around)
+
+
