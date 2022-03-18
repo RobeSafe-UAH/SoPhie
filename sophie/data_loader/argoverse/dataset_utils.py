@@ -230,7 +230,9 @@ def get_data_aug_combinations(num_augs):
 def get_pairs(percentage,num_obs,start_from=1):
     """
     Return round(percentage*num_obs) non-consecutive indeces in the range(start_from,num_obs-1)
-
+    N.B. Considering this algorithm, the maximum number to calculate non-consecutive indeces
+    is 40 % (0.4)
+    
     Input:
         - percentage
         - num_obs
@@ -305,6 +307,40 @@ def erase_points(traj,num_obs=20,percentage=0.2,post=False):
 
     return erased_traj
 
+def erase_points_collate(traj,apply_dropout,num_obs=20,percentage=0.2,post=False):
+    """
+    Remove (x(i) and subsitute with x(i-1)) 
+    E.g. x(0), x(1), x(2) -> x(0), x(0), x(2)
+    Flag: Substitute with i-1 or i+1
+
+    Input:
+        - traj: 20 x num_agents x 2
+        - num_obs: Number of observations of the whole trajectory
+        - percentage: Ratio of pairs to be erased. Typically the number of pairs 
+          to be swapped will be 0.2. E.g. N=4 if num_observations is 20
+        - post: Flag to erase the current point and substitute with the next (x(i+1)) or 
+          previous (x(i-1)) point. By default: False (substitute with the previous point)
+    Output:
+        - erased_traj: Whole trajectory (20 x num_agents x 2) with erased non-consecutive points in
+          the range (1,num_obs-1)
+    """
+
+    erased_traj = copy.deepcopy(traj)
+    erased_traj_aux = torch.zeros((erased_traj.shape))
+
+    for i,app_dropout in enumerate(apply_dropout):
+        
+        _erased_traj = erased_traj[:,i,:]
+
+        if app_dropout:
+            erased_pairs = get_pairs(percentage,num_obs)
+            for index_pair in erased_pairs:
+                _erased_traj[index_pair,:] = _erased_traj[index_pair-1,:]
+
+        erased_traj_aux[:,i,:] = _erased_traj
+
+    return erased_traj_aux
+
 ## 3. Gaussian noise -> Add gaussian noise to the observation data
 
 def add_gaussian_noise(traj,num_obs=20,multi_point=True,mu=0,sigma=0.5):
@@ -320,16 +356,50 @@ def add_gaussian_noise(traj,num_obs=20,multi_point=True,mu=0,sigma=0.5):
     By default, multi_point = True since it is more challenging.
     """
 
+    noised_traj = copy.deepcopy(traj)
+
     if multi_point:
         size = num_obs
     else:
         size = 1
 
-    noised_traj = copy.deepcopy(traj)
     x_offset, y_offset = np.random.normal(mu,sigma,size=size), np.random.normal(mu,sigma,size=size)
 
     noised_traj[0,:num_obs] += x_offset
     noised_traj[1,:num_obs] += y_offset
+
+    return noised_traj
+
+def add_gaussian_noise_collate(traj,apply_gaussian_noise,num_agents,num_obs=20,multi_point=True,mu=0,sigma=0.5):
+    """
+    Input:
+        - traj: 20 x num_agents x 2
+    Output: 
+        - noise_traj: 20 x num_agents x 2 with gaussian noise in the observation points
+
+    If multi_point = False, apply a single x|y offset to all observation points.
+    Otherwise, apply a particular x|y per observation point.
+
+    By default, multi_point = True since it is more challenging.
+    """
+
+    noised_traj = copy.deepcopy(traj)
+
+    if multi_point:
+        size = (num_obs,num_agents)
+    else:
+        size = (1,num_agents)
+    
+    x_offset, y_offset = np.random.normal(mu,sigma,size=size), np.random.normal(mu,sigma,size=size) # TODO: Do this with PyTorch
+
+    # Not apply in the following objects
+
+    indeces = np.where(apply_gaussian_noise == 0)
+    x_offset[:,indeces] = 0
+    y_offset[:,indeces] = 0
+
+    noised_traj[:,:,0] += x_offset
+    noised_traj[:,:,1] += y_offset
 
     return noised_traj
 
@@ -361,21 +431,22 @@ def rotate_traj(traj,angle,output_shape=(20,2)):
 
 # Goal points functions
 
-NUM_GOAL_POINTS = 16
+NUM_GOAL_POINTS = 32
 
-def get_points(img, car_px, rad=100, color=255, N=1024, sample_car=True, max_samples=None):
+def get_points(img, car_px, scale_x, rad=100, color=255, N=1024, sample_car=True, max_samples=None):
     """
     """
 
     feasible_area = np.where(img == color)
-    
+    sampling_points = np.vstack(feasible_area)
+
     rng = default_rng()
     num_samples = N
     
     points_feasible_area = len(feasible_area[0])
+    # num_samples = int(points_feasible_area/2)
     sample_index = rng.choice(points_feasible_area, size=N, replace=False)
 
-    sampling_points = np.vstack(feasible_area)
     sampling_points = sampling_points[:,sample_index]
     
     px_y = sampling_points[0,:] # rows (pixels)
@@ -388,13 +459,19 @@ def get_points(img, car_px, rad=100, color=255, N=1024, sample_car=True, max_sam
                                                                       pow(b - car_px[1],2)) < rad)]
 
         if max_samples:               
-          final_points = sample(final_points,max_samples)
-          assert len(final_points) == max_samples
+            final_points = sample(final_points,max_samples)
+            assert len(final_points) == max_samples
           
         final_points = np.array(final_points)
-        px_y = final_points[:,0]
-        px_x = final_points[:,1]
-        
+
+        try:
+            px_y = final_points[:,0] # rows
+            px_x = final_points[:,1] # columns
+        except:
+            scale_y = scale_x
+            px_y = car_px[0] + scale_y*np.random.randn(num_samples) # columns
+            px_x = car_px[1] + scale_x*np.random.randn(num_samples) # rows
+                  
     return px_y, px_x
 
 # N.B. In PLT, points must be specified as standard cartesian frames (x from left to right, y from bottom to top)
@@ -474,8 +551,6 @@ def get_agent_yaw(obs_seq, num_obs=5):
         curr_yaw = math.atan2(delta_y, delta_x)
 
         yaw[i-1] = curr_yaw
-    
-    # print("yaw 1: ", yaw, yaw.mean(), yaw.std())
 
     yaw = yaw[np.where(yaw != 0)]
     if len(yaw) == 0: # All angles were 0
@@ -486,8 +561,6 @@ def get_agent_yaw(obs_seq, num_obs=5):
     num_negatives = len(yaw) - num_positives
     final_yaw = yaw.mean()
 
-    # print("yaw 2: ", yaw, yaw.mean(), yaw.std())
-
     if (yaw.std() > 1.5): # and ((yaw.mean() > math.pi * (1 - tolerance) and yaw.mean() < - math.pi * (1 - tolerance)) # Around pi
                          #  or (yaw.mean() > -math.pi/12 * (1 - tolerance) and yaw.mean() < math.pi/12 * (1 - tolerance)))): # Around 0
         yaw = np.absolute(yaw)
@@ -496,8 +569,6 @@ def get_agent_yaw(obs_seq, num_obs=5):
             final_yaw = -yaw.mean()
         else:
             final_yaw = yaw.mean()
-
-    # print("FINAL YAW: ", final_yaw)
 
     return final_yaw
 
@@ -592,18 +663,20 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     # 1.1. Filter using AGENT estimated velocity
 
     mean_vel = get_agent_velocity(torch.transpose(obs_seq,0,1))
-    pred_seconds = 4 # instead of 3 s (prediction in ARGOVERSE)
+    pred_seconds = 3 # instead of 3 s (prediction in ARGOVERSE)
     radius = mean_vel * pred_seconds
     radius_px = radius * scale_x	
 
-    fe_y, fe_x = get_points(img, car_px, rad=radius_px, color=255, N=256, 
+    fe_y, fe_x = get_points(img, car_px, scale_x, rad=radius_px, color=255, N=1024, 
                                 sample_car=True, max_samples=None) # return rows, columns
+    # plot_fepoints(img, filename, fe_x, fe_y, car_px)
+    # pdb.set_trace()
 
     # 1.2. Filter points applying rotation
 
     mean_yaw = get_agent_yaw(torch.transpose(obs_seq,0,1)) # radians
 
-    if mean_yaw > 0.0:
+    if mean_yaw >= 0.0:
         angle = math.pi/2 - mean_yaw
     elif mean_yaw < 0.0:
         angle = -(math.pi / 2 + (math.pi - abs(mean_yaw)))
@@ -620,8 +693,6 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     fe_x_rot = close_pts_rotated[:,0] + cx
     fe_y_rot = close_pts_rotated[:,1] + cy
 
-    # if filename == "data/datasets/argoverse/motion-forecasting/train/data_images/185626.png":
-    #     plot_fepoints(img, filename, fe_x_rot, fe_y_rot, car_px)
     # plot_fepoints(img, filename, fe_x_rot, fe_y_rot, car_px)
 
     filtered_fe_x = fe_x[np.where(fe_y_rot < cy)[0]]
@@ -641,17 +712,20 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     furthest_indeces
 
     final_samples_x, final_samples_y = filtered_fe_x[furthest_indeces], filtered_fe_y[furthest_indeces]
-
-    # print("filename: ", filename)
     
-    diff_points = NUM_GOAL_POINTS - len(final_samples_x)
-    final_samples_x = np.hstack((final_samples_x, final_samples_x[0]+0.2 * np.random.randn(diff_points)))
-    final_samples_y = np.hstack((final_samples_y, final_samples_y[0]+0.2 * np.random.randn(diff_points)))
+    # print("filename: ", filename)
+    try:
+        diff_points = NUM_GOAL_POINTS - len(final_samples_x)
+        final_samples_x = np.hstack((final_samples_x, final_samples_x[0]+0.2 * np.random.randn(diff_points)))
+        final_samples_y = np.hstack((final_samples_y, final_samples_y[0]+0.2 * np.random.randn(diff_points)))
+    except:
+        final_samples_x = cx + scale_x*np.random.randn(NUM_GOAL_POINTS)
+        final_samples_y = cy + scale_y*np.random.randn(NUM_GOAL_POINTS)
 
     if len(final_samples_x) != NUM_GOAL_POINTS:
         plot_fepoints_final(img, filename, final_samples_x, final_samples_y, rec_obs_x, rec_obs_y, car_px, radius=radius_px)
-    
-    # assert len(final_samples_x) == NUM_GOAL_POINTS
+        pdb.set_trace()
+
     # 3. Transform pixels to real-world coordinates
 
     final_samples_px = np.hstack((final_samples_y.reshape(-1,1), final_samples_x.reshape(-1,1))) # rows, columns

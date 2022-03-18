@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as lrs
 from torch.cuda.amp import GradScaler, autocast 
 
-from sophie.data_loader.argoverse.dataset_sgan_version_test_map import ArgoverseMotionForecastingDataset, seq_collate
+from sophie.data_loader.argoverse.dataset_sgan_version_data_augs import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.models.mp_so_goals import TrajectoryGenerator
 from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_custom
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
