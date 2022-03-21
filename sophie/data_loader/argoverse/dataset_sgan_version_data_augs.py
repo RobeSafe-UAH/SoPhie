@@ -41,7 +41,7 @@ from sophie.utils.utils import relative_to_abs
 
 data_imgs_folder = None
 visual_data = False
-goal_points = True
+goal_points = False
 
 # Data augmentation variables
 

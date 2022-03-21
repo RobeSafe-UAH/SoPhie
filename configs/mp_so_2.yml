@@ -30,10 +30,10 @@ hyperparameters:
     g_steps: 1
     print_every: 10
     checkpoint_every: 1000
-    output_dir: "save/argoverse/gen_exp/exp_multiloss_5" # "save/argoverse/test"  # 
+    output_dir: "save/argoverse/gen_exp/so2_1/" # "save/argoverse/test"  # 
     exp_description: "multi loss + learning_rate scheduler"
     checkpoint_name: "0"
-    checkpoint_start_from: "save/argoverse/gen_exp/exp_multiloss_4/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    checkpoint_start_from: #"save/argoverse/gen_exp/exp_multiloss_4/argoverse_motion_forecasting_dataset_0_with_model.pt"
     restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 1.1

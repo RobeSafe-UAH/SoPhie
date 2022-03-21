@@ -1592,14 +1592,8 @@ def count_models_parameters():
     m = TG_SO(h_dim=32)
     print("Traj Generator SO 32: ", count_parameters(m))
 
-    # m = TG_T().train()
-    # print(m)
-    # params = 0
-    # for name, child in m.named_children():
-    #     for param in child.parameters():
-    #         print(name, param.shape)
-    # print("Traj Generator Trans: ", count_parameters(m))
-    # print(params)
+    m = TG_T().train()
+    print("Traj Generator Trans: ", count_parameters(m))
 
 def test_set_transformer():
     from sophie.models.mp_trans_so_set import TrajectoryGenerator
@@ -1610,6 +1604,14 @@ def test_set_transformer():
     se = torch.tensor([[0,5], [5, 10]])
     output = m(x, se)
     print(output.shape)
+
+def test_mmtransformer():
+    from sophie.models.mp_mmtrans import mmTrans
+    from sophie.utils.utils import count_parameters
+    m = mmTrans()
+    print("Traj Generator SO 32: ", count_parameters(m))
+
+
 
     
 if __name__ == "__main__":
@@ -1665,5 +1667,7 @@ if __name__ == "__main__":
     # test_gen_sovi()
     # test_gen_sovi_freeze()
     # test_so()
+    # count_models_parameters()
+    # test_mmtransformer()
     count_models_parameters()
     # test_set_transformer()

@@ -16,7 +16,7 @@ from torch.cuda.amp import GradScaler, autocast
 
 # from sophie.data_loader.argoverse.dataset_sgan_version import ArgoverseMotionForecastingDataset, seq_collate
 from sophie.data_loader.argoverse.dataset_sgan_version_data_augs import ArgoverseMotionForecastingDataset, seq_collate
-from sophie.models.mp_so import TrajectoryGenerator
+from sophie.models.mp_so_2 import TrajectoryGenerator
 from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_custom
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
@@ -410,7 +410,7 @@ def generator_step(
             w_loss = w_loss[:b, :]
             loss_ade, loss_fde = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"], hyperparameters.loss_type_g)
             loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"])
-            loss = loss_ade + loss_fde*1.5 + loss_nll*0.75 
+            loss = loss_ade + loss_fde + loss_nll 
             losses["G_mse_ade_loss"] = loss_ade.item()
             losses["G_mse_fde_loss"] = loss_fde.item()
             losses["G_nll_loss"] = loss_nll.item()
