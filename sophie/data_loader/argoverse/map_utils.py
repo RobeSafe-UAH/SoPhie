@@ -6,6 +6,7 @@ Created on Mon Feb 7 12::33:19 2022
 @author: Carlos Gómez-Huélamo and Miguel Eduardo Ortiz Huamaní
 """
 
+import torch
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -65,7 +66,10 @@ def renderize_image(fig_plot, new_shape=(600,600),normalize=True):
         img_rsz = img_rsz / 255.0 # Normalize from 0 to 1
     return img_rsz
 
-_ZORDER = {"AGENT": 15, "AV": 10, "OTHER": 5}
+# _ZORDER = {"AGENT": 15, "AV": 10, "OTHER": 5}
+_ZORDER = {"AGENT": 3, "AV": 3, "OTHER": 3}
+COLORS = "orange"
+COLORS_MM = ["orange", "chartreuse", "khaki"]
 
 def interpolate_polyline(polyline: np.ndarray, num_points: int) -> np.ndarray:
     duplicates = []
@@ -390,14 +394,389 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
 
     return norm_resized_full_img_cv
 
-def plot_qualitative_results(filename, pred_traj_fake, pred_traj_gt, obs_traj):
+def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, agent_idx, 
+                             object_cls, obs_traj, origin_pos, offset, t_img):
     """
-    """
+    pred_traj_fake_list may be multimodal
+    agent_pred_traj_gt -> main agent
 
-    origin_pos
+    TODO: Refactorize this function
+    """
+    img_map = cv2.imread(filename)
+    height, width = img_map.shape[:-1]
+    scale = 2
+    img_map = cv2.resize(img_map, (width*scale, height*scale), interpolation=cv2.INTER_CUBIC)
+
+
+
+    agent_pred_traj_gt = agent_pred_traj_gt.cpu()
+    object_cls = object_cls.cpu().numpy()
+    obs_traj = obs_traj.cpu()
+
+    plot_object_trajectories = True
+    plot_object_heads = True
+    color_dict = {"AGENT": (0.0,0.0,1.0,1.0), # BGR
+                  "AV": (1.0,0.0,0.0,1.0), 
+                  "OTHER": (0.0,1.0,0.0,1.0)} 
+    object_type_tracker: Dict[int, int] = defaultdict(int)
+
+    xcenter, ycenter = origin_pos[0][0][0].cpu().item(), origin_pos[0][0][1].cpu().item()
+    x_min = xcenter + offset[0]
+    x_max = xcenter + offset[1]
+    y_min = ycenter + offset[2]
+    y_max = ycenter + offset[3]
+
+    fig, ax = plt.subplots(figsize=(6,6), facecolor="white")
+    plt.xlim(x_min, x_max)
+    plt.ylim(y_min, y_max)
+    plt.axis("off")
 
     # Get goal points
+    dist_around = 40
+    ori_pos = [xcenter,ycenter]
+    agent_obs_seq_global = obs_traj[:, agent_idx, :].view(-1,2).numpy() + origin_pos[0][0].cpu().numpy() # Global (HDmap)
+    goal_points = dataset_utils.get_goal_points(filename, torch.tensor(agent_obs_seq_global), torch.tensor(ori_pos), dist_around)
+    
+    ## cicle
+    vel = dataset_utils.get_agent_velocity(torch.transpose(obs_traj[:, agent_idx, :].view(-1,2),0,1))
+    r = 3*vel
+    if t_img > 0:
+        circ_car = plt.Circle((xcenter, ycenter), r, color='purple', fill=False, linewidth=3)
+        ax.add_patch(circ_car)
+        ax.scatter(goal_points[:,0], goal_points[:,1], marker="x", color='purple', s=8)
 
-    goal_points = dataset_utils.get_goal_points(filename, agent_obs_seq_global, origin_pos, dist_around)
+    ## abs gt
+    agent_pred_traj_gt = agent_pred_traj_gt.view(-1,2).numpy() + origin_pos[0][0].cpu().numpy()
+
+    # Plot observations
+
+    obs_seq_list = []
+
+    for i in range(len(object_cls)):
+        abs_obs_ = obs_traj[:,i,:]
+
+        obj_id = object_cls[i]
+        obs_seq_list.append([abs_obs_,obj_id])
+    
+    ag_count = 0
+    for seq_id in obs_seq_list:
+        object_type = int(seq_id[1])
+        seq_rel = seq_id[0]
+
+        object_type = translate_object_type(object_type)
+
+        if object_type == "AGENT":
+            marker_type = "*"
+            marker_size = 14 #15
+            linewidth = 4
+            c = "b" # blue in rgb (final image)
+            c_m = c
+        elif object_type == "OTHER":
+            marker_type = "s"
+            marker_size = 10 #10
+            linewidth = 4
+            c = "g"
+            c_m = c
+        elif object_type == "AV":
+            marker_type = "o"
+            marker_size = 10 # 10
+            linewidth = 4
+            c = "r" # blue in rgb (final image)
+            c_m = c
+
+        cor_x = seq_rel[:,0] + xcenter #+ width/2
+        cor_y = seq_rel[:,1] + ycenter #+ height/2
+
+        smoothen = True
+        if not smoothen: #
+            polyline = np.column_stack((cor_x, cor_y))
+
+            num_points = cor_x.shape[0] * 3
+            smooth_polyline = interpolate_polyline(polyline, num_points)
+
+            cor_x = smooth_polyline[:, 0]
+            cor_y = smooth_polyline[:, 1]
+
+        if plot_object_trajectories:
+            if smoothen:
+                plt.plot(
+                    cor_x,
+                    cor_y,
+                    "-",
+                    # color=color_dict[object_type],
+                    color=c,
+                    label=object_type if not object_type_tracker[object_type] else "",
+                    alpha=1,
+                    linewidth=linewidth,
+                    zorder=_ZORDER[object_type],
+                )
+                # # draw gt agent and preds
+                if object_type == "AGENT":
+                    if t_img > 1:
+                        plt.plot(
+                            agent_pred_traj_gt[:, 0],
+                            agent_pred_traj_gt[:, 1],
+                            "*",
+                            # color=color_dict[object_type],
+                            color="aqua",
+                            label=object_type if not object_type_tracker[object_type] else "",
+                            alpha=1,
+                            linewidth=0.5,
+                            zorder= _ZORDER[object_type],
+                        )
+                        samples = 1 #len(pred_traj_fake_list)
+                        for i in range(samples):
+                            pred = pred_traj_fake_list[i]
+                            pred = pred.cpu().view(-1,2).numpy() + origin_pos[0][0].cpu().numpy()
+                            c= COLORS
+                            plt.plot(
+                                pred[:, 0],
+                                pred[:, 1],
+                                "*",
+                                # color=color_dict[object_type],
+                                color=c,
+                                label=object_type if not object_type_tracker[object_type] else "",
+                                alpha=1,
+                                linewidth=0.5,
+                                zorder= _ZORDER[object_type],
+                            )
+            else:
+                plt.scatter(cor_x, cor_y, c=c, s=10)
+
+        final_x = cor_x[-1]
+        final_y = cor_y[-1]
+
+        if plot_object_heads:
+            plt.plot(
+                final_x,
+                final_y,
+                marker_type,
+                # color=color_dict[object_type],
+                color=c_m,
+                label=object_type if not object_type_tracker[object_type] else "",
+                alpha=1,
+                markersize=marker_size,
+                zorder=_ZORDER[object_type],
+            )
+
+    # Plot AGENT prediction groundtruth
+
+    # Plot our predicted AGENT trajectories (depending on k=num_trajs to be predicted)
+    img_lanes = renderize_image(fig,new_shape=(width*scale,height*scale),normalize=False)
+    # Merge information
+    generate_img(img_map, img_lanes, filename, t_img=t_img)
+    plt.close("all")
+    # cv2.imwrite("1.png", full_img_cv)
+    # cv2.imshow("1", f_img)
 
 
+def generate_img(img_map, img_lanes, filename, t_img):
+    ## Foreground
+    img2gray = cv2.cvtColor(img_lanes,cv2.COLOR_BGR2GRAY)
+    ret3,th3 = cv2.threshold(img2gray,253,255,cv2.THRESH_BINARY)
+    mask = 255 - th3
+    kk = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
+    img2_fg = cv2.bitwise_and(img_lanes,img_lanes,mask=mask)
+
+    ## Background
+    
+    mask_bg = 255-cv2.erode(cv2.dilate(img_map, kk), kk)
+    mask_inv = cv2.bitwise_not(mask)
+    img1_bg = cv2.bitwise_and(img_map,img_map,mask=mask_inv)
+
+    ## Merge
+    full_img_cv = cv2.add(img1_bg,img2_fg)
+    f_img = change_bg_color(full_img_cv)
+    name = filename.split("/")[-1].split(".")[0]
+    if t_img == 0:
+        cv2.imwrite("data/datasets/argoverse/motion-forecasting/val/samples/{}.png".format(name), f_img)
+    if t_img == 1:
+        cv2.imwrite("data/datasets/argoverse/motion-forecasting/val/samples/{}_goal.png".format(name), f_img)
+    if t_img == 2:
+        cv2.imwrite("data/datasets/argoverse/motion-forecasting/val/samples/{}_uni.png".format(name), f_img)
+    if t_img == 3:
+        cv2.imwrite("data/datasets/argoverse/motion-forecasting/val/samples/{}_multi.png".format(name), f_img)
+
+def change_bg_color(img):
+    for i in range(img.shape[0]):    
+       for j in range(img.shape[1]):  
+           if (img[i,j] == [0,0,0]).all():
+               img[i,j] = [255,255,255]
+    return img
+
+def plot_qualitative_results_mm(filename, pred_traj_fake_list, agent_pred_traj_gt, agent_idx, 
+                             object_cls, obs_traj, origin_pos, offset):
+    """
+    pred_traj_fake_list may be multimodal
+    agent_pred_traj_gt -> main agent
+
+    TODO: Refactorize this function
+    """
+    agent_pred_traj_gt = agent_pred_traj_gt.cpu()
+    object_cls = object_cls.cpu().numpy()
+    obs_traj = obs_traj.cpu()
+
+    plot_object_trajectories = True
+    plot_object_heads = True
+    color_dict = {"AGENT": (0.0,0.0,1.0,1.0), # BGR
+                  "AV": (1.0,0.0,0.0,1.0), 
+                  "OTHER": (0.0,1.0,0.0,1.0)} 
+    object_type_tracker: Dict[int, int] = defaultdict(int)
+
+    xcenter, ycenter = origin_pos[0][0][0].cpu().item(), origin_pos[0][0][1].cpu().item()
+    x_min = xcenter + offset[0]
+    x_max = xcenter + offset[1]
+    y_min = ycenter + offset[2]
+    y_max = ycenter + offset[3]
+
+    fig, ax = plt.subplots(figsize=(6,6), facecolor="white")
+    plt.xlim(x_min, x_max)
+    plt.ylim(y_min, y_max)
+    plt.axis("off")
+
+    # Get goal points
+    dist_around = 40
+    ori_pos = [xcenter,ycenter]
+    agent_obs_seq_global = obs_traj[:, agent_idx, :].view(-1,2).numpy() + origin_pos[0][0].cpu().numpy() # Global (HDmap)
+    goal_points = dataset_utils.get_goal_points(filename, torch.tensor(agent_obs_seq_global), torch.tensor(ori_pos), dist_around)
+    
+    ## cicle
+    vel = dataset_utils.get_agent_velocity(torch.transpose(obs_traj[:, agent_idx, :].view(-1,2),0,1))
+    r = 3*vel
+    circ_car = plt.Circle((xcenter, ycenter), r, color='purple', fill=False, linewidth=3)
+    ax.add_patch(circ_car)
+    ax.scatter(goal_points[:,0], goal_points[:,1], marker="x", color='purple', s=8)
+
+    ## abs gt
+    agent_pred_traj_gt = agent_pred_traj_gt.view(-1,2).numpy() + origin_pos[0][0].cpu().numpy()
+
+    # Plot observations
+
+    obs_seq_list = []
+
+    for i in range(len(object_cls)):
+        abs_obs_ = obs_traj[:,i,:]
+
+        obj_id = object_cls[i]
+        obs_seq_list.append([abs_obs_,obj_id])
+    
+    ag_count = 0
+    for seq_id in obs_seq_list:
+        object_type = int(seq_id[1])
+        seq_rel = seq_id[0]
+
+        object_type = translate_object_type(object_type)
+
+        if object_type == "AGENT":
+            marker_type = "*"
+            marker_size = 14 #15
+            linewidth = 4
+            c = "b" # blue in rgb (final image)
+            c_m = c
+        elif object_type == "OTHER":
+            marker_type = "s"
+            marker_size = 10 #10
+            linewidth = 4
+            c = "g"
+            c_m = c
+        elif object_type == "AV":
+            marker_type = "o"
+            marker_size = 10 # 10
+            linewidth = 4
+            c = "r" # blue in rgb (final image)
+            c_m = c
+
+        cor_x = seq_rel[:,0] + xcenter #+ width/2
+        cor_y = seq_rel[:,1] + ycenter #+ height/2
+
+        smoothen = True
+        if not smoothen: #
+            polyline = np.column_stack((cor_x, cor_y))
+
+            num_points = cor_x.shape[0] * 3
+            smooth_polyline = interpolate_polyline(polyline, num_points)
+
+            cor_x = smooth_polyline[:, 0]
+            cor_y = smooth_polyline[:, 1]
+
+        if plot_object_trajectories:
+            if smoothen:
+                plt.plot(
+                    cor_x,
+                    cor_y,
+                    "-",
+                    # color=color_dict[object_type],
+                    color=c,
+                    label=object_type if not object_type_tracker[object_type] else "",
+                    alpha=1,
+                    linewidth=linewidth,
+                    zorder=_ZORDER[object_type],
+                )
+                # # draw gt agent and preds
+                if object_type == "AGENT":
+                    plt.plot(
+                        agent_pred_traj_gt[:, 0],
+                        agent_pred_traj_gt[:, 1],
+                        "*",
+                        # color=color_dict[object_type],
+                        color="aqua",
+                        label=object_type if not object_type_tracker[object_type] else "",
+                        alpha=1,
+                        linewidth=0.5,
+                        zorder= _ZORDER[object_type],
+                    )
+                    samples = len(pred_traj_fake_list)
+                    for i in range(samples):
+                        preds = pred_traj_fake_list[i].cpu()
+                        m = preds.shape[1]
+                        for j in range(m):
+                            pred = preds[:,j,:,:]
+                            pred = pred.view(-1,2).numpy() + origin_pos[0][0].cpu().numpy()
+                            c= COLORS_MM[j]
+                            plt.plot(
+                                pred[:, 0],
+                                pred[:, 1],
+                                "*",
+                                # color=color_dict[object_type],
+                                color=c,
+                                label=object_type if not object_type_tracker[object_type] else "",
+                                alpha=1,
+                                linewidth=0.5,
+                                zorder= _ZORDER[object_type],
+                            )
+            else:
+                plt.scatter(cor_x, cor_y, c=c, s=10)
+
+        final_x = cor_x[-1]
+        final_y = cor_y[-1]
+
+        if plot_object_heads:
+            plt.plot(
+                final_x,
+                final_y,
+                marker_type,
+                # color=color_dict[object_type],
+                color=c_m,
+                label=object_type if not object_type_tracker[object_type] else "",
+                alpha=1,
+                markersize=marker_size,
+                zorder=_ZORDER[object_type],
+            )
+
+    # Plot AGENT prediction groundtruth
+
+    # Plot our predicted AGENT trajectories (depending on k=num_trajs to be predicted)
+
+    # Merge information
+
+    img_map = cv2.imread(filename)
+    height, width = img_map.shape[:-1]
+
+    scale = 2
+
+    img_map = cv2.resize(img_map, (width*scale, height*scale), interpolation=cv2.INTER_CUBIC)
+
+    # Plot our predicted AGENT trajectories (depending on k=num_trajs to be predicted)
+    img_lanes = renderize_image(fig,new_shape=(width*scale,height*scale),normalize=False)
+    # Merge information
+    generate_img(img_map, img_lanes, filename, t_img=3)

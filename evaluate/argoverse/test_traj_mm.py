@@ -18,14 +18,15 @@ from torch.utils.data import DataLoader
 BASE_DIR = "/home/robesafe/libraries/SoPhie"
 sys.path.append(BASE_DIR)
 
-from sophie.utils.utils import relative_to_abs_sgan
+from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
+from sophie.utils.utils import relative_to_abs_sgan, relative_to_abs_sgan_multimodal
 # from sophie.models.sophie_adaptation import TrajectoryGenerator
-from sophie.models.mp_so import TrajectoryGenerator
+from sophie.models.mp_trans_so_set import TrajectoryGenerator
 from sophie.data_loader.argoverse.dataset_sgan_version_data_augs import ArgoverseMotionForecastingDataset, \
                                                                        seq_collate, load_list_from_folder, \
                                                                        read_file
 import sophie.data_loader.argoverse.map_utils as map_utils
-from sophie.trainers.trainer_sophie_adaptation import cal_ade, cal_fde
+# from sophie.trainers.trainer_sophie_adaptation import cal_ade, cal_fde
 from argoverse.map_representation.map_api import ArgoverseMap
 
 avm = ArgoverseMap()
@@ -37,6 +38,39 @@ non_linear_obj_file = "test_trajectories/" "non_linear_obj.npy"
 mask_file = "test_trajectories/" "mask.npy"
 
 pred_len = 30
+
+
+def cal_ade(pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, consider_ped):
+    b,m,t,_ = pred_traj_fake.shape
+    ade = []
+    for i in range(b):
+        _ade = []
+        for j in range(m):
+            __ade = displacement_error(
+                pred_traj_fake[i,j,:,:].unsqueeze(0).permute(1,0,2), pred_traj_gt[:,i,:].unsqueeze(1), consider_ped
+            )
+            _ade.append(__ade.item())
+        ade.append(_ade)
+    ade = np.array(ade)
+    min_ade = np.min(ade, 1)
+    return ade, min_ade
+
+def cal_fde(
+    pred_traj_gt, pred_traj_fake, linear_obj, non_linear_obj, consider_ped
+):
+    b,m,t,_ = pred_traj_fake.shape
+    fde = []
+    for i in range(b):
+        _fde = []
+        for j in range(m):
+            __fde = final_displacement_error(
+                pred_traj_fake[i,j,-1,:].unsqueeze(0), pred_traj_gt[-1,i].unsqueeze(0), consider_ped
+            )
+            _fde.append(__fde.item())
+        fde.append(_fde)
+    fde = np.array(fde)
+    min_fde = np.min(fde, 1)
+    return fde, min_fde
 
 def get_origin_and_city(seq,obs_window):
     """
@@ -109,12 +143,12 @@ except:
     config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
     config.dataset.split = "val"
-    config.dataset.split_percentage = 0.0001#0.025 # To generate the final results, must be 1 (whole split test) 0.0001
+    config.dataset.split_percentage = 0.025 # To generate the final results, must be 1 (whole split test) 0.0001
     config.dataset.start_from_percentage = 0.0
     config.dataset.batch_size = 1 # Better to build the h5 results file
     config.dataset.num_workers = 0
     config.dataset.class_balance = -1.0 # Do not consider class balance in the split val
-    config.dataset.shuffle = True
+    config.dataset.shuffle = False
 
     config.hyperparameters.pred_len = 30 # In test, we do not have the gt (prediction points)
 
@@ -190,17 +224,19 @@ except:
                             num_workers=config.dataset.num_workers,
                             collate_fn=seq_collate)
 
-        exp_name = "gen_exp/exp9" #"gen_exp/exp7"
-        model_path = BASE_DIR + "/save/argoverse/" + exp_name + "/so_exp9_argoverse_motion_forecasting_dataset_0_with_model.pt"
+        exp_name = "settrans/exp1" #"gen_exp/exp7"
+        model_path = BASE_DIR + "/save/argoverse/" + exp_name + "/argoverse_motion_forecasting_dataset_0_with_model.pt"
         checkpoint = torch.load(model_path)
-        generator = TrajectoryGenerator(config.sophie.generator)
+        generator = TrajectoryGenerator()
 
         print("Loading model ...")
         generator.load_state_dict(checkpoint.config_cp['g_best_state'])
         generator.cuda() # Use GPU
         generator.eval()
 
-        num_samples = 6
+        print(generator)
+
+        num_samples = 1
         output_all = []
 
         ade_list = []
@@ -301,15 +337,15 @@ except:
                     # Get predictions
                     # pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx) # seq_start_end)
                     t0 = time.time()
-                    pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, seq_start_end, agent_idx)
-                    print("time ", time.time() -t0)
+                    pred_traj_fake_rel,conf = generator(obs_traj_rel, seq_start_end)
+                    print("time: ", time.time() - t0)
 
                     # Get predictions in absolute coordinates
-                    pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1,agent_idx, :]) # 30,1,2
+                    pred_traj_fake = relative_to_abs_sgan_multimodal(pred_traj_fake_rel, obs_traj[-1, agent_idx,:])
                     pred_traj_fake_list.append(pred_traj_fake)
                     
-                    traj_fake = torch.cat([obs_traj[:, agent_idx, :], pred_traj_fake], dim=0) # 50,1,2
-                    predicted_traj.append(traj_fake)
+                    # traj_fake = torch.cat([obs_traj[:, agent_idx, :], pred_traj_fake], dim=0) # 50,1,2
+                    # predicted_traj.append(traj_fake)
 
                     # Get metrics
                     agent_traj_fake = pred_traj_fake # The output of the model is already single (30 x bs x 2)
@@ -321,7 +357,7 @@ except:
                     agent_mask = torch.tensor(agent_mask, device=agent_obj_id.device).reshape(-1)
                     
                     agent_linear_obj = 1 - agent_non_linear_obj
-
+#
                     # with open(pred_gt_file, 'wb') as my_file:
                     #     np.save(my_file, agent_traj_gt.cpu().detach().numpy())
                     
@@ -336,17 +372,19 @@ except:
 
                     # with open(mask_file, 'wb') as my_file:
                     #     np.save(my_file, agent_mask.cpu().detach().numpy())
-
-                    ade, ade_l, ade_nl = cal_ade(
-                        agent_traj_gt, agent_traj_fake, agent_linear_obj, agent_non_linear_obj, agent_mask
+#
+                    ade, ade_min = cal_ade(
+                        pred_traj_gt, pred_traj_fake, None, None,
+                         None
                     )
 
-                    fde, fde_l, fde_nl = cal_fde(
-                        agent_traj_gt, agent_traj_fake, agent_linear_obj, agent_non_linear_obj, agent_mask
+                    fde, fde_min = cal_fde(
+                        pred_traj_gt, pred_traj_fake, None, None,
+                        None
                     )
 
-                    ade = ade.item() / pred_len
-                    fde = fde.item()
+                    ade = ade.min().item() / pred_len
+                    fde = fde.min().item()
 
                     if ade < top_k_ade:
                         top_k_ade = ade
@@ -356,12 +394,8 @@ except:
 
                 if PLOT_QUALITATIVE_RESULTS:
                     filename = data_images_folder + "/" + str(num_seq.item()) + ".png"
-                    img = map_utils.plot_qualitative_results(filename, pred_traj_fake_list, agent_traj_gt, agent_idx,
-                                                             object_cls, obs_traj, ego_origin, dist_rasterized_map,0)
-                    img = map_utils.plot_qualitative_results(filename, pred_traj_fake_list, agent_traj_gt, agent_idx,
-                                                             object_cls, obs_traj, ego_origin, dist_rasterized_map,1)
-                    img = map_utils.plot_qualitative_results(filename, pred_traj_fake_list, agent_traj_gt, agent_idx,
-                                                             object_cls, obs_traj, ego_origin, dist_rasterized_map,2)
+                    img = map_utils.plot_qualitative_results_mm(filename, pred_traj_fake_list, agent_traj_gt, agent_idx,
+                                                             object_cls, obs_traj, ego_origin, dist_rasterized_map)
 
                 if not MAP_GENERATION:
                     ade_list.append(ade)
@@ -373,9 +407,9 @@ except:
                     else:
                         traj_kind_list.append(0)
 
-                    predicted_traj = torch.stack(predicted_traj, axis=0)
-                    predicted_traj = predicted_traj.cpu().numpy()
-                    output_all.append(predicted_traj)
+                    # predicted_traj = torch.stack(predicted_traj, axis=0)
+                    # predicted_traj = predicted_traj.cpu().numpy()
+                    # output_all.append(predicted_traj)
 
             if not MAP_GENERATION:
                 ade = round(sum(ade_list) / (len(ade_list)),3)

@@ -326,8 +326,10 @@ def evaluate_feasible_area_prediction(pred_traj_fake_abs, distance_threshold, or
     """
 
     img_map = cv2.imread(filename)
+    img_map = cv2.resize(img_map, dsize=(600,600))
     img_map_gray = cv2.cvtColor(img_map,cv2.COLOR_BGR2GRAY)
     height, width = img_map.shape
+    img_size = height
 
     xcenter, ycenter = origin_pos[0][0], origin_pos[0][1]
     x_min = xcenter + offset[0]
@@ -337,11 +339,11 @@ def evaluate_feasible_area_prediction(pred_traj_fake_abs, distance_threshold, or
 
     # Transform global point to pixel
 
-    m_x = float(width / (x_max - x_min)) # slope
-    m_y = float(height / (y_max - y_min))
+    m_x = float(img_size / (2 * real_world_offset)) # slope
+    m_y = float(-img_size / (2 * real_world_offset))
 
-    i_x = float(-m_x * x_min) # intercept
-    i_y = float(-m_y * y_min)
+    i_x = float(-(img_size / (2 * real_world_offset)) * x_min) # intercept
+    i_y = float((img_size / (2 * real_world_offset)) * y_max)
 
     feasible_area_loss = []
 
