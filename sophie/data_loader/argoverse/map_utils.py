@@ -275,7 +275,7 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
         pdb.set_trace()
 
     for i in range(len(object_class_id_list)):
-        obs_ = obs_seq[:,i,:].view(-1,2) # 20 x 2 (rel-rel)
+        obs_ = obs_seq[:obs_len,i,:].view(-1,2) # 20 x 2 (rel-rel)
         curr_first_obs = first_obs[i,:].view(-1)
 
         abs_obs_ = relative_to_abs(obs_, curr_first_obs) # "abs" (around 0)
@@ -378,7 +378,6 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     ## Background
 
     mask_inv = cv2.bitwise_not(mask)
-
     img1_bg = cv2.bitwise_and(img_map,img_map,mask=mask_inv)
 
     ## Merge
@@ -388,7 +387,7 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
     if show:
         # cv2.imshow("full_img",full_img_cv)
         curr_seq = filename.split('/')[-1].split('.')[0]
-        filename2 = os.path.join(*filename.split('/')[:-2]) + "/data_images_augs_2/dropout/" + curr_seq + "_" + str(rot_angle) + ".png"
+        filename2 = os.path.join(*filename.split('/')[:-2]) + "/data_images_augs/" + curr_seq + "_" + str(rot_angle) + ".png"
         cv2.imwrite(filename2,full_img_cv)
 
     resized_full_img_cv = cv2.resize(full_img_cv,(224,224))
@@ -396,14 +395,10 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
 
     return norm_resized_full_img_cv
 
-def change_bg_color(img):
-    for i in range(img.shape[0]):    
-       for j in range(img.shape[1]):  
-           if (img[i,j] == [0,0,0]).all():
-               img[i,j] = [255,255,255]
+def change_bg_color_2(img):
+    img[np.all(img == (0, 0, 0), axis=-1)] = (255,255,255)
+
     return img
-# def change_bg_color(img): # Use np.where here
-#     pdb.set_trace()
 
 def generate_img(img_map, img_lanes, qualitative_results_folder, seq_id, t_img):
     """
@@ -424,9 +419,7 @@ def generate_img(img_map, img_lanes, qualitative_results_folder, seq_id, t_img):
 
     ## Merge
     full_img_cv = cv2.add(img1_bg,img2_fg)
-    f_img = change_bg_color(full_img_cv)
-
-    cv2.imshow("aa",f_img)
+    f_img = change_bg_color_2(full_img_cv)
 
     if t_img == 0: # Original image
         filename = qualitative_results_folder + "/" + seq_id + ".png"
@@ -448,8 +441,8 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
     """
     img_map = cv2.imread(filename)
     height, width = img_map.shape[:-1]
-    scale = 2
-    img_map = cv2.resize(img_map, (width*scale, height*scale), interpolation=cv2.INTER_CUBIC)
+    # scale = 2
+    # img_map = cv2.resize(img_map, (width*scale, height*scale), interpolation=cv2.INTER_CUBIC)
 
     agent_pred_traj_gt = agent_pred_traj_gt.cpu()
     object_cls = object_cls.cpu().numpy()
@@ -457,6 +450,7 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
 
     plot_object_trajectories = True
     plot_object_heads = True
+
     color_dict = {"AGENT": (0.0,0.0,1.0,1.0), # BGR
                   "AV": (1.0,0.0,0.0,1.0), 
                   "OTHER": (0.0,1.0,0.0,1.0)} 
@@ -469,13 +463,11 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
     y_max = ycenter + offset[3]
 
     fig, ax = plt.subplots(figsize=(6,6), facecolor="white")
-    plt.xlim(x_min, x_max)
-    plt.ylim(y_min, y_max)
-    plt.axis("off")
 
     # Get goal points
     dist_around = 40
     ori_pos = [xcenter,ycenter]
+
     agent_obs_seq_global = obs_traj[:, agent_idx, :].view(-1,2).numpy() + origin_pos[0][0].cpu().numpy() # Global (HDmap)
     goal_points = dataset_utils.get_goal_points(filename, torch.tensor(agent_obs_seq_global), torch.tensor(ori_pos), dist_around)
 
@@ -541,7 +533,7 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
 
         if plot_object_trajectories:
             if smoothen:
-                plt.plot(
+                ax.plot(
                     cor_x,
                     cor_y,
                     "-",
@@ -555,7 +547,7 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
                 # # draw gt agent and preds
                 if object_type == "AGENT":
                     if t_img > 1:
-                        plt.plot(
+                        ax.plot(
                             agent_pred_traj_gt[:, 0],
                             agent_pred_traj_gt[:, 1],
                             "*",
@@ -570,8 +562,8 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
                         for i in range(samples):
                             pred = pred_traj_fake_list[i]
                             pred = pred.cpu().view(-1,2).numpy() + origin_pos[0][0].cpu().numpy()
-                            c= COLORS
-                            plt.plot(
+                            c = COLORS
+                            ax.plot(
                                 pred[:, 0],
                                 pred[:, 1],
                                 "*",
@@ -583,13 +575,13 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
                                 zorder= _ZORDER[object_type],
                             )
             else:
-                plt.scatter(cor_x, cor_y, c=c, s=10)
+                ax.scatter(cor_x, cor_y, c=c, s=10)
 
         final_x = cor_x[-1]
         final_y = cor_y[-1]
 
         if plot_object_heads:
-            plt.plot(
+            ax.plot(
                 final_x,
                 final_y,
                 marker_type,
@@ -602,7 +594,12 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
             )
 
     # Plot our predicted AGENT trajectories (depending on k=num_trajs to be predicted)
-    img_lanes = renderize_image(fig,new_shape=(width*scale,height*scale),normalize=False)
+
+    ax.set_xlim([x_min, x_max])
+    ax.set_ylim([y_min, y_max])
+    ax.set_axis_off()
+
+    img_lanes = renderize_image(fig,new_shape=(width,height),normalize=False)
 
     # Merge information
     split_folder = '/'.join(filename.split('/')[:-2])
@@ -612,8 +609,18 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
         os.makedirs(qualitative_results_folder) # makedirs creates intermediate folders
     
     seq_id = filename.split('/')[-1].split('.')[0]
+
+    # if t_img > 0:
+    #     plt.savefig(f"/home/robesafe/shared_home/test_plt/test_{seq_id}_plt_save_fig.png", bbox_inches='tight', facecolor=fig.get_facecolor(), 
+    #             edgecolor='none', pad_inches=0)
+    #     cv2.imwrite(f"/home/robesafe/shared_home/test_plt/test_{seq_id}_fg.png",img_lanes)
+    #     cv2.imwrite(f"/home/robesafe/shared_home/test_plt/test_{seq_id}_bg.png",img_map)
+
+    plt.savefig("aux.png", bbox_inches='tight', facecolor=fig.get_facecolor(), 
+                edgecolor='none', pad_inches=0) # TODO: Optimize this -> Return image without white padding instead of saving and reading
+    img_lanes = cv2.imread("aux.png")
+    
     generate_img(img_map, img_lanes, qualitative_results_folder, seq_id, t_img=t_img)
-    plt.close("all")
 
 def plot_qualitative_results_mm(filename, pred_traj_fake_list, agent_pred_traj_gt, agent_idx, 
                              object_cls, obs_traj, origin_pos, offset):
@@ -701,7 +708,7 @@ def plot_qualitative_results_mm(filename, pred_traj_fake_list, agent_pred_traj_g
         cor_y = seq_rel[:,1] + ycenter #+ height/2
 
         smoothen = True
-        if not smoothen: #
+        if not smoothen:
             polyline = np.column_stack((cor_x, cor_y))
 
             num_points = cor_x.shape[0] * 3
@@ -743,7 +750,7 @@ def plot_qualitative_results_mm(filename, pred_traj_fake_list, agent_pred_traj_g
                         for j in range(m):
                             pred = preds[:,j,:,:]
                             pred = pred.view(-1,2).numpy() + origin_pos[0][0].cpu().numpy()
-                            c= COLORS_MM[j]
+                            c = COLORS_MM[j]
                             plt.plot(
                                 pred[:, 0],
                                 pred[:, 1],

@@ -664,7 +664,7 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     obs_px_points = transform_real_world2px(obs_seq, origin_pos, real_world_offset, img_size)
     agent_obs_px_x, agent_obs_px_y = obs_px_points[:,0], obs_px_points[:,1]
     filename = goal_points_folder + "/" + seq_id + "_obs_traj.png"
-    plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, change_bg=True)
+    # plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, change_bg=True)
 
     # 1. Get feasible area points (N samples)
 
@@ -673,7 +673,7 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     fe_y, fe_x = get_points(img, car_px, scale_x, rad=10000, color=255, N=1024, 
                             sample_car=True, max_samples=None) # return rows, columns
     filename = goal_points_folder + "/" + seq_id + "_all_samples.png"
-    plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, goals_px_x=fe_x, goals_px_y=fe_y, change_bg=True)
+    # plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, goals_px_x=fe_x, goals_px_y=fe_y, change_bg=True)
 
     # 1.1. Filter using AGENT estimated velocity
 
@@ -686,8 +686,8 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
                                 sample_car=True, max_samples=None) # return rows, columns
 
     filename = goal_points_folder + "/" + seq_id + "_vel_filter.png"
-    plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
-                  goals_px_x=fe_x, goals_px_y=fe_y, radius=radius_px, change_bg=True)
+    # plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
+    #               goals_px_x=fe_x, goals_px_y=fe_y, radius=radius_px, change_bg=True)
 
     # pdb.set_trace()
 
@@ -716,8 +716,8 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     filtered_fe_y = fe_y[np.where(fe_y_rot < cy)[0]]
 
     filename = goal_points_folder + "/" + seq_id + "_angle_filter.png"
-    plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
-                  goals_px_x=filtered_fe_x, goals_px_y=filtered_fe_y, radius=radius_px, change_bg=True)
+    # plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
+    #               goals_px_x=filtered_fe_x, goals_px_y=filtered_fe_y, radius=radius_px, change_bg=True)
 
     # 2. Get furthest N samples (closest the the hypothetical radius)
 
@@ -743,13 +743,13 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
         final_samples_y = cy + scale_y*np.random.randn(NUM_GOAL_POINTS)
 
     filename = goal_points_folder + "/" + seq_id + "_final_samples.png"
-    plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
-                  goals_px_x=final_samples_x, goals_px_y=final_samples_y, radius=radius_px, change_bg=True)
+    # plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
+    #               goals_px_x=final_samples_x, goals_px_y=final_samples_y, radius=radius_px, change_bg=True)
 
     if len(final_samples_x) != NUM_GOAL_POINTS:
         print(f"Final samples does not match with {NUM_GOAL_POINTS} required samples")
-        plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
-                      goals_px_x=final_samples_x, goals_px_y=final_samples_y, radius=radius_px, change_bg=True, show=True)
+        # plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
+        #               goals_px_x=final_samples_x, goals_px_y=final_samples_y, radius=radius_px, change_bg=True, show=True)
         pdb.set_trace()
 
     # 3. Transform pixels to real-world coordinates
