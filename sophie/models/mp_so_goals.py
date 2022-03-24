@@ -143,7 +143,7 @@ class TrajectoryDiscriminator(nn.Module):
         real_classifier_dims = [self.h_dim, self.mlp_dim, 1]
         self.real_classifier = make_mlp(real_classifier_dims)
 
-    def forward(self, traj, traj_rel):
+    def forward(self, traj_rel):
 
         final_h = self.encoder(traj_rel)
         scores = self.real_classifier(final_h)

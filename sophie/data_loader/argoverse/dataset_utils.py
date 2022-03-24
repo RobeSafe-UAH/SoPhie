@@ -474,40 +474,46 @@ def get_points(img, car_px, scale_x, rad=100, color=255, N=1024, sample_car=True
                   
     return px_y, px_x
 
+def change_bg_color(img):
+    img_aux = copy.deepcopy(img)
+    for i in range(img_aux.shape[0]):    
+       for j in range(img_aux.shape[1]):  
+           if (img_aux[i,j] == [0,0,0]).all():
+               img_aux[i,j] = [255,255,255]
+    return img_aux
+
 # N.B. In PLT, points must be specified as standard cartesian frames (x from left to right, y from bottom to top)
-def plot_fepoints(img, filename, px_x, px_y, car, radius=None):
+def plot_fepoints(img, filename, obs_px_x, obs_px_y, car_px, 
+                  goals_px_x=None, goals_px_y=None, radius=None, change_bg=False, show=False):
     assert len(img.shape) == 3
     
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    plt.scatter(px_x, px_y, c='r', s=10)
-    plt.scatter(car[0], car[1], c="blue", s=50)
-    plt.imshow(img)
-
-    if radius:
-      circ_car = plt.Circle((car[0], car[1]), radius, color='b', fill=False)
-      ax.add_patch(circ_car)
-
-    plt.title(filename) 
-    plt.show()
-
-def plot_fepoints_final(img, filename, px_x, px_y, obs_px_x, obs_px_y, car_px, radius=None):
-    assert len(img.shape) == 3
-    
+    img_aux = copy.deepcopy(img)
     fig, ax = plt.subplots(figsize=(8, 8))
 
-    plt.scatter(obs_px_x, obs_px_y, c='c', s=10) # Past trajectory
-    plt.scatter(car_px[0], car_px[1], c="b", s=50) # Last observation point
-    plt.scatter(px_x, px_y, c='r', s=10) # Goal points
+    plt.scatter(obs_px_x, obs_px_y, c="b", s=10) # Past trajectory
+    plt.scatter(car_px[0], car_px[1], c="b", marker="*", s=50) # Last observation point
+    if goals_px_x is not None:
+        plt.scatter(goals_px_x, goals_px_y, color="purple", marker="x", s=10) # Goal points
 
-    plt.imshow(img)
+    if change_bg:
+        img_aux = change_bg_color(img)
+
+    plt.imshow(img_aux)
 
     if radius:
-      circ_car = plt.Circle((car_px[0], car_px[1]), radius, color='m', fill=False)
+      circ_car = plt.Circle((car_px[0], car_px[1]), radius, color="purple", fill=False)
       ax.add_patch(circ_car)
 
-    plt.title(filename) 
-    plt.show()
+    plt.axis("off")
+
+    if show:
+        plt.title(filename) 
+        plt.show()
+
+    plt.savefig(filename, bbox_inches='tight', facecolor=fig.get_facecolor(), 
+                edgecolor='none', pad_inches=0)
+
+    plt.close('all')
 
 def get_agent_velocity(obs_seq, num_obs=5, period=0.1):
     """
@@ -632,6 +638,10 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     """
     """
 
+    split_folder = '/'.join(filename.split('/')[:-2])
+    goal_points_folder = split_folder + "/goal_points"
+    seq_id = filename.split('/')[-1].split('.')[0]
+
     # 0. Load image and get past observations
 
     img = cv2.imread(filename)
@@ -646,20 +656,25 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
 
     ori = obs_seq[-1, :]
 
-    # assert torch.eq(ori, origin_pos[0])
-
-    # 0. Plot obs traj
+    # 0. Plot obs traj (AGENT)
 
     obs_x = obs_seq[:,0]
     obs_y = obs_seq[:,1]
 
-    # print("obs: ", obs_seq)
-
     obs_px_points = transform_real_world2px(obs_seq, origin_pos, real_world_offset, img_size)
-    rec_obs_x, rec_obs_y = obs_px_points[:,0], obs_px_points[:,1]
-    # plot_fepoints(img, filename, rec_obs_x, rec_obs_y, car_px)
+    agent_obs_px_x, agent_obs_px_y = obs_px_points[:,0], obs_px_points[:,1]
+    filename = goal_points_folder + "/" + seq_id + "_obs_traj.png"
+    plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, change_bg=True)
 
     # 1. Get feasible area points (N samples)
+
+    # 1.0. (Optional) Observe random sampling in the whole feasible area
+
+    fe_y, fe_x = get_points(img, car_px, scale_x, rad=10000, color=255, N=1024, 
+                            sample_car=True, max_samples=None) # return rows, columns
+    filename = goal_points_folder + "/" + seq_id + "_all_samples.png"
+    plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, goals_px_x=fe_x, goals_px_y=fe_y, change_bg=True)
+
     # 1.1. Filter using AGENT estimated velocity
 
     mean_vel = get_agent_velocity(torch.transpose(obs_seq,0,1))
@@ -669,7 +684,11 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
 
     fe_y, fe_x = get_points(img, car_px, scale_x, rad=radius_px, color=255, N=1024, 
                                 sample_car=True, max_samples=None) # return rows, columns
-    # plot_fepoints(img, filename, fe_x, fe_y, car_px)
+
+    filename = goal_points_folder + "/" + seq_id + "_vel_filter.png"
+    plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
+                  goals_px_x=fe_x, goals_px_y=fe_y, radius=radius_px, change_bg=True)
+
     # pdb.set_trace()
 
     # 1.2. Filter points applying rotation
@@ -693,10 +712,12 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
     fe_x_rot = close_pts_rotated[:,0] + cx
     fe_y_rot = close_pts_rotated[:,1] + cy
 
-    # plot_fepoints(img, filename, fe_x_rot, fe_y_rot, car_px)
-
     filtered_fe_x = fe_x[np.where(fe_y_rot < cy)[0]]
     filtered_fe_y = fe_y[np.where(fe_y_rot < cy)[0]]
+
+    filename = goal_points_folder + "/" + seq_id + "_angle_filter.png"
+    plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
+                  goals_px_x=filtered_fe_x, goals_px_y=filtered_fe_y, radius=radius_px, change_bg=True)
 
     # 2. Get furthest N samples (closest the the hypothetical radius)
 
@@ -713,7 +734,6 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
 
     final_samples_x, final_samples_y = filtered_fe_x[furthest_indeces], filtered_fe_y[furthest_indeces]
     
-    # print("filename: ", filename)
     try:
         diff_points = NUM_GOAL_POINTS - len(final_samples_x)
         final_samples_x = np.hstack((final_samples_x, final_samples_x[0]+0.2 * np.random.randn(diff_points)))
@@ -722,13 +742,19 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
         final_samples_x = cx + scale_x*np.random.randn(NUM_GOAL_POINTS)
         final_samples_y = cy + scale_y*np.random.randn(NUM_GOAL_POINTS)
 
+    filename = goal_points_folder + "/" + seq_id + "_final_samples.png"
+    plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
+                  goals_px_x=final_samples_x, goals_px_y=final_samples_y, radius=radius_px, change_bg=True)
+
     if len(final_samples_x) != NUM_GOAL_POINTS:
-        plot_fepoints_final(img, filename, final_samples_x, final_samples_y, rec_obs_x, rec_obs_y, car_px, radius=radius_px)
+        print(f"Final samples does not match with {NUM_GOAL_POINTS} required samples")
+        plot_fepoints(img, filename, agent_obs_px_x, agent_obs_px_y, car_px, 
+                      goals_px_x=final_samples_x, goals_px_y=final_samples_y, radius=radius_px, change_bg=True, show=True)
         pdb.set_trace()
 
     # 3. Transform pixels to real-world coordinates
 
     final_samples_px = np.hstack((final_samples_y.reshape(-1,1), final_samples_x.reshape(-1,1))) # rows, columns
     rw_points = transform_px2real_world(final_samples_px, origin_pos, real_world_offset, img_size)
-
+    # pdb.set_trace()
     return rw_points

@@ -232,6 +232,8 @@ def map_generator(curr_num_seq,
     plt.savefig(filename, bbox_inches='tight', facecolor=fig.get_facecolor(), 
                 edgecolor='none', pad_inches=0)
 
+# Plot trajectories for data augmentation testing
+
 def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_list,offset,\
                       rot_angle=-1,obs_len=None,smoothen=False,show=False):
     """
@@ -394,6 +396,48 @@ def plot_trajectories(filename,obs_seq,first_obs,origin_pos, object_class_id_lis
 
     return norm_resized_full_img_cv
 
+def change_bg_color(img):
+    for i in range(img.shape[0]):    
+       for j in range(img.shape[1]):  
+           if (img[i,j] == [0,0,0]).all():
+               img[i,j] = [255,255,255]
+    return img
+# def change_bg_color(img): # Use np.where here
+#     pdb.set_trace()
+
+def generate_img(img_map, img_lanes, qualitative_results_folder, seq_id, t_img):
+    """
+    """
+    
+    ## Foreground
+    img2gray = cv2.cvtColor(img_lanes,cv2.COLOR_BGR2GRAY)
+    ret3,th3 = cv2.threshold(img2gray,253,255,cv2.THRESH_BINARY)
+    mask = 255 - th3
+    kk = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
+    img2_fg = cv2.bitwise_and(img_lanes,img_lanes,mask=mask)
+
+    ## Background
+    
+    mask_bg = 255-cv2.erode(cv2.dilate(img_map, kk), kk)
+    mask_inv = cv2.bitwise_not(mask)
+    img1_bg = cv2.bitwise_and(img_map,img_map,mask=mask_inv)
+
+    ## Merge
+    full_img_cv = cv2.add(img1_bg,img2_fg)
+    f_img = change_bg_color(full_img_cv)
+
+    cv2.imshow("aa",f_img)
+
+    if t_img == 0: # Original image
+        filename = qualitative_results_folder + "/" + seq_id + ".png"
+    if t_img == 1: # Original image with goal proposals
+        filename = qualitative_results_folder + "/" + seq_id + "_goals" + ".png"
+    if t_img == 2: # Unimodal prediction
+        filename = qualitative_results_folder + "/" + seq_id + "_unimodal" + ".png"
+    if t_img == 3: # Multimodal prediction
+        filename = qualitative_results_folder + "/" + seq_id + "_multimodal" + ".png"
+    cv2.imwrite(filename, f_img)
+
 def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, agent_idx, 
                              object_cls, obs_traj, origin_pos, offset, t_img):
     """
@@ -406,8 +450,6 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
     height, width = img_map.shape[:-1]
     scale = 2
     img_map = cv2.resize(img_map, (width*scale, height*scale), interpolation=cv2.INTER_CUBIC)
-
-
 
     agent_pred_traj_gt = agent_pred_traj_gt.cpu()
     object_cls = object_cls.cpu().numpy()
@@ -436,12 +478,12 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
     ori_pos = [xcenter,ycenter]
     agent_obs_seq_global = obs_traj[:, agent_idx, :].view(-1,2).numpy() + origin_pos[0][0].cpu().numpy() # Global (HDmap)
     goal_points = dataset_utils.get_goal_points(filename, torch.tensor(agent_obs_seq_global), torch.tensor(ori_pos), dist_around)
-    
-    ## cicle
+
+    ## radius of action
     vel = dataset_utils.get_agent_velocity(torch.transpose(obs_traj[:, agent_idx, :].view(-1,2),0,1))
     r = 3*vel
     if t_img > 0:
-        circ_car = plt.Circle((xcenter, ycenter), r, color='purple', fill=False, linewidth=3)
+        circ_car = plt.Circle((xcenter, ycenter), r, color="purple", fill=False, linewidth=3)
         ax.add_patch(circ_car)
         ax.scatter(goal_points[:,0], goal_points[:,1], marker="x", color='purple', s=8)
 
@@ -559,50 +601,19 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
                 zorder=_ZORDER[object_type],
             )
 
-    # Plot AGENT prediction groundtruth
-
     # Plot our predicted AGENT trajectories (depending on k=num_trajs to be predicted)
     img_lanes = renderize_image(fig,new_shape=(width*scale,height*scale),normalize=False)
+
     # Merge information
-    generate_img(img_map, img_lanes, filename, t_img=t_img)
-    plt.close("all")
-    # cv2.imwrite("1.png", full_img_cv)
-    # cv2.imshow("1", f_img)
-
-
-def generate_img(img_map, img_lanes, filename, t_img):
-    ## Foreground
-    img2gray = cv2.cvtColor(img_lanes,cv2.COLOR_BGR2GRAY)
-    ret3,th3 = cv2.threshold(img2gray,253,255,cv2.THRESH_BINARY)
-    mask = 255 - th3
-    kk = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
-    img2_fg = cv2.bitwise_and(img_lanes,img_lanes,mask=mask)
-
-    ## Background
+    split_folder = '/'.join(filename.split('/')[:-2])
+    qualitative_results_folder = split_folder + "/qualitative_results"
+    if not os.path.exists(qualitative_results_folder):
+        print("Create qualitative results folder: ", qualitative_results_folder)
+        os.makedirs(qualitative_results_folder) # makedirs creates intermediate folders
     
-    mask_bg = 255-cv2.erode(cv2.dilate(img_map, kk), kk)
-    mask_inv = cv2.bitwise_not(mask)
-    img1_bg = cv2.bitwise_and(img_map,img_map,mask=mask_inv)
-
-    ## Merge
-    full_img_cv = cv2.add(img1_bg,img2_fg)
-    f_img = change_bg_color(full_img_cv)
-    name = filename.split("/")[-1].split(".")[0]
-    if t_img == 0:
-        cv2.imwrite("data/datasets/argoverse/motion-forecasting/val/samples/{}.png".format(name), f_img)
-    if t_img == 1:
-        cv2.imwrite("data/datasets/argoverse/motion-forecasting/val/samples/{}_goal.png".format(name), f_img)
-    if t_img == 2:
-        cv2.imwrite("data/datasets/argoverse/motion-forecasting/val/samples/{}_uni.png".format(name), f_img)
-    if t_img == 3:
-        cv2.imwrite("data/datasets/argoverse/motion-forecasting/val/samples/{}_multi.png".format(name), f_img)
-
-def change_bg_color(img):
-    for i in range(img.shape[0]):    
-       for j in range(img.shape[1]):  
-           if (img[i,j] == [0,0,0]).all():
-               img[i,j] = [255,255,255]
-    return img
+    seq_id = filename.split('/')[-1].split('.')[0]
+    generate_img(img_map, img_lanes, qualitative_results_folder, seq_id, t_img=t_img)
+    plt.close("all")
 
 def plot_qualitative_results_mm(filename, pred_traj_fake_list, agent_pred_traj_gt, agent_idx, 
                              object_cls, obs_traj, origin_pos, offset):
@@ -640,13 +651,13 @@ def plot_qualitative_results_mm(filename, pred_traj_fake_list, agent_pred_traj_g
     agent_obs_seq_global = obs_traj[:, agent_idx, :].view(-1,2).numpy() + origin_pos[0][0].cpu().numpy() # Global (HDmap)
     goal_points = dataset_utils.get_goal_points(filename, torch.tensor(agent_obs_seq_global), torch.tensor(ori_pos), dist_around)
     
-    ## cicle
+    ## radius of action
     vel = dataset_utils.get_agent_velocity(torch.transpose(obs_traj[:, agent_idx, :].view(-1,2),0,1))
     r = 3*vel
     circ_car = plt.Circle((xcenter, ycenter), r, color='purple', fill=False, linewidth=3)
     ax.add_patch(circ_car)
     ax.scatter(goal_points[:,0], goal_points[:,1], marker="x", color='purple', s=8)
-
+    
     ## abs gt
     agent_pred_traj_gt = agent_pred_traj_gt.view(-1,2).numpy() + origin_pos[0][0].cpu().numpy()
 
@@ -763,10 +774,6 @@ def plot_qualitative_results_mm(filename, pred_traj_fake_list, agent_pred_traj_g
                 zorder=_ZORDER[object_type],
             )
 
-    # Plot AGENT prediction groundtruth
-
-    # Plot our predicted AGENT trajectories (depending on k=num_trajs to be predicted)
-
     # Merge information
 
     img_map = cv2.imread(filename)
@@ -778,5 +785,6 @@ def plot_qualitative_results_mm(filename, pred_traj_fake_list, agent_pred_traj_g
 
     # Plot our predicted AGENT trajectories (depending on k=num_trajs to be predicted)
     img_lanes = renderize_image(fig,new_shape=(width*scale,height*scale),normalize=False)
+
     # Merge information
     generate_img(img_map, img_lanes, filename, t_img=3)

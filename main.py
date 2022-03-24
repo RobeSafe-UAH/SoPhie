@@ -10,7 +10,8 @@ from datetime import datetime
 from prodict import Prodict
 from pathlib import Path
 
-TRAINER_LIST = ["so", "so_goals", "so_data_augs", "sovi", "trans_so", "trans_sovi", "soconf"]
+TRAINER_LIST = ["so", "so_goals", "so_goals_gan", "so_data_augs", "sovi", \
+                "trans_so", "trans_sovi", "soconf"]
 
 def create_logger(file_path):
     FORMAT = '[%(levelname)s: %(lineno)4d]: %(message)s'
@@ -44,6 +45,9 @@ if __name__ == "__main__":
     elif args.trainer == "so_goals":
         from sophie.trainers.trainer_gen_so_goals import model_trainer
         config_path = "./configs/mp_so_goals.yml"
+    elif args.trainer == "so_goals_gan":
+        from sophie.trainers.trainer_gen_so_goals_gan import model_trainer
+        config_path = "./configs/mp_so_goals_gan.yml"
     elif args.trainer == "so_data_augs":
         from sophie.trainers.trainer_gen_so_data_augs import model_trainer
         config_path = "./configs/mp_so_data_augs.yml"
@@ -80,7 +84,7 @@ if __name__ == "__main__":
 
         if not os.path.exists(exp_path):
             print("Create experiment path: ", exp_path)
-            os.mkdir(exp_path)
+            os.makedirs(exp_path) # makedirs creates intermediate folders
 
         with open(route_path,'w') as yaml_file:
             yaml.dump(config_file, yaml_file, default_flow_style=False)
