@@ -43,7 +43,7 @@ past_observations = config.hyperparameters.obs_len
 num_agents_per_obs = config.hyperparameters.num_agents_per_obs
 config.sophie.generator.social_attention.linear_decoder.out_features = past_observations * num_agents_per_obs
 
-config.dataset.split = "train"
+config.dataset.split = "val"
 config.dataset.split_percentage = 0.0002 # To generate the final results, must be 1 (whole split test)
 config.dataset.start_from_percentage = 0.0
 config.dataset.batch_size = 1 # Better to build the h5 results file
@@ -93,7 +93,7 @@ else:
     else:
         file_id_list = file_id_list[start_from:start_from+n_files]
 
-check_data_augs = [0,1,0] # swapping, dropout (erasing), gaussian noise
+check_data_augs = [0,0,0] # swapping, dropout (erasing), gaussian noise
 check_rotations = False # rotations
 
 for i, file_id in enumerate(file_id_list):

@@ -40,7 +40,6 @@ class TrajectoryGenerator(nn.Module):
             Y = self.dec(self.enc(Y)) # 1, m, 64
             # Y = Y.view(n,t,-1) # (n, obs, h_dim)
             XX.append(Y)
-        pdb.set_trace()
         XX = torch.cat(XX, 0)
 
         coords = self.regressor(XX).reshape(-1, self.num_outputs, self.pred_len, 2) # (b, m, t, 2)

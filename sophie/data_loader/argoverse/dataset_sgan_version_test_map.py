@@ -545,9 +545,10 @@ class ArgoverseMotionForecastingDataset(Dataset):
         global visual_data
         visual_data = v_data
 
-        GENERATE_NPY = False
+        GENERATE_SEQUENCES = False
+        SAVE_NPY = False
 
-        if GENERATE_NPY:
+        if GENERATE_SEQUENCES:
             folder = root_folder + split + "/data/"
             files, num_files = load_list_from_folder(folder)
 
@@ -675,54 +676,55 @@ class ArgoverseMotionForecastingDataset(Dataset):
 
             # Save numpy objects as npy 
 
-            folder_data_processed = root_folder + split + "/data_processed/"
-            if not os.path.exists(folder_data_processed):
-                print("Create path: ", folder_data_processed)
-                os.mkdir(folder_data_processed)
-                
-            filename = root_folder + split + "/data_processed/" + "seq_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, seq_list)
+            if SAVE_NPY:
+                folder_data_processed = root_folder + split + "/data_processed/"
+                if not os.path.exists(folder_data_processed):
+                    print("Create path: ", folder_data_processed)
+                    os.mkdir(folder_data_processed)
+                    
+                filename = root_folder + split + "/data_processed/" + "seq_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, seq_list)
 
-            filename = root_folder + split + "/data_processed/" + "seq_list_rel" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, seq_list_rel)
+                filename = root_folder + split + "/data_processed/" + "seq_list_rel" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, seq_list_rel)
 
-            filename = root_folder + split + "/data_processed/" + "loss_mask_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, loss_mask_list)
+                filename = root_folder + split + "/data_processed/" + "loss_mask_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, loss_mask_list)
 
-            filename = root_folder + split + "/data_processed/" + "non_linear_obj" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, non_linear_obj)
+                filename = root_folder + split + "/data_processed/" + "non_linear_obj" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, non_linear_obj)
 
-            filename = root_folder + split + "/data_processed/" + "num_objs_in_seq" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, num_objs_in_seq)
+                filename = root_folder + split + "/data_processed/" + "num_objs_in_seq" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, num_objs_in_seq)
 
-            filename = root_folder + split + "/data_processed/" + "seq_id_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, seq_id_list)
+                filename = root_folder + split + "/data_processed/" + "seq_id_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, seq_id_list)
 
-            filename = root_folder + split + "/data_processed/" + "object_class_id_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, object_class_id_list)
+                filename = root_folder + split + "/data_processed/" + "object_class_id_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, object_class_id_list)
 
-            filename = root_folder + split + "/data_processed/" + "object_id_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, object_id_list)
+                filename = root_folder + split + "/data_processed/" + "object_id_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, object_id_list)
 
-            filename = root_folder + split + "/data_processed/" + "ego_vehicle_origin" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, ego_vehicle_origin)
+                filename = root_folder + split + "/data_processed/" + "ego_vehicle_origin" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, ego_vehicle_origin)
 
-            filename = root_folder + split + "/data_processed/" + "num_seq_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, num_seq_list)
+                filename = root_folder + split + "/data_processed/" + "num_seq_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, num_seq_list)
 
-            filename = root_folder + split + "/data_processed/" + "straight_trajectories_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, straight_trajectories_list)
+                filename = root_folder + split + "/data_processed/" + "straight_trajectories_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, straight_trajectories_list)
 
-            filename = root_folder + split + "/data_processed/" + "curved_trajectories_list" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, curved_trajectories_list)
+                filename = root_folder + split + "/data_processed/" + "curved_trajectories_list" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, curved_trajectories_list)
 
-            filename = root_folder + split + "/data_processed/" + "norm" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, norm)
+                filename = root_folder + split + "/data_processed/" + "norm" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, norm)
 
-            filename = root_folder + split + "/data_processed/" + "city_id" + ".npy"
-            with open(filename, 'wb') as my_file: np.save(my_file, self.city_ids)
+                filename = root_folder + split + "/data_processed/" + "city_id" + ".npy"
+                with open(filename, 'wb') as my_file: np.save(my_file, self.city_ids)
 
-            assert 1 == 0
+                assert 1 == 0
 
         else:
             print("Loading .npy files ...")

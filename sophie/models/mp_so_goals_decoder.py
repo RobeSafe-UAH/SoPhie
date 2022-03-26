@@ -8,8 +8,7 @@ import torchvision.transforms.functional as TF
 from sophie.modules.backbones import VisualExtractor
 from sophie.modules.attention import MultiHeadAttention
 from sophie.modules.encoders import EncoderLSTM as Encoder
-from sophie.modules.decoders import DecoderLSTM as Decoder
-from sophie.modules.decoders import TemporalDecoderLSTM as TemporalDecoder
+from sophie.modules.decoders import GoalDecoderLSTM as GoalDecoder
 
 MAX_PEDS = 32
 
@@ -48,9 +47,9 @@ class TrajectoryGenerator(nn.Module):
             num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
 
-        self.decoder = TemporalDecoder(h_dim=self.h_dim)
+        self.decoder = GoalDecoder(h_dim=self.h_dim)
 
-        mlp_context_input = self.h_dim*2*2 # concat of social context, trajectories embedding and goal points
+        mlp_context_input = self.h_dim*2 # concat of social context and trajectories embedding
         self.lnc = nn.LayerNorm(mlp_context_input)
         mlp_decoder_context_dims = [mlp_context_input, self.mlp_dim, self.h_dim - self.noise_dim]
         self.mlp_decoder_context = make_mlp(mlp_decoder_context_dims)
@@ -66,9 +65,8 @@ class TrajectoryGenerator(nn.Module):
         """
             n: number of objects in all the scenes of the batch
             b: batch
-            obs_traj: (20,b*n,2)
-            obs_traj_rel: (20,b*n,2)
-            goal_points: (b,32,2)
+            obs_traj: (20,n,2)
+            obs_traj_rel: (20,n,2)
             start_end_seq: (b,2)
             agent_idx: (b, 1) -> index of agent in every sequence.
                 None: trajectories for every object in the scene will be generated
@@ -78,8 +76,6 @@ class TrajectoryGenerator(nn.Module):
                 (30,n,2) -> if agent_idx is None
                 (30,b,2)
         """
-
-        batch_size = goal_points.shape[0]
         
         ## Encode trajectory
         final_encoder_h = self.encoder(obs_traj_rel) # batchx32
@@ -97,11 +93,10 @@ class TrajectoryGenerator(nn.Module):
         attn_s = torch.cat(attn_s, 1)
         
         ## create decoder context input
-
-        mlp_decoder_context_input = torch.cat( # b x 64
+        mlp_decoder_context_input = torch.cat(
             [
-                final_encoder_h.contiguous().view(-1, self.h_dim), 
-                attn_s.contiguous().view(-1, self.h_dim)
+                final_encoder_h.contiguous().view(-1, 
+                self.h_dim), attn_s.contiguous().view(-1, self.h_dim)
             ],
             dim=1
         ) # 80 x (32*3)
@@ -109,10 +104,6 @@ class TrajectoryGenerator(nn.Module):
             mlp_decoder_context_input = mlp_decoder_context_input[agent_idx,:]
 
         ## add noise to decoder input
-
-        goal_points = goal_points.view(batch_size,-1)
-        mlp_decoder_context_input = torch.cat([goal_points,mlp_decoder_context_input],1) # b x 128
-        
         noise_input = self.mlp_decoder_context(self.lnc(mlp_decoder_context_input)) # 80x24
         decoder_h = self.add_noise(noise_input) # 80x32
         decoder_h = torch.unsqueeze(decoder_h, 0) # 1x80x32
@@ -121,15 +112,18 @@ class TrajectoryGenerator(nn.Module):
         state_tuple = (decoder_h, decoder_c)
 
         # Get agent observations
-        if agent_idx is not None: # for single agent prediction
-            last_pos = obs_traj[:, agent_idx, :]
-            last_pos_rel = obs_traj_rel[:, agent_idx, :]
-        else:
-            last_pos = obs_traj[-1, :, :]
-            last_pos_rel = obs_traj_rel[-1, :, :]
+        # if agent_idx is not None: # for single agent prediction
+        #     last_pos = obs_traj[:, agent_idx, :]
+        #     last_pos_rel = obs_traj_rel[:, agent_idx, :]
+        # else:
+        #     last_pos = obs_traj[-1, agent_idx, :]
+        #     last_pos_rel = obs_traj_rel[-1, agent_idx, :]
+        last_pos = obs_traj[-1, agent_idx, :].unsqueeze(0)
+        last_pos_rel = obs_traj_rel[-1, agent_idx, :].unsqueeze(0)
 
         # decode trajectories
-        pred_traj_fake_rel = self.decoder(last_pos, last_pos_rel, state_tuple)
+        pred_traj_fake_rel = self.decoder(last_pos, last_pos_rel, state_tuple, goal_points)
+
         return pred_traj_fake_rel
 
 class TrajectoryDiscriminator(nn.Module):
@@ -143,7 +137,7 @@ class TrajectoryDiscriminator(nn.Module):
         real_classifier_dims = [self.h_dim, self.mlp_dim, 1]
         self.real_classifier = make_mlp(real_classifier_dims)
 
-    def forward(self, traj_rel):
+    def forward(self, traj, traj_rel):
 
         final_h = self.encoder(traj_rel)
         scores = self.real_classifier(final_h)

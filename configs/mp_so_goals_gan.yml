@@ -9,7 +9,7 @@ dataset:
     split: "train"
     batch_size: 32
     split_percentage: 0.0001
-    shuffle: False # False to check the input data, always set to True
+    shuffle: True # False to check the input data, always set to True
     class_balance: 0.4 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
                        # sequence regardless if it is straight or curved)
@@ -17,7 +17,7 @@ dataset:
 optim_parameters:
     g_learning_rate: 1.0e-3
     g_weight_decay: 0
-    d_learning_rate: 5.0e-4
+    d_learning_rate: 1.0e-3
     d_weight_decay: 0
 hyperparameters:
     loss_type_g: "mse_w+nll" # (mse|mse_w) nll (mse|mse_w)+nll
@@ -29,11 +29,11 @@ hyperparameters:
     d_steps: 2
     g_steps: 1
     print_every: 10
-    checkpoint_every: 1000
-    output_dir: "save/argoverse/test_goal_decoder"  #"save/argoverse/gen_exp/exp_multiloss_3" 
+    checkpoint_every: 100
+    output_dir: "save/argoverse/gan/exp_goal_points_1"  #"save/argoverse/gen_exp/exp_multiloss_3" 
     exp_description: "multi loss + learning_rate scheduler"
     checkpoint_name: "0"
-    checkpoint_start_from: #"save/argoverse/test_goal_points"
+    checkpoint_start_from: "save/argoverse/test_goal_points/argoverse_motion_forecasting_dataset_0_with_model.pt"
     restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 1.1

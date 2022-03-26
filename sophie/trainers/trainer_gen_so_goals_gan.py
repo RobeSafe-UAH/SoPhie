@@ -1,3 +1,5 @@
+# Doc GANs: https://developers.google.com/machine-learning/gan
+
 import argparse
 import gc
 import logging
@@ -15,8 +17,9 @@ import torch.optim.lr_scheduler as lrs
 from torch.cuda.amp import GradScaler, autocast 
 
 from sophie.data_loader.argoverse.dataset_sgan_version_test_map import ArgoverseMotionForecastingDataset, seq_collate
-from sophie.models.mp_so_goals_decoder import TrajectoryGenerator
-from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_custom
+from sophie.models.mp_so_goals import TrajectoryGenerator, TrajectoryDiscriminator
+from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_custom, \
+                                  gan_d_loss, gan_d_loss_bce
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
 from sophie.utils.utils import relative_to_abs_sgan, create_weights
@@ -144,7 +147,8 @@ def model_trainer(config, logger):
         'There are {} iterations per epoch'.format(hyperparameters.num_iterations)
     )
 
-    # generator = TrajectoryGenerator(h_dim=128)
+    # Generator init
+
     generator = TrajectoryGenerator(h_dim=config.sophie.generator.hdim)
     generator.to(device)
     generator.apply(init_weights)
@@ -152,27 +156,33 @@ def model_trainer(config, logger):
     logger.info('Generator model:')
     logger.info(generator)
 
+    # Discriminator init
+
+    discriminator = TrajectoryDiscriminator()
+    discriminator.to(device)
+    discriminator.apply(init_weights)
+    discriminator.type(float_dtype).train()
+    logger.info('Discriminator model:')
+    logger.info(discriminator)
+
     # optimizer, scheduler and loss functions
 
-    if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
-        loss_f = mse_custom
-    elif hyperparameters.loss_type_g == "nll":
-        loss_f = pytorch_neg_multi_log_likelihood_batch
-    elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
-        loss_f = {
-            "mse": mse_custom,
-            "nll": pytorch_neg_multi_log_likelihood_batch
-        }
-    else:
-        assert 1 == 0, "loss_type_g is not correct"
-
-    w_loss = create_weights(config.dataset.batch_size, 1, 8).cuda()
+    loss_f = {
+        "mse": mse_custom,
+        "nll": pytorch_neg_multi_log_likelihood_batch
+    }
 
     optimizer_g = optim.Adam(generator.parameters(), lr=optim_parameters.g_learning_rate, weight_decay=optim_parameters.g_weight_decay)
+    optimizer_d = optim.Adam(discriminator.parameters(), lr=optim_parameters.d_learning_rate, weight_decay=optim_parameters.d_weight_decay)
+    
     if hyperparameters.lr_schduler:
         # scheduler_g = lrs.ExponentialLR(optimizer_g, gamma=hyperparameters.lr_scheduler_gamma_g)
         scheduler_g = lrs.ReduceLROnPlateau(
             optimizer_g, "min", min_lr=1e-6, verbose=True, factor=0.5, patience=7500,
+        )
+
+        scheduler_d = lrs.ReduceLROnPlateau(
+            optimizer_d, "min", min_lr=1e-6, verbose=True, factor=0.5, patience=7500,
         )
 
     restore_path = None
@@ -186,9 +196,25 @@ def model_trainer(config, logger):
     if restore_path is not None and os.path.isfile(restore_path):
         logger.info('Restoring from checkpoint {}'.format(restore_path))
         checkpoint = torch.load(restore_path)
-        generator.load_state_dict(checkpoint.config_cp['g_best_state'], strict=False)
-        optimizer_g.load_state_dict(checkpoint.config_cp['g_optim_state'])
-        # t = checkpoint.config_cp['counters']['t']
+
+        try:
+            generator.load_state_dict(checkpoint.config_cp['g_best_state'], strict=False)
+        except:
+            print("Generator not saved in checkpoint")
+        try:
+            discriminator.load_state_dict(checkpoint.config_cp['d_best_state'])
+        except: 
+            print("Discriminator not saved in checkpoint")
+        try:
+            optimizer_g.load_state_dict(checkpoint.config_cp['g_optim_state'])
+        except:
+            print("Generator optimizer not saved in checkpoint")
+        try:
+            optimizer_d.load_state_dict(checkpoint.config_cp['d_optim_state'])
+        except:
+            print("Discriminator optimizer not saved in checkpoint")
+
+        # t = checkpoint.config_cp['counters']['t'] # to continue from the last iteration
         # epoch = checkpoint.config_cp['counters']['epoch']
         t,epoch = 0,0
         checkpoint.config_cp['restore_ts'].append(t)
@@ -210,12 +236,37 @@ def model_trainer(config, logger):
     ## start training
     while t < hyperparameters.num_iterations:
         gc.collect()
+
+        d_steps_left = hyperparameters.d_steps
+        g_steps_left = hyperparameters.g_steps
+
         epoch += 1
         logger.info('Starting epoch {}'.format(epoch))
         for batch in train_loader: # bottleneck
+            if d_steps_left > 0:
+                step_type = 'discriminator'
 
-            losses_g = generator_step(hyperparameters, batch, generator,
-                                        optimizer_g, loss_f, w_loss)
+                losses_d = discriminator_step(hyperparameters, batch, generator,
+                                                discriminator, optimizer_d)
+
+                checkpoint.config_cp["norm_d"].append(
+                    get_total_norm(discriminator.parameters()))
+                d_steps_left -= 1
+            elif g_steps_left > 0:
+                step_type = 'generator'
+
+                losses_g = generator_step(hyperparameters, batch, generator,
+                                            discriminator, optimizer_g, loss_f)
+
+                checkpoint.config_cp["norm_g"].append(
+                    get_total_norm(generator.parameters())
+                )
+                g_steps_left -= 1
+
+            if d_steps_left > 0 or g_steps_left > 0:
+                continue
+            
+            
             checkpoint.config_cp["norm_g"].append(
                 get_total_norm(generator.parameters())
             )
@@ -223,6 +274,19 @@ def model_trainer(config, logger):
             if t % hyperparameters.print_every == 0:
                 # print logger
                 logger.info('t = {} / {}'.format(t + 1, hyperparameters.num_iterations))
+
+                # Discriminator 
+
+                for k, v in sorted(losses_d.items()):
+                    logger.info('  [D] {}: {:.3f}'.format(k, v))
+                    if hyperparameters.tensorboard_active:
+                        writer.add_scalar(k, v, t+1)
+                    if k not in checkpoint.config_cp["D_losses"].keys():
+                        checkpoint.config_cp["D_losses"][k] = []
+                    checkpoint.config_cp["D_losses"][k].append(v)
+                
+                # Generator
+
                 for k, v in sorted(losses_g.items()):
                     logger.info('  [G] {}: {:.3f}'.format(k, v))
                     if hyperparameters.tensorboard_active:
@@ -241,7 +305,8 @@ def model_trainer(config, logger):
                 logger.info('Checking stats on val ...')
                 # TODO add trainer metrics -> Compare for overfitting/underfitting
                 metrics_val = check_accuracy(
-                    hyperparameters, val_loader, generator
+                    hyperparameters, val_loader, generator # Discriminator not required. Only if you 
+                                                           # want to get disc. metrics, such as probabilities
                 )
 
                 for k, v in sorted(metrics_val.items()):
@@ -257,21 +322,27 @@ def model_trainer(config, logger):
                 min_ade_nl = min(checkpoint.config_cp["metrics_val"]['ade_nl'])
                 logger.info("Min ADE: {}".format(min_ade))
                 logger.info("Min FDE: {}".format(min_fde))
+
                 if metrics_val['ade'] <= min_ade:
                     logger.info('New low for avg_disp_error')
                     checkpoint.config_cp["best_t"] = t
                     checkpoint.config_cp["g_best_state"] = generator.state_dict()
+                    checkpoint.config_cp["d_best_state"] = discriminator.state_dict()
 
                 if metrics_val['ade_nl'] <= min_ade_nl:
                     logger.info('New low for avg_disp_error_nl')
                     checkpoint.config_cp["best_t_nl"] = t
                     checkpoint.config_cp["g_best_nl_state"] = generator.state_dict()
+                    checkpoint.config_cp["d_best_nl_state"] = discriminator.state_dict()
 
                 # Save another checkpoint with model weights and
                 # optimizer state
                 if metrics_val['ade'] <= min_ade:
                     checkpoint.config_cp["g_state"] = generator.state_dict()
                     checkpoint.config_cp["g_optim_state"] = optimizer_g.state_dict()
+                    checkpoint.config_cp["d_state"] = discriminator.state_dict()
+                    checkpoint.config_cp["d_optim_state"] = optimizer_d.state_dict()
+
                     checkpoint_path = os.path.join(
                         config.base_dir, hyperparameters.output_dir, "{}_{}_with_model.pt".format(config.dataset_name, hyperparameters.checkpoint_name)
                     )
@@ -298,13 +369,23 @@ def model_trainer(config, logger):
                     logger.info('Done.')
 
             t += 1
+
+            d_steps_left = hyperparameters.d_steps
+            g_steps_left = hyperparameters.g_steps
+
             if t >= hyperparameters.num_iterations:
                 break
         
             if hyperparameters.lr_schduler:
                 scheduler_g.step(losses_g["G_total_loss"])
+                scheduler_d.step(losses_d["D_total_loss"])
+
                 g_lr = get_lr(optimizer_g)
+                d_lr = get_lr(optimizer_d)
+                #logger.info("G: New lr: {}".format(g_lr))
+                #logger.info("D: New lr: ".format(d_lr))
                 writer.add_scalar("G_lr", g_lr, epoch+1)
+                writer.add_scalar("D_lr", d_lr, epoch+1)
     ###
     logger.info("Training finished")
 
@@ -334,30 +415,96 @@ def model_trainer(config, logger):
         logger.info('New low for avg_disp_error')
         checkpoint.config_cp["best_t"] = t
         checkpoint.config_cp["g_best_state"] = generator.state_dict()
+        checkpoint.config_cp["d_best_state"] = discriminator.state_dict()
 
     if metrics_val['ade_nl'] <= min_ade_nl:
         logger.info('New low for avg_disp_error_nl')
         checkpoint.config_cp["best_t_nl"] = t
         checkpoint.config_cp["g_best_nl_state"] = generator.state_dict()
+        checkpoint.config_cp["d_best_nl_state"] = discriminator.state_dict()
 
     # Save another checkpoint with model weights and
     # optimizer state
     checkpoint.config_cp["g_state"] = generator.state_dict()
     checkpoint.config_cp["g_optim_state"] = optimizer_g.state_dict()
+    checkpoint.config_cp["d_state"] = discriminator.state_dict()
+    checkpoint.config_cp["d_optim_state"] = optimizer_d.state_dict()
+
     checkpoint_path = os.path.join(
         config.base_dir, hyperparameters.output_dir, "{}_{}_with_model.pt".format(config.dataset_name, hyperparameters.checkpoint_name)
     )
+def discriminator_step(
+    hyperparameters, batch, generator, discriminator, optimizer_d
+):
+    batch = [tensor.cuda() for tensor in batch]
 
+    (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
+     loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _,_) = batch
 
+    # placeholder loss
+    losses = {}
+    loss = torch.zeros(1).to(pred_traj_gt)
+
+    # single agent output idx
+    agent_idx = None
+    if hyperparameters.output_single_agent:
+        agent_idx = torch.where(object_cls==1)[0].cpu().numpy()
+
+    # forward
+    generator_out = generator(
+                obs_traj, obs_traj_rel, frames, seq_start_end, agent_idx
+    )
+
+    # single agent trajectories
+    if hyperparameters.output_single_agent:
+        obs_traj = obs_traj[:,agent_idx, :]
+        pred_traj_gt = pred_traj_gt[:,agent_idx, :]
+        obs_traj_rel = obs_traj_rel[:, agent_idx, :]
+        pred_traj_gt_rel = pred_traj_gt_rel[:, agent_idx, :]
+
+    # rel to abs
+    pred_traj_fake_rel = generator_out
+    pred_traj_fake = relative_to_abs_sgan(pred_traj_fake_rel, obs_traj[-1])
+
+    # calculate full traj
+    traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
+    traj_real_rel = torch.cat([obs_traj_rel, pred_traj_gt_rel], dim=0)
+    traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
+    traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
+
+    scores_fake = discriminator(
+        traj_fake_rel
+    )
+    scores_real = discriminator(
+        traj_real_rel
+    )
+
+    # Compute loss with optional gradient penalty
+    data_loss = gan_d_loss(scores_real, scores_fake)
+    losses['D_data_loss'] = data_loss.item()
+    loss += data_loss
+    losses['D_total_loss'] = loss.item()
+    D_x = scores_real.mean().item()
+    D_G_z1 = scores_fake.mean().item()
+    losses["D_x"] = D_x
+    losses["D_G_z1"] = D_G_z1
+
+    optimizer_d.zero_grad()
+    loss.backward()
+    if hyperparameters.clipping_threshold_d > 0:
+        nn.utils.clip_grad_norm_(discriminator.parameters(),
+                                 hyperparameters.clipping_threshold_d)
+    optimizer_d.step()
+
+    return losses
+                                             
 def generator_step(
-    hyperparameters, batch, generator, optimizer_g, loss_f, w_loss=None
+    hyperparameters, batch, generator, discriminator, optimizer_g, loss_f
 ):
     batch = [tensor.cuda() for tensor in batch]
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
      loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _, _) = batch
-
-    # frames == goals (plausible points)
 
     # place holder loss
     losses = {}
@@ -373,7 +520,7 @@ def generator_step(
         loss_mask = loss_mask[:, hyperparameters.obs_len:]
 
     # forward
-    optimizer_g.zero_grad()
+    
     #with autocast():
     generator_out = generator(
         obs_traj, obs_traj_rel, frames, seq_start_end, agent_idx
@@ -398,17 +545,15 @@ def generator_step(
     # loss with relatives or abs (?) # TODO full trajectory vs pred trajectory
     if hyperparameters.loss_type_g == "mse" or hyperparameters.loss_type_g == "mse_w":
         _,b,_ = pred_traj_gt_rel.shape
-        w_loss = w_loss[:b, :]
-        loss_ade, loss_fde = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f, hyperparameters.loss_type_g)
+        loss_ade, loss_fde = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"], hyperparameters.loss_type_g)
         loss = loss_ade + loss_fde
         losses["G_mse_ade_loss"] = loss_ade.item()
         losses["G_mse_fde_loss"] = loss_fde.item()
     elif hyperparameters.loss_type_g == "nll":
-        loss = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f)
+        loss = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"])
         losses["G_nll_loss"] = loss.item()
     elif hyperparameters.loss_type_g == "mse+nll" or hyperparameters.loss_type_g == "mse_w+nll":
         _,b,_ = pred_traj_gt_rel.shape
-        w_loss = w_loss[:b, :]
         loss_ade, loss_fde = calculate_mse_loss(pred_traj_gt_rel, pred_traj_fake_rel, loss_f["mse"], hyperparameters.loss_type_g)
         loss_nll = calculate_nll_loss(pred_traj_gt_rel, pred_traj_fake_rel,loss_f["nll"])
         loss = loss_ade + loss_fde + loss_nll 
@@ -416,7 +561,26 @@ def generator_step(
         losses["G_mse_fde_loss"] = loss_fde.item()
         losses["G_nll_loss"] = loss_nll.item()
     
+    # Add Generator loss
+
+    ## calculate full traj
+    traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
+
+    ## discriminator scores
+    scores_fake = discriminator(traj_fake_rel)
+
+    ## Get Generator loss (derived from evalauting the fake trajectories, using the discriminator
+    ## with labels=1 (True), though they are actually fake)
+    discriminator_loss = gan_g_loss(scores_fake)
+
+    loss += discriminator_loss
+
+    losses['G_discriminator_loss'] = discriminator_loss.item()
     losses['G_total_loss'] = loss.item()
+    D_G_z2 = scores_fake.mean().item()
+    losses["D_G_z2"] = D_G_z2
+    
+    optimizer_g.zero_grad()
     
     # scaler.scale(loss).backward()
     loss.backward()

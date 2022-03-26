@@ -1613,6 +1613,18 @@ def test_mmtransformer():
 
 
 
+def test_set_transformer():
+    from sophie.models.mp_trans_so_set import TrajectoryGenerator
+
+    m = TrajectoryGenerator()
+    print(m)
+    x = torch.randn(20,10,2)
+    se = torch.tensor([[0,5], [5, 10]])
+    t0 = time.time()
+    preds, conf = m(x, se)
+    print("time ", time.time() - t0)
+    print(preds.shape)
+
     
 if __name__ == "__main__":
     # test_read_file()
