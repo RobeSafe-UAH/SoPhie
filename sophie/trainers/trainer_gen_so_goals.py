@@ -15,7 +15,7 @@ import torch.optim.lr_scheduler as lrs
 from torch.cuda.amp import GradScaler, autocast 
 
 from sophie.data_loader.argoverse.dataset_sgan_version_test_map import ArgoverseMotionForecastingDataset, seq_collate
-from sophie.models.mp_so_goals import TrajectoryGenerator
+from sophie.models.mp_so_goals_decoder import TrajectoryGenerator
 from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_custom
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
@@ -356,6 +356,8 @@ def generator_step(
 
     (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_obj,
      loss_mask, seq_start_end, frames, object_cls, obj_id, ego_origin, _, _) = batch
+
+    # frames == goals (plausible points)
 
     # place holder loss
     losses = {}

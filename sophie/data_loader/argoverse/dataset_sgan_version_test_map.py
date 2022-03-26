@@ -545,7 +545,7 @@ class ArgoverseMotionForecastingDataset(Dataset):
         global visual_data
         visual_data = v_data
 
-        GENERATE_SEQUENCES = True
+        GENERATE_SEQUENCES = False
         SAVE_NPY = False
 
         if GENERATE_SEQUENCES:

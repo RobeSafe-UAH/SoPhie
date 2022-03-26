@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Created on Mon Feb 7 12::33:19 2022
+Created on Mon Feb 7 12:33:19 2022
 @author: Carlos Gómez-Huélamo and Miguel Eduardo Ortiz Huamaní
 """
 
@@ -469,7 +469,8 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
     ori_pos = [xcenter,ycenter]
 
     agent_obs_seq_global = obs_traj[:, agent_idx, :].view(-1,2).numpy() + origin_pos[0][0].cpu().numpy() # Global (HDmap)
-    goal_points = dataset_utils.get_goal_points(filename, torch.tensor(agent_obs_seq_global), torch.tensor(ori_pos), dist_around)
+    goal_points = dataset_utils.get_goal_points(filename, torch.tensor(agent_obs_seq_global), 
+                                                torch.tensor(ori_pos), dist_around,NUM_GOAL_POINTS=6)
 
     ## radius of action
     vel = dataset_utils.get_agent_velocity(torch.transpose(obs_traj[:, agent_idx, :].view(-1,2),0,1))
@@ -603,7 +604,7 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
 
     # Merge information
     split_folder = '/'.join(filename.split('/')[:-2])
-    qualitative_results_folder = split_folder + "/qualitative_results"
+    qualitative_results_folder = split_folder + "/qualitative_results_six_goals"
     if not os.path.exists(qualitative_results_folder):
         print("Create qualitative results folder: ", qualitative_results_folder)
         os.makedirs(qualitative_results_folder) # makedirs creates intermediate folders
@@ -619,7 +620,7 @@ def plot_qualitative_results(filename, pred_traj_fake_list, agent_pred_traj_gt, 
     plt.savefig("aux.png", bbox_inches='tight', facecolor=fig.get_facecolor(), 
                 edgecolor='none', pad_inches=0) # TODO: Optimize this -> Return image without white padding instead of saving and reading
     img_lanes = cv2.imread("aux.png")
-    
+
     generate_img(img_map, img_lanes, qualitative_results_folder, seq_id, t_img=t_img)
 
 def plot_qualitative_results_mm(filename, pred_traj_fake_list, agent_pred_traj_gt, agent_idx, 

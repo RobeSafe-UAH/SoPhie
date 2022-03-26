@@ -431,8 +431,6 @@ def rotate_traj(traj,angle,output_shape=(20,2)):
 
 # Goal points functions
 
-NUM_GOAL_POINTS = 32
-
 def get_points(img, car_px, scale_x, rad=100, color=255, N=1024, sample_car=True, max_samples=None):
     """
     """
@@ -634,7 +632,7 @@ def transform_real_world2px(rw_points, origin_pos, real_world_offset, img_size):
 
     return np.array(px_points)
 
-def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
+def get_goal_points(filename, obs_seq, origin_pos, real_world_offset, NUM_GOAL_POINTS=32):
     """
     """
 
@@ -728,9 +726,9 @@ def get_goal_points(filename, obs_seq, origin_pos, real_world_offset):
 
     dist = np.array(dist)
 
-    np.argsort(dist)
-    furthest_indeces = np.argsort(dist)[-NUM_GOAL_POINTS:]
-    furthest_indeces
+    furthest_indeces = np.argsort(dist)
+    if len(furthest_indeces) > NUM_GOAL_POINTS:
+        furthest_indeces = np.argsort(dist)[-NUM_GOAL_POINTS:]
 
     final_samples_x, final_samples_y = filtered_fe_x[furthest_indeces], filtered_fe_y[furthest_indeces]
     
