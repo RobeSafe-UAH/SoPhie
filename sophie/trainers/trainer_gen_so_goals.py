@@ -19,7 +19,7 @@ from sophie.models.mp_so_goals_decoder import TrajectoryGenerator
 from sophie.modules.losses import gan_g_loss, l2_loss, gan_g_loss_bce, pytorch_neg_multi_log_likelihood_batch, mse_custom
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.checkpoint_data import Checkpoint, get_total_norm
-from sophie.utils.utils import relative_to_abs_sgan, create_weights
+from sophie.utils.utils import relative_to_abs_sgan, create_weights, load_weights
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -145,7 +145,10 @@ def model_trainer(config, logger):
     )
 
     # generator = TrajectoryGenerator(h_dim=128)
-    generator = TrajectoryGenerator(h_dim=config.sophie.generator.hdim)
+    generator = TrajectoryGenerator(
+        h_dim=config.sophie.generator.hdim,
+        decoder_type=config.sophie.generator.decoder_type
+    )
     generator.to(device)
     generator.apply(init_weights)
     generator.type(float_dtype).train()
@@ -172,7 +175,7 @@ def model_trainer(config, logger):
     if hyperparameters.lr_schduler:
         # scheduler_g = lrs.ExponentialLR(optimizer_g, gamma=hyperparameters.lr_scheduler_gamma_g)
         scheduler_g = lrs.ReduceLROnPlateau(
-            optimizer_g, "min", min_lr=1e-6, verbose=True, factor=0.5, patience=7500,
+            optimizer_g, "min", min_lr=1e-4, verbose=True, factor=0.5, patience=7500,
         )
 
     restore_path = None
@@ -186,8 +189,13 @@ def model_trainer(config, logger):
     if restore_path is not None and os.path.isfile(restore_path):
         logger.info('Restoring from checkpoint {}'.format(restore_path))
         checkpoint = torch.load(restore_path)
-        generator.load_state_dict(checkpoint.config_cp['g_best_state'], strict=False)
-        optimizer_g.load_state_dict(checkpoint.config_cp['g_optim_state'])
+        if hyperparameters.load_encoder:
+            logger.info("Loading encoder weights")
+            w = load_weights(generator, checkpoint.config_cp['g_best_state'])
+            generator.load_state_dict(w, strict=False)
+        else:
+            generator.load_state_dict(checkpoint.config_cp['g_best_state'], strict=False)
+            optimizer_g.load_state_dict(checkpoint.config_cp['g_optim_state'])
         # t = checkpoint.config_cp['counters']['t']
         # epoch = checkpoint.config_cp['counters']['epoch']
         t,epoch = 0,0

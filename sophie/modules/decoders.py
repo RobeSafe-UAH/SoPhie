@@ -124,7 +124,6 @@ class GoalDecoderLSTM(nn.Module):
                                      goals_embedding.unsqueeze(0)),dim=2) # 1 x b x 3*h_dim
 
             rel_pos = self.hidden2pos(input_final.view(input_final.shape[1],-1)) # (b, 2)
-
             decoder_input = F.leaky_relu(self.spatial_embedding(rel_pos.contiguous().view(batch_size, -1)))
             decoder_input = decoder_input.contiguous().view(1, batch_size, self.embedding_dim)
             pred_traj_fake_rel.append(rel_pos.contiguous().view(batch_size,-1))
@@ -133,6 +132,108 @@ class GoalDecoderLSTM(nn.Module):
 
         pred_traj_fake_rel = torch.stack(pred_traj_fake_rel, dim=0)
         return pred_traj_fake_rel
+
+class DistGoalDecoderLSTM(nn.Module):
+
+    def __init__(self, seq_len=30, h_dim=64, embedding_dim=16):
+        super().__init__()
+
+        self.seq_len = seq_len
+        self.h_dim = h_dim
+        self.embedding_dim = embedding_dim
+
+        self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
+        self.spatial_embedding = nn.Linear(2, self.embedding_dim) # Last obs * 2 points
+        self.hidden2pos = nn.Linear(2*self.h_dim, 2)
+
+        self.dist_embedding = nn.Linear(2*32,self.h_dim)
+
+    def forward(self, traj_abs, traj_rel, state_tuple, goals):
+        """
+            traj_abs (1, b, 2)
+            traj_rel (1, b, 2)
+            state_tuple: h and c
+                h : c : (1, b, self.h_dim)
+            goals: b x 32 x 2
+        """
+
+        batch_size = traj_abs.size(1)
+        _, p, _ = goals.shape
+
+        pred_traj_fake_rel = []
+        decoder_input = F.leaky_relu(self.spatial_embedding(traj_rel.contiguous().view(batch_size, -1))) # bx16
+        decoder_input = decoder_input.contiguous().view(1, batch_size, self.embedding_dim) # 1 x batch x 16
+
+        dist_emb = self.dist_embedding(goals.view(batch_size, -1)) # b x h_dim
+
+        for _ in range(self.seq_len):
+            output, state_tuple = self.decoder(decoder_input, state_tuple) # output (1, b, 32)
+            input_final = torch.cat((state_tuple[0],
+                                     dist_emb.unsqueeze(0)),dim=2) # 1 x b x 3*h_dim
+
+            rel_pos = self.hidden2pos(input_final.view(input_final.shape[1],-1)) # (b, 2)
+
+            decoder_input = F.leaky_relu(self.spatial_embedding(rel_pos.contiguous().view(batch_size, -1)))
+            decoder_input = decoder_input.contiguous().view(1, batch_size, self.embedding_dim)
+            pred_traj_fake_rel.append(rel_pos.contiguous().view(batch_size,-1))
+
+            rel_pos = rel_pos.unsqueeze(1).repeat_interleave(p,1)
+            dist_emb = goals - rel_pos
+            dist_emb = self.dist_embedding(dist_emb.view(batch_size, -1))
+
+        pred_traj_fake_rel = torch.stack(pred_traj_fake_rel, dim=0)
+        return pred_traj_fake_rel
+
+
+class MMDecoderLSTM(nn.Module):
+
+    def __init__(self, seq_len=30, h_dim=64, embedding_dim=16, n_samples=3):
+        super().__init__()
+
+        self.seq_len = seq_len
+        self.h_dim = h_dim
+        self.embedding_dim = embedding_dim
+        self.n_samples = n_samples
+
+        traj_points = self.n_samples*2
+        self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
+        self.spatial_embedding = nn.Linear(traj_points, self.embedding_dim) # Last obs * 2 points
+        self.hidden2pos = nn.Linear(self.h_dim, traj_points)
+        self.confidences = nn.Linear(self.h_dim, self.n_samples)
+
+    def forward(self, traj_abs, traj_rel, state_tuple):
+        """
+            traj_abs (1, b, 2)
+            traj_rel (1, b, 2)
+            state_tuple: h and c
+                h : c : (1, b, self.h_dim)
+            goals: b x 32 x 2
+        """
+
+        t, batch_size, f = traj_abs.shape
+        traj_rel = traj_rel.view(t,batch_size,1,f)
+        traj_rel = traj_rel.repeat_interleave(self.n_samples, dim=2)
+        traj_rel = traj_rel.view(t, batch_size, -1)
+
+        pred_traj_fake_rel = []
+        decoder_input = F.leaky_relu(self.spatial_embedding(traj_rel.contiguous().view(batch_size, -1))) # bx16
+        decoder_input = decoder_input.contiguous().view(1, batch_size, self.embedding_dim) # 1 x batch x 16
+        for _ in range(self.seq_len):
+            output, state_tuple = self.decoder(decoder_input, state_tuple) # output (1, b, 32)
+
+            rel_pos = self.hidden2pos(state_tuple[0].contiguous().view(-1, self.h_dim)) #(b, 2*m)
+
+            decoder_input = F.leaky_relu(self.spatial_embedding(rel_pos.contiguous().view(batch_size, -1)))
+            decoder_input = decoder_input.contiguous().view(1, batch_size, self.embedding_dim)
+            pred_traj_fake_rel.append(rel_pos.contiguous().view(batch_size,-1))
+
+        pred_traj_fake_rel = torch.stack(pred_traj_fake_rel, dim=0)
+        pred_traj_fake_rel = pred_traj_fake_rel.view(self.seq_len, batch_size, self.n_samples, -1)
+        pred_traj_fake_rel = pred_traj_fake_rel.permute(1,2,0,3) #(b, m, 30, 2)
+        conf = self.confidences(state_tuple[0].contiguous().view(-1, self.h_dim))
+        conf = torch.softmax(conf, dim=1)
+        return pred_traj_fake_rel, conf
+
 
 class TemporalDecoderLSTMConf(nn.Module):
 

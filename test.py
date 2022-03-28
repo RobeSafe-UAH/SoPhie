@@ -1573,6 +1573,19 @@ def test_soviconf():
     preds, conf = m(obs, obs_rel, start_end_seq, agent_idx)
     print(preds.shape, conf.shape)
 
+def test_soconf():
+    from sophie.models.mp_soconf import TrajectoryGenerator as TG
+    import pdb
+
+    m = TG()
+    m.cuda()
+    obs = torch.randn(20,3,2).cuda()
+    rel = torch.randn(20,3,2).cuda()
+    se = torch.tensor([[0,3]]).cuda()
+    idx = torch.tensor([1]).cuda()
+    preds, conf = m(obs, rel, se, idx)
+    print(preds.shape, conf.shape)
+
 
 def count_models_parameters():
     from sophie.utils.utils import count_parameters
@@ -1612,7 +1625,6 @@ def test_mmtransformer():
     print("Traj Generator SO 32: ", count_parameters(m))
 
 
-
 def test_set_transformer():
     from sophie.models.mp_trans_so_set import TrajectoryGenerator
 
@@ -1625,6 +1637,19 @@ def test_set_transformer():
     print("time ", time.time() - t0)
     print(preds.shape)
 
+def test_load_weights():
+    from sophie.models.mp_so_goals_decoder import TrajectoryGenerator
+    from sophie.utils.utils import load_weights
+    import pdb
+    m = TrajectoryGenerator()
+    print("model ", m)
+    w_path = "save/argoverse/gen_exp/exp_multiloss_4/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    w = torch.load(w_path)
+    
+
+    w_ = load_weights(m, w.config_cp['g_best_state'])
+    
+    m.load_state_dict(w_)
     
 if __name__ == "__main__":
     # test_read_file()
@@ -1681,5 +1706,7 @@ if __name__ == "__main__":
     # test_so()
     # count_models_parameters()
     # test_mmtransformer()
-    count_models_parameters()
+    # count_models_parameters()
     # test_set_transformer()
+    # test_load_weights()
+    test_soconf()

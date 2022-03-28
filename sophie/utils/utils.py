@@ -2,6 +2,7 @@ import torch
 import copy
 import pdb
 import numpy as np
+import torch.nn as nn
 
 def relative_to_abs_sgan(rel_traj, start_pos):
     """
@@ -69,3 +70,15 @@ def freeze_model(model, no_freeze_list=[]):
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def load_weights(model, checkpoint, layer_name="decoder."):
+    own_state = model.state_dict()
+    for name, param in checkpoint.items():
+        print("name ", name)
+        if (name not in own_state) or (layer_name in name):
+                continue
+        if isinstance(param, nn.Parameter):
+            # backwards compatibility for serialized parameters
+            param = param.data
+        own_state[name].copy_(param)
+    return own_state

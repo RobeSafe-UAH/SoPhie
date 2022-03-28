@@ -9,7 +9,7 @@ from sophie.modules.backbones import VisualExtractor
 from sophie.modules.attention import MultiHeadAttention
 from sophie.modules.encoders import EncoderLSTM as Encoder
 from sophie.modules.decoders import DecoderLSTM as Decoder
-from sophie.modules.decoders import TemporalDecoderLSTMConfSingle
+from sophie.modules.decoders import MMDecoderLSTM
 
 MAX_PEDS = 32
 
@@ -48,7 +48,7 @@ class TrajectoryGenerator(nn.Module):
             num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
 
-        self.decoder = TemporalDecoderLSTMConfSingle(h_dim=self.h_dim)
+        self.decoder = MMDecoderLSTM(h_dim=self.h_dim)
 
         mlp_context_input = self.h_dim*2 # concat of social context and trajectories embedding
         self.lnc = nn.LayerNorm(mlp_context_input)
@@ -77,7 +77,6 @@ class TrajectoryGenerator(nn.Module):
                 (30,n,2) -> if agent_idx is None
                 (30,b,2)
         """
-        
         ## Encode trajectory
         final_encoder_h = self.encoder(obs_traj_rel) # batchx32
         final_encoder_h = torch.unsqueeze(final_encoder_h, 0) #  1xbatchx32
@@ -113,16 +112,12 @@ class TrajectoryGenerator(nn.Module):
         state_tuple = (decoder_h, decoder_c)
 
         # Get agent observations
-        if agent_idx is not None: # for single agent prediction
-            last_pos = obs_traj[:, agent_idx, :]
-            last_pos_rel = obs_traj_rel[:, agent_idx, :]
-        else:
-            last_pos = obs_traj[-1, :, :]
-            last_pos_rel = obs_traj_rel[-1, :, :]
+        last_pos = obs_traj[-1, agent_idx, :].unsqueeze(0)
+        last_pos_rel = obs_traj_rel[-1, agent_idx, :].unsqueeze(0)
 
         # decode trajectories
-        pred_traj_fake_rel = self.decoder(last_pos, last_pos_rel, state_tuple)
-        return pred_traj_fake_rel
+        pred_traj_fake_rel, conf = self.decoder(last_pos, last_pos_rel, state_tuple)
+        return pred_traj_fake_rel, conf
 
 class TrajectoryDiscriminator(nn.Module):
     def __init__(self, mlp_dim=64, h_dim=64):

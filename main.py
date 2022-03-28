@@ -10,7 +10,8 @@ from datetime import datetime
 from prodict import Prodict
 from pathlib import Path
 
-TRAINER_LIST = ["so", "so2", "sovi", "trans_so", "trans_sovi", "soconf", "settrans", "settransgoal", "so_goals", "so_data_augs"]
+TRAINER_LIST = ["so", "so2", "sovi", "trans_so", "trans_sovi", "soconf", "settrans",
+                "settransgoal", "so_goals", "so_data_augs", "so_goals_gan"]
 
 def create_logger(file_path):
     FORMAT = '[%(levelname)s: %(lineno)4d]: %(message)s'
