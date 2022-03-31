@@ -7,33 +7,34 @@ dataset_name: argoverse_motion_forecasting_dataset
 dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
-    batch_size: 32
-    split_percentage: 0.0002
+    batch_size: 16
+    split_percentage: 0.1
     shuffle: True # False to check the input data, always set to True
-    class_balance: 0.7 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
+    class_balance: 0.4 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
                        # sequence regardless if it is straight or curved)
     num_workers: 0
 optim_parameters:
     g_learning_rate: 1.0e-3
     g_weight_decay: 0
-    d_learning_rate: 5.0e-3
+    d_learning_rate: 1.0e-3
     d_weight_decay: 0
 hyperparameters:
-    loss_type_g: "mse_w+nll" # (mse|mse_w) nll (mse|mse_w)+nll
+    train_gan: False
+    loss_type_g: "mse_w+nll"
     lr_schduler: True # ExponentialLR
-    output_single_agent: True
+    output_single_agent: True 
     tensorboard_active: True
     num_iterations: 20000 #1608 #20000
-    num_epochs: 36 #75
+    num_epochs: 500 #75
     d_steps: 2
     g_steps: 1
     print_every: 10
-    checkpoint_every: 1000
-    output_dir: "save/argoverse/gen_exp/so2_1/" # "save/argoverse/test"  # 
-    exp_description: "multi loss + learning_rate scheduler"
+    checkpoint_every: 20000
+    output_dir: "save/argoverse/soconf_goals_exp1" #"save/argoverse/test" #
+    exp_description: "single agent, social with confidences"
     checkpoint_name: "0"
-    checkpoint_start_from: #"save/argoverse/gen_exp/exp_multiloss_4/argoverse_motion_forecasting_dataset_0_with_model.pt"
+    checkpoint_start_from: 
     restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 1.1
@@ -57,6 +58,7 @@ hyperparameters:
 sophie:
     generator: 
         hdim: 32
+        n_samples: 6
     discriminator:
         # Encoder
         encoder:

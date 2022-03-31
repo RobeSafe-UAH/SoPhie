@@ -7,10 +7,10 @@ dataset_name: argoverse_motion_forecasting_dataset
 dataset:
     path: data/datasets/argoverse/motion-forecasting/
     split: "train"
-    batch_size: 8
+    batch_size: 16
     split_percentage: 0.1
     shuffle: True # False to check the input data, always set to True
-    class_balance: 0.7 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
+    class_balance: 0.3 # % of straight trajectories (considering the AGENT). Remaining % are curved trajectories
                        # (again, considering the AGENT). -1.0 if no class balance is used (get_item takes the corresponding
                        # sequence regardless if it is straight or curved)
     num_workers: 0
@@ -20,6 +20,7 @@ optim_parameters:
     d_learning_rate: 1.0e-3
     d_weight_decay: 0
 hyperparameters:
+    train_gan: True
     loss_type_g: "mse_w+nll"
     lr_schduler: True # ExponentialLR
     output_single_agent: True 
@@ -29,11 +30,11 @@ hyperparameters:
     d_steps: 2
     g_steps: 1
     print_every: 10
-    checkpoint_every: 2000
-    output_dir: "save/argoverse/mm_decoder_exp1" #"save/argoverse/test" #
+    checkpoint_every: 15000
+    output_dir: "save/argoverse/lstm_mm_k6_pre_gan" #"save/argoverse/test" #
     exp_description: "single agent, social with confidences"
     checkpoint_name: "0"
-    checkpoint_start_from: 
+    checkpoint_start_from: "save/argoverse/lstm_mm_k6_exp1/argoverse_motion_forecasting_dataset_0_with_model.pt"
     restore_from_checkpoint: 
     clipping_threshold_d: 0
     clipping_threshold_g: 1.1
@@ -57,6 +58,7 @@ hyperparameters:
 sophie:
     generator: 
         hdim: 32
+        n_samples: 6
     discriminator:
         # Encoder
         encoder:

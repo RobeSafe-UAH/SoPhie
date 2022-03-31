@@ -146,8 +146,7 @@ def model_trainer(config, logger):
 
     # generator = TrajectoryGenerator(h_dim=128)
     generator = TrajectoryGenerator(
-        h_dim=config.sophie.generator.hdim,
-        decoder_type=config.sophie.generator.decoder_type
+        h_dim=config.sophie.generator.hdim
     )
     generator.to(device)
     generator.apply(init_weights)

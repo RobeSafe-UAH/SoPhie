@@ -26,7 +26,7 @@ def get_noise(shape):
 class TrajectoryGenerator(nn.Module):
     def __init__(
         self, obs_len=20, pred_len=30, mlp_dim=64, h_dim=32, embedding_dim=16, bottleneck_dim=32,
-        noise_dim=8, n_agents=10, img_feature_size=(512,6,6), dropout=0.3, decoder_type=1
+        noise_dim=8, n_agents=10, img_feature_size=(512,6,6), dropout=0.3
     ):
         super(TrajectoryGenerator, self).__init__()
 
@@ -47,11 +47,7 @@ class TrajectoryGenerator(nn.Module):
             num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
 
-        if decoder_type == 0:
-            self.decoder = GoalDecoderLSTM(h_dim=self.h_dim)
-        
-        if decoder_type == 1:
-            self.decoder = DistGoalDecoderLSTM(h_dim=self.h_dim)
+        self.decoder = GoalDecoderLSTM(h_dim=self.h_dim)
 
         mlp_context_input = self.h_dim*2 # concat of social context and trajectories embedding
         self.lnc = nn.LayerNorm(mlp_context_input)

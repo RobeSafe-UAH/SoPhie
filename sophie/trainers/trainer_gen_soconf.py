@@ -131,7 +131,10 @@ def model_trainer(config, logger):
         'There are {} iterations per epoch'.format(hyperparameters.num_iterations)
     )
 
-    generator = TrajectoryGenerator()
+    generator = TrajectoryGenerator(
+        n_samples=config.sophie.generator.n_samples,
+        h_dim=config.sophie.generator.hdim
+    )
     generator.to(device)
     generator.apply(init_weights)
     generator.type(float_dtype).train()
@@ -224,7 +227,8 @@ def model_trainer(config, logger):
                 d_steps_left -= 1
             elif g_steps_left > 0:
                 losses_g = generator_step(hyperparameters, batch, generator,
-                                            optimizer_g, loss_f)
+                                    optimizer_g, loss_f,
+                                    discriminator=None if not hyperparameters.train_gan else discriminator)
                 checkpoint.config_cp["norm_g"].append(
                     get_total_norm(generator.parameters())
                 )
@@ -236,6 +240,14 @@ def model_trainer(config, logger):
             if t % hyperparameters.print_every == 0:
                 # print logger
                 logger.info('t = {} / {}'.format(t + 1, hyperparameters.num_iterations))
+                if hyperparameters.train_gan:
+                    for k, v in sorted(losses_d.items()):
+                        logger.info('  [D] {}: {:.3f}'.format(k, v))
+                        if hyperparameters.tensorboard_active:
+                            writer.add_scalar(k, v, t+1)
+                        if k not in checkpoint.config_cp["D_losses"].keys():
+                            checkpoint.config_cp["D_losses"][k] = []
+                        checkpoint.config_cp["D_losses"][k].append(v)
                 for k, v in sorted(losses_g.items()):
                     logger.info('  [G] {}: {:.3f}'.format(k, v))
                     if hyperparameters.tensorboard_active:
@@ -274,17 +286,24 @@ def model_trainer(config, logger):
                     logger.info('New low for avg_disp_error')
                     checkpoint.config_cp["best_t"] = t
                     checkpoint.config_cp["g_best_state"] = generator.state_dict()
+                    if hyperparameters.train_gan:
+                        checkpoint.config_cp["d_best_state"] = discriminator.state_dict()
 
                 if metrics_val['ade_nl'] <= min_ade_nl:
                     logger.info('New low for avg_disp_error_nl')
                     checkpoint.config_cp["best_t_nl"] = t
                     checkpoint.config_cp["g_best_nl_state"] = generator.state_dict()
+                    if hyperparameters.train_gan:
+                        checkpoint.config_cp["d_best_nl_state"] = discriminator.state_dict()
 
                 # Save another checkpoint with model weights and
                 # optimizer state
                 if metrics_val['ade'] <= min_ade:
                     checkpoint.config_cp["g_state"] = generator.state_dict()
                     checkpoint.config_cp["g_optim_state"] = optimizer_g.state_dict()
+                    if hyperparameters.train_gan:
+                        checkpoint.config_cp["d_state"] = discriminator.state_dict()
+                        checkpoint.config_cp["d_optim_state"] = optimizer_d.state_dict()
                     checkpoint_path = os.path.join(
                         config.base_dir, hyperparameters.output_dir, "{}_{}_with_model.pt".format(config.dataset_name, hyperparameters.checkpoint_name)
                     )
@@ -311,6 +330,8 @@ def model_trainer(config, logger):
                     logger.info('Done.')
 
             t += 1
+            d_steps_left = hyperparameters.d_steps
+            g_steps_left = hyperparameters.g_steps
             if t >= hyperparameters.num_iterations:
                 break
 
@@ -318,6 +339,7 @@ def model_trainer(config, logger):
                 scheduler_g.step(losses_g["G_total_loss"])
                 g_lr = get_lr(optimizer_g)
                 writer.add_scalar("G_lr", g_lr, epoch+1)
+                # scheduler_d.step(losses_d["D_total_loss"])
     ###
     logger.info("Training finished")
 
@@ -402,30 +424,28 @@ def discriminator_step(
         obs_traj_rel = obs_traj_rel[:, agent_idx, :]
 
     # calculate full traj
-    traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
     traj_real_rel = torch.cat([obs_traj_rel, pred_traj_gt_rel], dim=0)
-    traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-    traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)
+    _, m, _, _ = pred_traj_fake_rel.shape
+    obs_traj_rel = obs_traj_rel.permute(1,0,2).unsqueeze(1)
+    obs_traj_rel = obs_traj_rel.repeat_interleave(m, dim=1)
+    traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=2)
+    traj_fake_rel = traj_fake_rel.view(-1, traj_real_rel.shape[0], 2)
+    traj_fake_rel = traj_fake_rel.permute(1,0,2)
 
     scores_fake = discriminator(
-        traj_fake,
         traj_fake_rel
     )
     scores_real = discriminator(
-        traj_real,
         traj_real_rel
     )
 
-    # Compute loss with optional gradient penalty
-    # data_loss = d_loss_fn(scores_real, scores_fake, criterion)
-    data_loss = gan_d_loss(scores_real, scores_fake)
-    losses['D_data_loss'] = data_loss.item()
-    loss += data_loss
+    loss_real = loss_f["gan"](scores_real, torch.ones_like(scores_real).to(scores_real))
+    loss_fake = loss_f["gan"](scores_fake, torch.zeros_like(scores_fake).to(scores_fake))
+    loss = loss_fake + loss_real
+    losses['D_real_loss'] = loss_real.item()
+    losses['D_fake_loss'] = loss_fake.item()
+    losses['D_gan_loss'] = loss.item()
     losses['D_total_loss'] = loss.item()
-    D_x = scores_real.mean().item()
-    D_G_z1 = scores_fake.mean().item()
-    losses["D_x"] = D_x
-    losses["D_G_z1"] = D_G_z1
 
     optimizer_d.zero_grad()
     loss.backward()
@@ -438,7 +458,7 @@ def discriminator_step(
 
 
 def generator_step(
-    hyperparameters, batch, generator, optimizer_g, loss_f
+    hyperparameters, batch, generator, optimizer_g, loss_f, discriminator=None
 ):
     batch = [tensor.cuda() for tensor in batch]
 
@@ -500,6 +520,21 @@ def generator_step(
         losses["G_mse_fde_loss"] = loss_fde.item()
         losses["G_nll_loss"] = loss_nll.item()
     
+    if hyperparameters.train_gan:
+        # calculate full traj
+        traj_real_rel = torch.cat([obs_traj_rel, pred_traj_gt_rel], dim=0)
+        _, m, _, _ = pred_traj_fake_rel.shape
+        obs_traj_rel = obs_traj_rel.permute(1,0,2).unsqueeze(1)
+        obs_traj_rel = obs_traj_rel.repeat_interleave(m, dim=1)
+        traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=2)
+        traj_fake_rel = traj_fake_rel.view(-1, traj_real_rel.shape[0], 2)
+        traj_fake_rel = traj_fake_rel.permute(1,0,2)
+
+        scores_fake = discriminator(traj_fake_rel)
+        loss_fake = loss_f["gan"](scores_fake, torch.ones_like(scores_fake).to(scores_fake))
+        losses['G_gan_loss'] = loss_fake.item()
+        loss = loss + loss_fake
+
     losses['G_total_loss'] = loss.item()
 
     # scaler.scale(loss).backward()
