@@ -15,7 +15,7 @@ from skimage.measure import LineModelND, ransac
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-BASE_DIR = "/home/robesafe/libraries/SoPhie"
+BASE_DIR = "/home/robesafe/tesis/SoPhie"
 sys.path.append(BASE_DIR)
 
 from sophie.utils.utils import relative_to_abs_sgan
@@ -151,7 +151,7 @@ else:
                         num_workers=config.dataset.num_workers,
                         collate_fn=seq_collate)
 
-    exp_name = "exp9" # "mm_k_6_class_balance_0_3"
+    exp_name = "mp_so_best/exp_multiloss_4/" # "mm_k_6_class_balance_0_3"
     model_path = BASE_DIR + "/save/argoverse/" + exp_name + "/argoverse_motion_forecasting_dataset_0_with_model.pt"
     checkpoint = torch.load(model_path)
     generator = TrajectoryGenerator(config.sophie.generator)

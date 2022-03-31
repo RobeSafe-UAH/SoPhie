@@ -15,13 +15,13 @@ from skimage.measure import LineModelND, ransac
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-BASE_DIR = "/home/robesafe/libraries/SoPhie"
+BASE_DIR = "/home/robesafe/tesis/SoPhie"
 sys.path.append(BASE_DIR)
 
 from sophie.modules.evaluation_metrics import displacement_error, final_displacement_error
 from sophie.utils.utils import relative_to_abs_sgan, relative_to_abs_sgan_multimodal
 # from sophie.models.sophie_adaptation import TrajectoryGenerator
-from sophie.models.mp_trans_so_set import TrajectoryGenerator
+from sophie.models.mp_soconf import TrajectoryGenerator
 from sophie.data_loader.argoverse.dataset_sgan_version_data_augs import ArgoverseMotionForecastingDataset, \
                                                                        seq_collate, load_list_from_folder, \
                                                                        read_file
@@ -155,7 +155,7 @@ except:
     data_images_folder = config.dataset.path + config.dataset.split + "/data_images"
 
     MAP_GENERATION = False
-    PLOT_QUALITATIVE_RESULTS = True
+    PLOT_QUALITATIVE_RESULTS = False
 
     dist_around = 40
     dist_rasterized_map = [-dist_around, dist_around, -dist_around, dist_around]
@@ -224,10 +224,10 @@ except:
                             num_workers=config.dataset.num_workers,
                             collate_fn=seq_collate)
 
-        exp_name = "settrans/exp1" #"gen_exp/exp7"
+        exp_name = "mm_k_6" #"gen_exp/exp7"
         model_path = BASE_DIR + "/save/argoverse/" + exp_name + "/argoverse_motion_forecasting_dataset_0_with_model.pt"
         checkpoint = torch.load(model_path)
-        generator = TrajectoryGenerator()
+        generator = TrajectoryGenerator(n_samples=6)
 
         print("Loading model ...")
         generator.load_state_dict(checkpoint.config_cp['g_best_state'])
@@ -337,7 +337,7 @@ except:
                     # Get predictions
                     # pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, frames, agent_idx) # seq_start_end)
                     t0 = time.time()
-                    pred_traj_fake_rel,conf = generator(obs_traj_rel, seq_start_end)
+                    pred_traj_fake_rel,conf = generator(obs_traj, obs_traj_rel, seq_start_end, agent_idx)
                     print("time: ", time.time() - t0)
 
                     # Get predictions in absolute coordinates
