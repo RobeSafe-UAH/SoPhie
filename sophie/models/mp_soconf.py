@@ -48,7 +48,7 @@ class TrajectoryGenerator(nn.Module):
             num_hiddens=self.h_dim, num_heads=4, dropout=dropout
         )
 
-        self.decoder = MMDecoderLSTM(h_dim=self.h_dim)
+        self.decoder = MMDecoderLSTM(h_dim=self.h_dim, n_samples=6)
 
         mlp_context_input = self.h_dim*2 # concat of social context and trajectories embedding
         self.lnc = nn.LayerNorm(mlp_context_input)

@@ -194,7 +194,7 @@ class MMDecoderLSTM(nn.Module):
         self.h_dim = h_dim
         self.embedding_dim = embedding_dim
         self.n_samples = n_samples
-
+        
         traj_points = self.n_samples*2
         self.decoder = nn.LSTM(self.embedding_dim, self.h_dim, 1)
         self.spatial_embedding = nn.Linear(traj_points, self.embedding_dim) # Last obs * 2 points
