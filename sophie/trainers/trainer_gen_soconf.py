@@ -160,7 +160,7 @@ def model_trainer(config, logger):
     optimizer_g = optim.Adam(generator.parameters(), lr=optim_parameters.g_learning_rate, weight_decay=optim_parameters.g_weight_decay)
     if hyperparameters.lr_schduler:
         scheduler_g = lrs.ReduceLROnPlateau(
-            optimizer_g, "min", min_lr=5e-5, verbose=True, factor=0.5, patience=15000,
+            optimizer_g, "min", min_lr=5e-5, verbose=True, factor=0.5, patience=20000,
         )
     
     if hyperparameters.train_gan:
